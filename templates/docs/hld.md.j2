@@ -1,2 +1,50 @@
-# HLD — {{ project.name or project.client_slug }}
-Pods: {{ topology.pods|length if topology and topology.pods }}
+# High-Level Design — {{ project.name or project.client_slug }}
+
+## 1. Summary
+- Deployment: **{{ platform.deployment_model|default('TBD') }}**
+- Remote access: **{{ 'Yes' if access.remote_access_required else 'No' }}**
+- Load balancer: **{{ access.load_balancer or 'TBD' }}**
+- MFA required: **{{ 'Yes' if security.mfa_required else 'No' }}**
+- Smart card: **{{ 'Yes' if security.smartcard_required else 'No' }}**
+- Workspace ONE Access: **{{ 'Yes' if platform.workspace_one_access else 'No' }}**
+- Profiles: **{{ 'Yes' if platform.profile_mgmt_included else 'No' }}**
+- Virtual applications: **{{ 'Yes' if platform.virtual_apps_included else 'No' }}**
+- GPU: **{{ 'Yes' if graphics.gpu_required else 'No' }}** ({{ graphics.gpu_use_case or 'N/A' }})
+
+## 2. Capacity & Sites
+- Hosts: **{{ infra.hosts.count or 'TBD' }}** ({{ infra.hosts.type_config or 'TBD' }})
+- Users: **{{ users_sites_usecases.concurrent_users or 'TBD' }} concurrent / {{ users_sites_usecases.total_users or 'TBD' }} total
+- User locations: {{ (users_sites_usecases.user_locations or []) | join(', ') | default('TBD') }}
+- Datacenters: {{ (users_sites_usecases.datacenters or []) | join(', ') | default('TBD') }}
+
+## 3. Core Services
+- AD: **{{ 'Existing' if identity.ad_existing else 'New/TBD' }}** (domains: {{ identity.domains_count or 'TBD' }})
+- DNS: {{ (core.dns or []) | join(', ') | default('TBD') }}
+- KMS: {{ core.kms or 'TBD' }} / DHCP: {{ core.dhcp or 'TBD' }}
+
+## 4. Network & Access
+- Internet access required: **{{ 'Yes' if access.remote_access_required else 'No' }}**
+- Load balancer technology: **{{ access.load_balancer or 'TBD' }}**
+- UAG stance: {{ 'Internet-facing' if access.remote_access_required else 'Internal-only' }}
+
+## 5. Images & Apps
+- Number of images: **{{ 2 if images and images.get('multiple_required') else 1 }}**
+- Image source: **{{ images.source or 'TBD' }}**
+- Virtual apps: **{{ 'Yes' if platform.virtual_apps_included else 'No' }}**
+- Profiles: **{{ 'Yes' if platform.profile_mgmt_included else 'No' }}**
+
+## 6. Storage
+- Vendor/Model: **{{ infra.storage.vendor or 'TBD' }} {{ infra.storage.model or '' }}**
+- Type/Size: **{{ infra.storage.type or 'TBD' }} / {{ infra.storage.size_tb or 'TBD' }} TB**
+- General compute cluster exists: **{{ 'Yes' if infra.general_compute_cluster_exists else 'No' }}**
+
+## 7. Assumptions & Decisions (Presales)
+- MFA solution exists: **{{ 'Yes' if security.mfa_solution_exists else 'No' }}**
+- Smart card required: **{{ 'Yes' if security.smartcard_required else 'No' }}**
+- Endpoint setup by WWT: **{{ 'Yes' if endpoints.setup_by_wwt else 'No' }}**
+- Thin client management required: **{{ 'Yes' if endpoints.thin_client_mgmt_required else 'No' }}**
+- Printing: **{{ 'Yes' if resilience_io_monitoring.local_printing_required else 'No' }}**; USB storage: **{{ 'Yes' if resilience_io_monitoring.mass_storage_devices_required else 'No' }}**
+- Monitoring: **{{ resilience_io_monitoring.monitoring or 'TBD' }}**
+- HA/DA plan: **{{ resilience_io_monitoring.ha_da_plan or 'TBD' }}**
+
+> All items above will be confirmed and detailed during Pre-Deployment and reflected in the LLD.
