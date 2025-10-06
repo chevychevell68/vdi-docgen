@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'output/**/*.md'
+      - '**/output/**/*.md'
       - 'styles/reference.docx'
       - '.github/workflows/pandoc-docx.yml'
   workflow_dispatch:
@@ -12,22 +12,39 @@ on:
       input_glob:
         description: 'Glob for Markdown files to convert'
         required: false
-        default: 'output/**/*.md'
+        default: '**/output/**/*.md'
 
 jobs:
   build-docx:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Debug: show tree
+        run: |
+          echo "::group::Top-level"
+          ls -la
+          echo "::endgroup::"
+          echo "::group::Find any output/ files (3 levels)"
+          (find . -maxdepth 3 -type d -name output -print || true)
+          (find . -path '*/output/*' -type f -maxdepth 5 -print || true)
+          echo "::endgroup::"
+
       - name: Install Pandoc
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc
-      - name: Convert Markdown to DOCX
+          sudo apt-get install -y pandoc rsync
+
+      - name: Convert Markdown to DOCX (preserve subfolders)
+        id: convert
         env:
-          INPUT_GLOB: ${{ github.event.inputs.input_glob || 'output/**/*.md' }}
+          INPUT_GLOB: ${{ github.event.inputs.input_glob || '**/output/**/*.md' }}
         run: |
           set -euo pipefail
           shopt -s globstar nullglob
@@ -35,27 +52,38 @@ jobs:
           refdoc="styles/reference.docx"
           count=0
           for md in $INPUT_GLOB; do
+            [ -f "$md" ] || continue
+            # derive path segment after the last "output/"
+            rel="${md#*/output/}"
+            subdir="$(dirname "$rel")"
             base="$(basename "$md" .md)"
-            out="output-docx/${base}.docx"
+            target_dir="output-docx/${subdir}"
+            mkdir -p "$target_dir"
             if [ -f "$refdoc" ]; then
-              pandoc "$md" -o "$out" --reference-doc="$refdoc"
+              pandoc "$md" -o "$target_dir/${base}.docx" --reference-doc="$refdoc"
             else
-              pandoc "$md" -o "$out"
+              pandoc "$md" -o "$target_dir/${base}.docx"
             fi
-            echo "Wrote $out"
+            echo "Wrote $target_dir/${base}.docx"
             count=$((count+1))
           done
-          if [ "$count" -eq 0 ]; then
-            echo "No Markdown files matched '$INPUT_GLOB'." >&2
-            exit 1
-          fi
-      - uses: actions/upload-artifact@v4
+          echo "count=${count}" >> $GITHUB_OUTPUT
+
+      - name: Warn if nothing converted
+        if: steps.convert.outputs.count == '0'
+        run: |
+          echo "::warning::No Markdown matched. Ensure files are under some */output/<folder>/*.md path."
+
+      - name: Upload DOCX artifacts
+        if: steps.convert.outputs.count != '0'
+        uses: actions/upload-artifact@v4
         with:
           name: docx-${{ github.sha }}
-          path: output-docx/*.docx
+          path: output-docx/**/*.docx
+
       - name: Commit DOCX back to repo
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: steps.convert.outputs.count != '0' && github.ref == 'refs/heads/main'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "CI: add generated DOCX"
-          file_pattern: output-docx/*.docx
+          file_pattern: output-docx/**/*.docx
