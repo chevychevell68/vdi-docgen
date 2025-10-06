@@ -1,1 +1,33 @@
-# LOE — {{ project.name or project.client_slug }}
+# Level of Effort — {{ project.name or project.client_slug }}
+
+{% set pods = 1 %}
+{% set base = 40 %}
+{% set each_extra_pod = 16 %}
+{% set uag_bundle = 24 if (access.remote_access_required and security.mfa_required and access.load_balancer) else 0 %}
+{% set app_vols = 12 if platform.virtual_apps_included else 0 %}
+{% set images_ct = 2 if images and images.get('multiple_required') else 1 %}
+{% set image_hours = images_ct * 12 %}
+{% set gpu = 12 if graphics.gpu_required else 0 %}
+{% set packaging = 0 %}
+{% if platform.app_packaging_by_wwt %}
+  {# you can parameterize per-app hours later #}
+  {% set packaging = 16 %}
+{% endif %}
+{% set training = 8 if ops_enablement.training_required else 0 %}
+{% set runbook = 8 if ops_enablement.runbook_required else 0 %}
+
+| Item | Qty | Hrs |
+|---|---:|---:|
+| Base project | 1 | {{ base }} |
+| Additional pods | {{ pods-1 }} | {{ (pods-1)*each_extra_pod }} |
+| External UAG + MFA + LB | {{ 1 if uag_bundle>0 else 0 }} | {{ uag_bundle }} |
+| App Volumes | {{ 1 if platform.virtual_apps_included else 0 }} | {{ app_vols }} |
+| Image build(s) | {{ images_ct }} | {{ image_hours }} |
+| GPU enablement | {{ 1 if gpu>0 else 0 }} | {{ gpu }} |
+| App packaging | {{ 1 if packaging>0 else 0 }} | {{ packaging }} |
+| Training | {{ 1 if training>0 else 0 }} | {{ training }} |
+| Run Book | {{ 1 if runbook>0 else 0 }} | {{ runbook }} |
+
+**Estimated total hours:** **{{ base + (pods-1)*each_extra_pod + uag_bundle + app_vols + image_hours + gpu + packaging + training + runbook }}h**
+
+> This is a presales estimate. Final LOE will be confirmed at pre-deployment when LLD prerequisites are locked.
