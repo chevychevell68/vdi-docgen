@@ -1,0 +1,155 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">Solution Presales Questionnaire</h1>
+<p class="help-text mb-4">All questions are on their own line. Use the large text area below to capture the "Voice of the Customer".</p>
+
+<form method="POST" action="{{ url_for('submit') }}" id="questionnaireForm">
+  <!-- Voice of the Customer -->
+  <div class="mb-3">
+    <label class="form-label required">Voice of the Customer — Objectives / Outcomes</label>
+    <textarea class="form-control" name="voc" rows="5" placeholder="What are we trying to accomplish? Key drivers, success criteria, constraints."></textarea>
+  </div>
+
+  <!-- Environment / Scope -->
+  <h2 class="h5 section-title">Environment & Scope</h2>
+
+  <div class="mb-3">
+    <label class="form-label required">Deployment Scope</label>
+    <select class="form-select" name="pod_scope" id="pod_scope">
+      <option value="single">Single pod</option>
+      <option value="multi">Multi‑pod</option>
+    </select>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label required">General Compute: Include Test/Dev Environments?</label>
+    <select class="form-select" name="include_test_dev" id="include_test_dev">
+      <option value="no">No</option>
+      <option value="yes">Yes</option>
+    </select>
+    <div class="form-text">If yes, describe sizing assumptions for Test/Dev below.</div>
+  </div>
+
+  <div class="mb-3" id="test_dev_notes_group" style="display:none;">
+    <label class="form-label">Test/Dev Notes</label>
+    <textarea class="form-control" name="test_dev_notes" rows="3" placeholder="Environments, purpose, approximate sizing, lifecycle expectations."></textarea>
+  </div>
+
+  <!-- Host / Cluster Configuration -->
+  <h2 class="h5 section-title">Host / Cluster Configuration</h2>
+
+  <div class="mb-3">
+    <label class="form-label required">CPU per Host</label>
+    <input type="text" class="form-control" name="cpu_per_host" placeholder="e.g., 2× Intel Xeon Gold 6430 (32 cores each)">
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label required">RAM per Host</label>
+    <input type="text" class="form-control" name="ram_per_host" placeholder="e.g., 512 GB DDR5">
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Other Host Configuration Details</label>
+    <input type="text" class="form-control" name="other_host_config" placeholder="NICs, HBA, GPU, BIOS/firmware, etc.">
+  </div>
+
+  <!-- Storage -->
+  <h2 class="h5 section-title">Storage</h2>
+
+  <div class="mb-3">
+    <label class="form-label required">Primary Storage Type</label>
+    <select class="form-select" name="storage_type" id="storage_type">
+      <option value="vsan">vSAN</option>
+      <option value="pure">Pure Storage</option>
+      <option value="other">Other</option>
+    </select>
+    <div class="form-text">If <strong>vSAN</strong> is selected, storage size/vendor/model are not required.</div>
+  </div>
+
+  <div class="mb-3 storage-extra">
+    <label class="form-label">Storage Vendor</label>
+    <input type="text" class="form-control" name="storage_vendor" placeholder="e.g., Pure Storage">
+  </div>
+
+  <div class="mb-3 storage-extra">
+    <label class="form-label">Storage Model</label>
+    <input type="text" class="form-control" name="storage_model" placeholder="e.g., Pure //X50R2 (example of a Pure storage array model number)">
+  </div>
+
+  <div class="mb-3 storage-extra">
+    <label class="form-label">Usable Capacity (TB)</label>
+    <input type="text" class="form-control" name="storage_capacity_tb" placeholder="e.g., 150">
+  </div>
+
+  <!-- Networking / Load Balancing -->
+  <h2 class="h5 section-title">Networking & Load Balancing</h2>
+
+  <div class="mb-3">
+    <label class="form-label required">Load Balancer</label>
+    <select class="form-select" name="load_balancer">
+      <option value="F5 BIG-IP">F5 BIG-IP</option>
+      <option value="Avi / NSX ALB">Avi / NSX ALB</option>
+      <option value="Netscaler (Citrix ADC)">Netscaler (Citrix ADC)</option>
+      <option value="Other / TBD">Other / TBD</option>
+      <option value="None">None</option>
+    </select>
+    <div class="form-text">Example values are provided as dropdown options.</div>
+  </div>
+
+  <!-- Identity / Access -->
+  <h2 class="h5 section-title">Access & Identity</h2>
+
+  <div class="mb-3">
+    <label class="form-label required">Incorporate with 3rd‑party Identity Provider (IdP)?</label>
+    <select class="form-select" name="idp_integrate" id="idp_integrate">
+      <option value="no">No</option>
+      <option value="yes">Yes</option>
+    </select>
+  </div>
+
+  <div class="mb-3" id="idp_provider_group" style="display:none;">
+    <label class="form-label">IdP Provider</label>
+    <input type="text" class="form-control" name="idp_provider" placeholder="e.g., Okta, Entra ID, Ping, ADFS">
+  </div>
+
+  <!-- Notes -->
+  <h2 class="h5 section-title">Additional Notes</h2>
+
+  <div class="mb-3">
+    <label class="form-label">Notes / Assumptions / Risks</label>
+    <textarea class="form-control" name="notes" rows="4" placeholder="Anything else we should know? Dependencies, constraints, security considerations."></textarea>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary" type="submit">Review Submission</button>
+    <a class="btn btn-outline-secondary" href="/">Reset</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleTestDev() {
+    const sel = document.getElementById('include_test_dev');
+    const grp = document.getElementById('test_dev_notes_group');
+    grp.style.display = sel.value === 'yes' ? 'block' : 'none';
+  }
+  function toggleStorage() {
+    const sel = document.getElementById('storage_type');
+    const extras = document.querySelectorAll('.storage-extra');
+    const showExtras = sel.value !== 'vsan';
+    extras.forEach(el => el.style.display = showExtras ? 'block' : 'none');
+  }
+  function toggleIdP() {
+    const sel = document.getElementById('idp_integrate');
+    const grp = document.getElementById('idp_provider_group');
+    grp.style.display = sel.value === 'yes' ? 'block' : 'none';
+  }
+  document.getElementById('include_test_dev').addEventListener('change', toggleTestDev);
+  document.getElementById('storage_type').addEventListener('change', toggleStorage);
+  document.getElementById('idp_integrate').addEventListener('change', toggleIdP);
+  // initialize on load
+  toggleTestDev(); toggleStorage(); toggleIdP();
+</script>
+{% endblock %}
