@@ -1,0 +1,85 @@
+name: Build DOCX from build branches (DOCX-only on main)
+
+on:
+  push:
+    branches:
+      - 'build/**'
+    paths:
+      - 'output/**/*.md'
+      - 'styles/reference.docx'
+
+jobs:
+  docx:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # allow commits to main & branch deletion
+
+    steps:
+      # Checkout the build branch (contains Markdown)
+      - name: Checkout build branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Pandoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+
+      # Convert every output/**/*.md to a mirrored /tmp/output-docx/**.docx
+      - name: Convert Markdown → DOCX (mirror folder structure)
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          OUT_BASE="/tmp/output-docx"
+          REF="styles/reference.docx"
+          mkdir -p "$OUT_BASE"
+          found=0
+          for md in output/**/*.md; do
+            [ -f "$md" ] || continue
+            found=1
+            rel_dir="$(dirname "$md")"
+            rel_name="$(basename "$md" .md)"
+            target_dir="$OUT_BASE/${rel_dir#output/}"
+            mkdir -p "$target_dir"
+            if [ -f "$REF" ]; then
+              pandoc "$md" -o "$target_dir/${rel_name}.docx" --reference-doc="$REF"
+            else
+              pandoc "$md" -o "$target_dir/${rel_name}.docx"
+            fi
+            echo "Built $target_dir/${rel_name}.docx"
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No Markdown files under output/." >&2
+            exit 1
+          fi
+
+      # Checkout main in a separate folder
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: mainrepo
+          fetch-depth: 0
+
+      # Copy DOCX into main under output-docx/, preserving subfolders
+      - name: Copy DOCX into main repo tree
+        run: |
+          set -euo pipefail
+          mkdir -p mainrepo/output-docx
+          # Mirror /tmp/output-docx/* into mainrepo/output-docx/
+          rsync -a /tmp/output-docx/ mainrepo/output-docx/
+
+      - name: Commit DOCX to main
+        run: |
+          cd mainrepo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add output-docx
+          git commit -m "CI: add generated DOCX from ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          git push origin main
+
+      - name: Delete build branch
+        run: |
+          # GITHUB_REF_NAME is like 'build/centene-2025-10-06'
+          git push origin --delete "${GITHUB_REF_NAME}"
