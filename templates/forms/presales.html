@@ -1,1 +1,73 @@
-<form method='post'>Project <input name='project_name'/> Slug <input name='client_slug'/> DNS <input name='dns'/> Pod1 site <input name='pod1_site'/> Pod1 region <input name='pod1_region'/> Pod1 vCenter <input name='pod1_vcenter'/> UAG count <input name='pod1_uag_count' value='2'/> UAG internet? <select name='pod1_uag_internet'><option>no</option><option>yes</option></select><label><input type='checkbox' name='push_to_github'/> push</label><button>Generate</button></form>
+<!doctype html>
+<html>
+  <body style="font-family:system-ui;max-width:1000px;margin:1.5rem auto">
+    <h1>Presales – Scoping Intake</h1>
+    <form method="post">
+      <fieldset>
+        <legend>Project</legend>
+        <label>Project Name</label>
+        <input name="project_name" style="width:100%" />
+        <label>Client Slug</label>
+        <input name="client_slug" placeholder="acme" style="width:100%" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Deployment & Capacity</legend>
+        <label>On-premises, cloud or hybrid deployment?</label>
+        <select name="deployment_model">
+          <option>on_prem</option><option>cloud</option><option>hybrid</option>
+        </select>
+
+        <label>Number of hosts</label>
+        <input type="number" name="hosts_count" />
+
+        <label>Host type and configuration</label>
+        <input name="hosts_type_config" placeholder="e.g., Dell R760, 2x Intel..., 512GB RAM" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Storage</legend>
+        <label>Storage type</label>
+        <input name="storage_type" placeholder="vSAN, PowerScale, Azure Files..." />
+        <label>Storage size (TB)</label>
+        <input type="number" name="storage_size_tb" />
+        <label>Storage vendor</label>
+        <input name="storage_vendor" />
+        <label>Storage model</label>
+        <input name="storage_model" />
+        <label>Is there an existing general compute cluster?</label>
+        <select name="general_compute_cluster_exists"><option>no</option><option>yes</option></select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Licensing & Core Services</legend>
+        <label>Horizon Licensing Model and level</label>
+        <input name="horizon_license" />
+        <label>SQL Server?</label>
+        <input name="sql_server" placeholder="new / existing / none + details" />
+        <label>Existing AD?</label>
+        <select name="ad_existing"><option>yes</option><option>no</option></select>
+        <label>Number of Domains</label>
+        <input type="number" name="domains_count" />
+        <label>DNS</label>
+        <input name="dns" placeholder="comma-separated (10.0.0.10,10.0.0.11)" />
+        <label>KMS</label>
+        <input name="kms" />
+        <label>DHCP</label>
+        <input name="dhcp" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Access & Load Balancing</legend>
+        <label>What load balancing technology will be used?</label>
+        <input name="load_balancer" placeholder="F5, NSX ALB, Avi, Cloud LB..." />
+        <label>Would this be accessed remotely?</label>
+        <select name="remote_access_required"><option>no</option><option>yes</option></select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Endpoints</legend>
+        <label>Are we setting up the endpoints?</label>
+        <select name="setup_endpoints"><option>no</option><option>yes</option></select>
+        <label>What type of endpoints will be connecting?</label>
+        <input name="endpoint_types" placeholder="comma-separated (thin, Windows, mac_
