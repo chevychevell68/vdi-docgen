@@ -1,16 +1,22 @@
 
-from flask import Flask, render_template, request, send_file, redirect, url_for, flash
-import io, csv, os
+from flask import Flask, render_template, request, send_file, redirect, url_for
 from datetime import datetime
+import io
 
 app = Flask(__name__)
-app.secret_key = "dev"
 
-# ---------------- PDG: Static schema (no CSV) ----------------
-# Each tuple: (section, key, label, type, options, required, applies_to)
-# applies_to: global | pod1 | pod2 | both
+# ---------------- Shared helpers ----------------
+def form_to_dict(form):
+    data = {}
+    for k in form.keys():
+        vals = form.getlist(k)
+        data[k] = vals[0] if len(vals) == 1 else vals
+    return data
+
+# ---------------- PDG schema (approximation aligned to pod deployments) ----------------
+# tuple: (section, key, label, type, options, required, applies_to) where applies_to in {"global","both"}
 SCHEMA_PDG = [
-    # Global / Administrative
+    # Global / Admin
     ("Global", "project_name", "Project Name", "text", "", True, "global"),
     ("Global", "customer_name", "Customer Name", "text", "", True, "global"),
     ("Global", "primary_contact", "Primary Technical Contact (name/email)", "text", "", True, "global"),
@@ -66,125 +72,47 @@ SCHEMA_PDG = [
     ("Ops", "backup_targets", "Backup/Recovery Targets", "text", "", False, "global"),
 ]
 
-def build_pdg_groups(is_multi):
-    global_items = [x for x in SCHEMA_PDG if x[6] == "global"]
-    pod_items = [x for x in SCHEMA_PDG if x[6] in ("both", "pod1")]
-    pod2_items = [x for x in SCHEMA_PDG if x[6] in ("both", "pod2")] if is_multi else []
-    return global_items, pod_items, pod2_items
-  # for flash messages
+def pdg_groups(is_multi):
+    g = [x for x in SCHEMA_PDG if x[6] == "global"]
+    pod = [x for x in SCHEMA_PDG if x[6] == "both"]
+    return g, pod, (pod if is_multi else [])
 
-FIELDS_CSV_PATH = os.path.join(os.path.dirname(__file__), "fields.csv")
+# ---------------- Routes ----------------
 
-def form_to_dict(form):
-    data = {}
-    for k in form.keys():
-        vals = form.getlist(k)
-        data[k] = vals[0] if len(vals) == 1 else vals
-    return data
-
-def load_fields_from_csv():
-    fields = []
-    if os.path.exists(FIELDS_CSV_PATH):
-        with open(FIELDS_CSV_PATH, newline='', encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                row = {k.strip(): (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
-                row.setdefault("section", "General")
-                row.setdefault("field_key", "")
-                row.setdefault("label", row.get("field_key", ""))
-                row.setdefault("type", "text")
-                row.setdefault("options", "")
-                row.setdefault("required", "no")
-                row.setdefault("applies_to", "both")  # pod1, pod2, both, global
-                fields.append(row)
-    return fields
-
+# Root = Presales (explicit)
 @app.route("/", methods=["GET"])
-def index():
-    return render_template("form.html")
-
-@app.route("/submit", methods=["POST"])
-def submit():
-    data = form_to_dict(request.form)
-    submitted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    return render_template("results.html", data=data, submitted_at=submitted_at)
-
-@app.route("/download", methods=["POST"])
-def download():
-    data = form_to_dict(request.form)
-    md = render_template("questionnaire.md", data=data, now=datetime.utcnow())
-    buf = io.BytesIO(md.encode("utf-8"))
-    filename = "presales_questionnaire_{dt}.md".format(dt=datetime.utcnow().strftime("%Y%m%d_%H%M%S"))
-    return send_file(buf, mimetype="text/markdown", as_attachment=True, download_name=filename)
-
-@app.route("/checklist", methods=["POST"])
-def checklist():
-    # Generate the Pre-Deployment Checklist HTML view from the submission + CSV fields.
-    data = form_to_dict(request.form)
-    fields = load_fields_from_csv()
-    pod_scope = data.get("pod_scope", "single")
-    is_multi = pod_scope == "multi"
-
-    return render_template(
-        "checklist.html",
-        data=data,
-        fields=fields,
-        is_multi=is_multi,
-        now=datetime.utcnow()
-    )
-
-@app.route("/checklist/download", methods=["POST"])
-def checklist_download():
-    # Render the checklist to Markdown for export.
-    data = form_to_dict(request.form)
-    fields = load_fields_from_csv()
-    pod_scope = data.get("pod_scope", "single")
-    is_multi = pod_scope == "multi"
-
-    md = render_template("checklist.md", data=data, fields=fields, is_multi=is_multi, now=datetime.utcnow())
-    buf = io.BytesIO(md.encode("utf-8"))
-    filename = "predeployment_checklist_{dt}.md".format(dt=datetime.utcnow().strftime("%Y%m%d_%H%M%S"))
-    return send_file(buf, mimetype="text/markdown", as_attachment=True, download_name=filename)
-
-from flask import abort
-
-@app.route("/manage-fields", methods=["GET"])
-def manage_fields():
-    abort(404)
-
-@app.route("/manage-fields/upload", methods=["POST"])
-def manage_fields_upload():
-    abort(404)
-
 @app.route("/presales", methods=["GET"])
 def presales():
-    # Explicit route for the presales questionnaire
-    return render_template("form.html")
+    return render_template("presales_form.html")
 
+@app.route("/presales/submit", methods=["POST"])
+def presales_submit():
+    data = form_to_dict(request.form)
+    submitted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    return render_template("presales_results.html", data=data, submitted_at=submitted_at)
+
+@app.route("/presales/download", methods=["POST"])
+def presales_download():
+    data = form_to_dict(request.form)
+    md = render_template("presales_export.md", data=data, now=datetime.utcnow())
+    buf = io.BytesIO(md.encode("utf-8"))
+    fname = f"presales_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
+    return send_file(buf, mimetype="text/markdown", as_attachment=True, download_name=fname)
+
+# Pre-Deploy = PDG
 @app.route("/predeploy", methods=["GET"])
-def predeploy():
-    return redirect(url_for("pdg"))
-
-@app.route("/predeploy/build", methods=["POST"])
-def predeploy_build():
-    # Build checklist using only the selected pod scope (single/multi)
-    pod_scope = request.form.get("pod_scope", "single")
-    is_multi = (pod_scope == "multi")
-    fields = load_fields_from_csv()
-    data = {"pod_scope": pod_scope}  # minimal context for rendering
-    return render_template("checklist.html", data=data, fields=fields, is_multi=is_multi, now=datetime.utcnow())
-
+def predeploy_redirect():
+    return redirect(url_for("pdg_scope"))
 
 @app.route("/pdg", methods=["GET"])
-def pdg():
-    # Scope selector for PDG standalone mode
+def pdg_scope():
     return render_template("pdg_scope.html")
 
 @app.route("/pdg/form", methods=["POST"])
 def pdg_form():
     scope = request.form.get("pod_scope", "single")
     is_multi = (scope == "multi")
-    g_items, pod1_items, pod2_items = build_pdg_groups(is_multi)
+    g_items, pod1_items, pod2_items = pdg_groups(is_multi)
     return render_template("pdg_form.html",
                            is_multi=is_multi,
                            g_items=g_items,
@@ -195,16 +123,13 @@ def pdg_form():
 def pdg_submit():
     scope = request.form.get("pod_scope", "single")
     is_multi = (scope == "multi")
-    # Capture all fields generically
     data = {k: request.form.get(k, "") for k in request.form.keys()}
     submitted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     return render_template("pdg_results.html", data=data, is_multi=is_multi, submitted_at=submitted_at)
 
 @app.route("/pdg/download-docx", methods=["POST"])
 def pdg_download_docx():
-    # Generate a Word document from the PDG submission
     from docx import Document
-    from docx.shared import Pt, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
     scope = request.form.get("pod_scope", "single")
@@ -214,56 +139,51 @@ def pdg_download_docx():
     doc = Document()
     title = doc.add_heading("Pre-Deployment Guide (PDG)", 0)
     title.alignment = WD_ALIGN_PARAGRAPH.LEFT
-
     doc.add_paragraph(f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
     doc.add_paragraph(f"Scope: {'Multi-pod' if is_multi else 'Single pod'}")
 
-    def add_section(h, items, prefix):
-        doc.add_heading(h, level=1)
-        current_group = None
+    # helper to write a group
+    def write_group(heading, items, prefix):
+        doc.add_heading(heading, level=1)
+        current = None
         for (section, key, label, type_, options, required, applies_to) in items:
-            if current_group != section:
-                current_group = section
+            if current != section:
+                current = section
                 doc.add_heading(section, level=2)
             val = data.get(f"{prefix}_{key}", "")
             p = doc.add_paragraph()
-            run = p.add_run(f"{label}: ")
-            run.bold = True
+            r = p.add_run(f"{label}: ")
+            r.bold = True
             p.add_run(val if val else "—")
 
-    # Global
-    g_items, pod1_items, pod2_items = build_pdg_groups(is_multi)
-    add_section("Global", g_items, "global")
-
-    # Pod 1
-    add_section("Pod 1", pod1_items, "pod1")
-
-    # Pod 2 + GSLB if multi
+    g_items, pod1_items, pod2_items = pdg_groups(is_multi)
+    write_group("Global", g_items, "global")
+    write_group("Pod 1", pod1_items, "pod1")
     if is_multi:
-        add_section("Pod 2", pod2_items, "pod2")
+        write_group("Pod 2", pod2_items, "pod2")
+        # GSLB block
         doc.add_heading("GSLB (Multi-Pod)", level=1)
-        gslb_fields = [
-            ("Enable GSLB?", data.get("gslb_enable", "")),
-            ("GSLB FQDN(s) (Internal/External URLs)", data.get("gslb_fqdns", "")),
-            ("GTM configuration (data centers, pools, monitors)", data.get("gslb_gtm", "")),
-            ("LTM VIPs per site (UAG, CS, Admin, App Volumes, DEM)", data.get("gslb_ltm_vips", "")),
-            ("Health monitors (types, intervals, response codes)", data.get("gslb_monitors", "")),
-            ("Failover/steering policy (round-robin, topology, latency, geo)", data.get("gslb_policy", "")),
-            ("Certificates & SNI (SANs/wildcards, renewal ownership)", data.get("gslb_certs", "")),
-        ]
-        for label, val in gslb_fields:
+        for label, key in [
+            ("Enable GSLB?", "gslb_enable"),
+            ("GSLB FQDN(s) (Internal/External URLs)", "gslb_fqdns"),
+            ("GTM configuration (data centers, pools, monitors)", "gslb_gtm"),
+            ("LTM VIPs per site (UAG, CS, Admin, App Volumes, DEM)", "gslb_ltm_vips"),
+            ("Health monitors (types, intervals, response codes)", "gslb_monitors"),
+            ("Failover/steering policy (round-robin, topology, latency, geo)", "gslb_policy"),
+            ("Certificates & SNI (SANs/wildcards, renewal ownership)", "gslb_certs"),
+        ]:
             p = doc.add_paragraph()
-            run = p.add_run(f"{label}: ")
-            run.bold = True
-            p.add_run(val if val else "—")
+            r = p.add_run(f"{label}: ")
+            r.bold = True
+            p.add_run(data.get(key, "") or "—")
 
-    import io
-    buf = io.BytesIO()
-    doc.save(buf)
-    buf.seek(0)
-    filename = "PDG_{dt}.docx".format(dt=datetime.utcnow().strftime("%Y%m%d_%H%M%S"))
-    return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document", as_attachment=True, download_name=filename)
+    out = io.BytesIO()
+    doc.save(out)
+    out.seek(0)
+    fname = f"PDG_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.docx"
+    return send_file(out, mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                     as_attachment=True, download_name=fname)
 
-
+# ---------------- main ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

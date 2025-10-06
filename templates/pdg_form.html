@@ -1,7 +1,7 @@
 
 {% extends "base.html" %}
 {% block content %}
-<h1 class="h4 mb-3">PDG Questionnaire</h1>
+<h1 class="h3 mb-3">PDG Questionnaire</h1>
 <form method="POST" action="/pdg/submit">
   <input type="hidden" name="pod_scope" value="{{ 'multi' if is_multi else 'single' }}">
 
