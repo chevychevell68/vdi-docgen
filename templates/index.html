@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>VDI DocGen</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; max-width: 900px; margin: 3rem auto; }
+      fieldset { margin-bottom: 1.2rem; }
+      label { display:block; margin: .4rem 0 .2rem; }
+      input, select, textarea { width: 100%; padding: .6rem; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+      button { padding:.8rem 1.2rem; border:0; border-radius:.5rem; cursor:pointer; }
+    </style>
+  </head>
+  <body>
+    <h1>VDI DocGen (Cloud)</h1>
+    <p>Upload a full intake YAML <em>or</em> use the quick form for a fast start.</p>
+
+    <form action="/generate" method="post" enctype="multipart/form-data">
+      <fieldset>
+        <legend>Option A: Upload Intake YAML</legend>
+        <input type="file" name="intake_yaml" accept=".yaml,.yml" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Option B: Quick Form</legend>
+        <div class="row">
+          <div>
+            <label>Customer Name</label>
+            <input name="customer_name" placeholder="Acme Corp" />
+          </div>
+          <div>
+            <label>Engagement Version</label>
+            <input name="version" value="1.0.0" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Horizon Version</label>
+            <input name="horizon_version" value="2503.1" />
+          </div>
+          <div>
+            <label>Pods Count</label>
+            <select name="pods_count">
+              <option>1</option><option>2</option><option>3</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Pod 1 Site</label>
+            <input name="pod1_site" value="DC1" />
+          </div>
+          <div>
+            <label>Pod 1 Region</label>
+            <input name="pod1_region" value="Central US" />
+          </div>
+        </div>
+        <label>Pod 1 vCenter</label>
+        <input name="pod1_vcenter" value="vcsa01.local" />
+
+        <div class="row">
+          <div>
+            <label>Pod 2 Site (if used)</label>
+            <input name="pod2_site" value="DC2" />
+          </div>
+          <div>
+            <label>Pod 2 Region (if used)</label>
+            <input name="pod2_region" value="US East 2" />
+          </div>
+        </div>
+        <label>Pod 2 vCenter (if used)</label>
+        <input name="pod2_vcenter" value="vcsa02.local" />
+
+        <div class="row">
+          <div>
+            <label>POC External Exposure?</label>
+            <select name="poc_external"><option value="no">No</option><option value="yes">Yes</option></select>
+          </div>
+          <div>
+            <label>UAG Internet-Facing?</label>
+            <select name="uag_internet"><option value="no">No</option><option value="yes">Yes</option></select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Start Date</label>
+            <input name="start_date" placeholder="2025-10-13" />
+          </div>
+          <div>
+            <label>MFA Provider</label>
+            <input name="mfa" value="Duo" />
+          </div>
+        </div>
+
+        <label>Timeline Notes</label>
+        <textarea name="timeline_notes" rows="3" placeholder="CRB Tue/Thu week of 10/20; fallback 10/27."></textarea>
+
+        <div class="row">
+          <div>
+            <label>Certificate Owner</label>
+            <input name="certs_owner" value="PKI team" />
+          </div>
+          <div>
+            <label>Base OS</label>
+            <input name="os" value="Windows 11 23H2" />
+          </div>
+        </div>
+      </fieldset>
+
+      <button type="submit">Generate Deliverables ZIP</button>
+    </form>
+  </body>
+</html>
