@@ -66,4 +66,53 @@ def generate():
                         {"name":"Assessment & HLD","billing_milestone":"30%"},
                         {"name":"Build & LLD","billing_milestone":"40%"},
                         {"name":"Pilot & PDG","billing_milestone":"20%"},
-                        {"na
+                        {"name":"As-Built & Handover","billing_milestone":"10%"},
+                    ],
+                    "timeline": {
+                        "start_date": request.form.get("start_date",""),
+                        "notes": request.form.get("timeline_notes","")
+                    }
+                },
+                "horizon": {
+                    "version": horizon_version,
+                    "cpa_enabled": (pods_count > 1),
+                    "pods": pods
+                },
+                "image_mgmt": {
+                    "os": request.form.get("os","Windows 11 23H2"),
+                    "instant_clone": True,
+                    "dem": True,
+                    "fslogix": {"enabled": True, "cloud_cache": True, "capacity_target":"SMB"}
+                },
+                "security": {
+                    "mfa": request.form.get("mfa","Duo"),
+                    "certs_managed_by": request.form.get("certs_owner","PKI team"),
+                    "external_exposure_in_poc": (request.form.get("poc_external","no")=="yes")
+                },
+                "constraints": {
+                    "assumptions": ["DNS/NTP/routing provided by customer"],
+                    "out_of_scope": ["Internet-facing UAGs in POC"] if request.form.get("poc_external","no")!="yes" else []
+                },
+                "deliverable_options": {
+                    "include_architecture_diagrams": True,
+                    "include_risk_register": True,
+                    "include_runbooks": True
+                }
+            }
+
+        files = render_docs(data)
+
+        # stream a ZIP back to the browser
+        mem = io.BytesIO()
+        with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+            # include the resolved intake for audit
+            z.writestr("intake.resolved.yaml", yaml.safe_dump(data, sort_keys=False))
+            for name, content in files.items():
+                z.writestr(name, content)
+        mem.seek(0)
+        return send_file(mem, mimetype="application/zip", as_attachment=True, download_name="deliverables.zip")
+    except Exception as e:
+        return abort(400, str(e))
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
