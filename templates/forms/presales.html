@@ -1,168 +1,336 @@
 <!doctype html>
 <html>
-  <body style="font-family:system-ui;max-width:1000px;margin:1.5rem auto">
+  <head>
+    <meta charset="utf-8" />
+    <title>Presales — Scoping Intake</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 1000px; margin: 1.5rem auto; }
+      fieldset { margin: 1.25rem 0; padding: 1rem 1.25rem; border: 1px solid #ddd; border-radius: 10px; }
+      legend { font-weight: 650; padding: 0 .5rem; }
+      .q { margin: .6rem 0; }
+      .q label { display: block; font-weight: 600; margin-bottom: .25rem; }
+      .q input, .q select, .q textarea { width: 100%; max-width: 100%; padding: .5rem .6rem; border: 1px solid #cfcfcf; border-radius: 8px; }
+      .hint { color: #666; font-size: .9rem; margin-top: .25rem; }
+      .actions { margin-top: 1rem; }
+    </style>
+    <script>
+      function onStorageChange() {
+        const sel = document.querySelector('[name="storage_type"]');
+        const type = sel.value;
+        const vsanOnly = (type === 'vSAN');
+        document.getElementById('storage-vendor-wrap').style.display = vsanOnly ? 'none' : '';
+        document.getElementById('storage-model-wrap').style.display  = vsanOnly ? 'none' : '';
+        document.getElementById('storage-size-wrap').style.display   = vsanOnly ? 'none' : '';
+        document.getElementById('other-type-wrap').style.display     = (type === 'Other') ? '' : 'none';
+      }
+      function onComputeClusterChange() {
+        const hasCluster = document.querySelector('[name="general_compute_cluster_exists"]').value === 'yes';
+        document.getElementById('dev-test-wrap').style.display = hasCluster ? '' : 'none';
+      }
+      function onThirdPartyIdPChange() {
+        const enabled = document.querySelector('[name="third_party_idp_enabled"]').value === 'yes';
+        document.getElementById('third-party-idp-provider-wrap').style.display = enabled ? '' : 'none';
+      }
+      function init() {
+        onStorageChange();
+        onComputeClusterChange();
+        onThirdPartyIdPChange();
+      }
+      document.addEventListener('DOMContentLoaded', init);
+    </script>
+  </head>
+  <body>
     <h1>Presales – Scoping Intake</h1>
     <form method="post">
       <fieldset>
         <legend>Project</legend>
-        <label>Project Name</label>
-        <input name="project_name" style="width:100%" />
-        <label>Client Slug</label>
-        <input name="client_slug" placeholder="acme" style="width:100%" />
+        <div class="q">
+          <label>Project Name</label>
+          <input name="project_name" />
+        </div>
+        <div class="q">
+          <label>Client Slug</label>
+          <input name="client_slug" placeholder="acme" />
+        </div>
+        <div class="q">
+          <label>Voice of the Customer — what are we trying to accomplish?</label>
+          <textarea name="voice_of_customer" rows="5" placeholder="Goals, pain points, success criteria..."></textarea>
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Deployment & Capacity</legend>
-        <label>On-premises, cloud or hybrid deployment?</label>
-        <select name="deployment_model">
-          <option>on_prem</option><option>cloud</option><option>hybrid</option>
-        </select>
-
-        <label>Number of hosts</label>
-        <input type="number" name="hosts_count" />
-
-        <label>Host type and configuration</label>
-        <input name="hosts_type_config" placeholder="e.g., Dell R760, 2x Intel..., 512GB RAM" />
+        <div class="q">
+          <label>On-premises, cloud or hybrid deployment?</label>
+          <select name="deployment_model">
+            <option>on_prem</option><option>cloud</option><option>hybrid</option>
+          </select>
+        </div>
+        <div class="q">
+          <label>Is this a single pod or multipod?</label>
+          <select name="multi_pod">
+            <option value="no">single</option>
+            <option value="yes">multipod</option>
+          </select>
+        </div>
+        <div class="q">
+          <label>Number of hosts</label>
+          <input type="number" name="hosts_count" />
+        </div>
+        <div class="q">
+          <label>Host CPU (per host)</label>
+          <input name="hosts_cpu" placeholder="e.g., 2× Intel Xeon Gold 6430" />
+        </div>
+        <div class="q">
+          <label>Host RAM (GB per host)</label>
+          <input type="number" name="hosts_ram_gb" placeholder="e.g., 512" />
+        </div>
+        <div class="q">
+          <label>Other host configuration details</label>
+          <input name="hosts_other_config" placeholder="NICs, storage controller, NVMe, etc." />
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Storage</legend>
-        <label>Storage type</label>
-        <input name="storage_type" placeholder="vSAN, PowerScale, Azure Files..." />
-        <label>Storage size (TB)</label>
-        <input type="number" name="storage_size_tb" />
-        <label>Storage vendor</label>
-        <input name="storage_vendor" />
-        <label>Storage model</label>
-        <input name="storage_model" />
-        <label>Is there an existing general compute cluster?</label>
-        <select name="general_compute_cluster_exists"><option>no</option><option>yes</option></select>
+        <div class="q">
+          <label>Storage type</label>
+          <select name="storage_type" onchange="onStorageChange()">
+            <option>vSAN</option>
+            <option>Pure</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="q" id="other-type-wrap" style="display:none">
+          <label>If “Other”, specify the storage type</label>
+          <input name="storage_type_other" placeholder="e.g., PowerScale, NetApp, Azure Files, etc." />
+        </div>
+        <div class="q" id="storage-size-wrap">
+          <label>Storage size (TB)</label>
+          <input type="number" name="storage_size_tb" />
+          <div class="hint">Not required for vSAN.</div>
+        </div>
+        <div class="q" id="storage-vendor-wrap">
+          <label>Storage vendor</label>
+          <input name="storage_vendor" placeholder="e.g., Pure Storage" />
+        </div>
+        <div class="q" id="storage-model-wrap">
+          <label>Storage model</label>
+          <input name="storage_model" placeholder="e.g., Pure //X50R2 (example array model number)" />
+        </div>
+        <div class="q">
+          <label>Is there an existing general compute cluster?</label>
+          <select name="general_compute_cluster_exists" onchange="onComputeClusterChange()">
+            <option>no</option><option>yes</option>
+          </select>
+        </div>
+        <div id="dev-test-wrap" style="display:none">
+          <div class="q">
+            <label>Do you have a DEV environment?</label>
+            <select name="dev_env_present"><option>no</option><option>yes</option></select>
+          </div>
+          <div class="q">
+            <label>Do you have a TEST environment?</label>
+            <select name="test_env_present"><option>no</option><option>yes</option></select>
+          </div>
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Licensing & Core Services</legend>
-        <label>Horizon Licensing Model and level</label>
-        <input name="horizon_license" />
-        <label>SQL Server?</label>
-        <input name="sql_server" placeholder="new / existing / none + details" />
-        <label>Existing AD?</label>
-        <select name="ad_existing"><option>yes</option><option>no</option></select>
-        <label>Number of Domains</label>
-        <input type="number" name="domains_count" />
-        <label>DNS</label>
-        <input name="dns" placeholder="comma-separated (10.0.0.10,10.0.0.11)" />
-        <label>KMS</label>
-        <input name="kms" />
-        <label>DHCP</label>
-        <input name="dhcp" />
+        <div class="q">
+          <label>Horizon Licensing Model and level</label>
+          <input name="horizon_license" />
+        </div>
+        <div class="q">
+          <label>SQL Server?</label>
+          <input name="sql_server" placeholder="new / existing / none + details" />
+        </div>
+        <div class="q">
+          <label>Existing AD?</label>
+          <select name="ad_existing"><option>yes</option><option>no</option></select>
+        </div>
+        <div class="q">
+          <label>Number of Domains</label>
+          <input type="number" name="domains_count" />
+        </div>
+        <div class="q">
+          <label>DNS</label>
+          <input name="dns" placeholder="comma-separated (10.0.0.10,10.0.0.11)" />
+        </div>
+        <div class="q">
+          <label>KMS</label>
+          <input name="kms" />
+        </div>
+        <div class="q">
+          <label>DHCP</label>
+          <input name="dhcp" />
+        </div>
       </fieldset>
 
       <fieldset>
-        <legend>Access & Load Balancing</legend>
-        <label>What load balancing technology will be used?</label>
-        <input name="load_balancer" placeholder="F5, NSX ALB, Avi, Cloud LB..." />
-        <label>Would this be accessed remotely?</label>
-        <select name="remote_access_required"><option>no</option><option>yes</option></select>
+        <legend>Access & Identity</legend>
+        <div class="q">
+          <label>What load balancing technology will be used?</label>
+          <select name="load_balancer">
+            <option>F5</option>
+            <option>NSX ALB</option>
+            <option>Avi</option>
+            <option>Cloud LB</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="q">
+          <label>Would this be accessed remotely?</label>
+          <select name="remote_access_required"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>Incorporate with 3rd-party Identity Provider?</label>
+          <select name="third_party_idp_enabled" onchange="onThirdPartyIdPChange()">
+            <option>no</option><option>yes</option>
+          </select>
+        </div>
+        <div class="q" id="third-party-idp-provider-wrap" style="display:none">
+          <label>3rd-party Identity Provider (name)</label>
+          <input name="third_party_idp_provider" placeholder="Okta, Entra ID, Ping, etc." />
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Endpoints</legend>
-        <label>Are we setting up the endpoints?</label>
-        <select name="setup_endpoints"><option>no</option><option>yes</option></select>
-        <label>What type of endpoints will be connecting?</label>
-        <input name="endpoint_types" placeholder="comma-separated (thin, Windows, macOS, IGEL...)" />
-        <label>Thin Client management required?</label>
-        <select name="thin_client_mgmt_required"><option>no</option><option>yes</option></select>
+        <div class="q">
+          <label>Are we setting up the endpoints?</label>
+          <select name="setup_endpoints"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>What type of endpoints will be connecting?</label>
+          <input name="endpoint_types" placeholder="comma-separated (thin, Windows, macOS, IGEL...)" />
+        </div>
+        <div class="q">
+          <label>Thin Client management required?</label>
+          <select name="thin_client_mgmt_required"><option>no</option><option>yes</option></select>
+        </div>
       </fieldset>
 
       <fieldset>
-        <legend>Profiles & Apps</legend>
-        <label>Include profile management?</label>
-        <select name="profile_mgmt_included"><option>yes</option><option>no</option></select>
-        <label>Include virtual applications?</label>
-        <select name="virtual_apps_included"><option>no</option><option>yes</option></select>
-        <label>Would WWT be responsible for application packaging?</label>
-        <select name="app_packaging_by_wwt"><option>no</option><option>yes</option></select>
+        <legend>Profiles & Applications</legend>
+        <div class="q">
+          <label>Include profile management?</label>
+          <select name="profile_mgmt_included"><option>yes</option><option>no</option></select>
+        </div>
+        <div class="q">
+          <label>Include virtual applications?</label>
+          <select name="virtual_apps_included"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>Would WWT be responsible for application packaging?</label>
+          <select name="app_packaging_by_wwt"><option>no</option><option>yes</option></select>
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Graphics</legend>
-        <label>Will GPU acceleration be required?</label>
-        <select name="gpu_required"><option>no</option><option>yes</option></select>
-        <label>GPU Use Case</label>
-        <input name="gpu_use_case" placeholder="apps, AI, VDI power users..." />
+        <div class="q">
+          <label>Will GPU acceleration be required?</label>
+          <select name="gpu_required"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>GPU Use Case</label>
+          <input name="gpu_use_case" placeholder="apps, AI, VDI power users..." />
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Images</legend>
-        <label>Is more than one image required?</label>
-        <select name="multiple_images_required"><option>no</option><option>yes</option></select>
-        <label>Will they provide the image or will WWT build it?</label>
-        <select name="image_source"><option>provided_by_customer</option><option>built_by_wwt</option></select>
+        <div class="q">
+          <label>Is more than one image required?</label>
+          <select name="multiple_images_required"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>Will they provide the image or will WWT build it?</label>
+          <select name="image_source">
+            <option>provided_by_customer</option>
+            <option>built_by_wwt</option>
+          </select>
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Authentication & Security</legend>
-        <label>Is Multi-Factor Authentication required?</label>
-        <select name="mfa_required"><option>no</option><option>yes</option></select>
-        <label>Does an MFA solution already exist?</label>
-        <select name="mfa_solution_exists"><option>no</option><option>yes</option></select>
-        <label>Will they need to use smart card authentication?</label>
-        <select name="smartcard_required"><option>no</option><option>yes</option></select>
-        <label>Incorporate with Workspace ONE Access?</label>
-        <select name="workspace_one_access"><option>no</option><option>yes</option></select>
-        <label>Will there be any mobile device management required for this deployment?</label>
-        <select name="mdm_required"><option>no</option><option>yes</option></select>
+        <div class="q">
+          <label>Is Multi-Factor Authentication required?</label>
+          <select name="mfa_required"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>Does an MFA solution already exist?</label>
+          <select name="mfa_solution_exists"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>Will they need to use smart card authentication?</label>
+          <select name="smartcard_required"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>Will there be any mobile device management required for this deployment?</label>
+          <select name="mdm_required"><option>no</option><option>yes</option></select>
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Users, Sites & Use Cases</legend>
-        <label>How many concurrent users?</label>
-        <input type="number" name="concurrent_users" />
-        <label>How many total users?</label>
-        <input type="number" name="total_users" />
-        <label>How many user locations, where?</label>
-        <input name="user_locations" placeholder="comma-separated (City A, City B)" />
-        <label>How many datacenters, where?</label>
-        <input name="datacenters" placeholder="comma-separated (DC1, DC2)" />
-        <label>How many use cases?</label>
-        <input type="number" name="use_cases_count" />
-        <label>What is the main use case(s)?</label>
-        <input name="main_use_cases" placeholder="comma-separated" />
-      </fieldset>
-
-      <fieldset>
-        <legend>Operations & Enablement</legend>
-        <label>How is OGS staffed, dedicated or part time?</label>
-        <input name="ogs_staffing" placeholder="dedicated / part_time" />
-        <label>What type of training will be required?</label>
-        <input name="training_type" placeholder="admin / helpdesk / end user" />
-        <label>TRAINING REQUIRED</label>
-        <select name="training_required"><option>no</option><option>yes</option></select>
-        <label>What does KT look like to you?</label>
-        <input name="knowledge_transfer" />
-        <label>Will a “Run Book” be required?</label>
-        <select name="runbook_required"><option>no</option><option>yes</option></select>
-        <label>Will any Adoption Services be needed?</label>
-        <select name="adoption_services_required"><option>no</option><option>yes</option></select>
+        <div class="q">
+          <label>How many concurrent users?</label>
+          <input type="number" name="concurrent_users" />
+        </div>
+        <div class="q">
+          <label>How many total users?</label>
+          <input type="number" name="total_users" />
+        </div>
+        <div class="q">
+          <label>How many user locations, where?</label>
+          <input name="user_locations" placeholder="comma-separated (City A, City B)" />
+        </div>
+        <div class="q">
+          <label>How many datacenters, where?</label>
+          <input name="datacenters" placeholder="comma-separated (DC1, DC2)" />
+        </div>
+        <div class="q">
+          <label>How many use cases?</label>
+          <input type="number" name="use_cases_count" />
+        </div>
+        <div class="q">
+          <label>What is the main use case(s)?</label>
+          <input name="main_use_cases" placeholder="comma-separated" />
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Resilience, I/O & Monitoring</legend>
-        <label>Is there a plan for HA/DA?</label>
-        <input name="ha_da_plan" placeholder="yes/no + notes" />
-        <label>Is local printing required?</label>
-        <select name="local_printing_required"><option>no</option><option>yes</option></select>
-        <label>Are mass storage devices required?</label>
-        <select name="mass_storage_devices_required"><option>no</option><option>yes</option></select>
-        <label>Monitoring?</label>
-        <input name="monitoring" placeholder="tool(s), scope" />
-        <label>Heavy requirements for onboarding</label>
-        <select name="heavy_onboarding_requirements"><option>no</option><option>yes</option></select>
+        <div class="q">
+          <label>Is there a plan for HA/DA?</label>
+          <input name="ha_da_plan" placeholder="yes/no + notes" />
+        </div>
+        <div class="q">
+          <label>Is local printing required?</label>
+          <select name="local_printing_required"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>Are mass storage devices required?</label>
+          <select name="mass_storage_devices_required"><option>no</option><option>yes</option></select>
+        </div>
+        <div class="q">
+          <label>Monitoring?</label>
+          <input name="monitoring" placeholder="tool(s), scope" />
+        </div>
+        <div class="q">
+          <label>Heavy requirements for onboarding</label>
+          <select name="heavy_onboarding_requirements"><option>no</option><option>yes</option></select>
+        </div>
       </fieldset>
 
-      <p><label><input type="checkbox" name="push_to_github" /> Push to GitHub (build/&lt;slug&gt;)</label></p>
-      <button type="submit">Generate</button>
+      <div class="actions">
+        <label><input type="checkbox" name="push_to_github" /> Push to GitHub (build/&lt;slug&gt;)</label><br>
+        <button type="submit">Generate</button>
+      </div>
     </form>
   </body>
 </html>
