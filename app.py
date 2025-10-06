@@ -146,29 +146,15 @@ def checklist_download():
     filename = "predeployment_checklist_{dt}.md".format(dt=datetime.utcnow().strftime("%Y%m%d_%H%M%S"))
     return send_file(buf, mimetype="text/markdown", as_attachment=True, download_name=filename)
 
+from flask import abort
+
 @app.route("/manage-fields", methods=["GET"])
 def manage_fields():
-    # Show current CSV presence and provide upload form
-    exists = os.path.exists(FIELDS_CSV_PATH)
-    size = os.path.getsize(FIELDS_CSV_PATH) if exists else 0
-    return render_template("manage_fields.html", exists=exists, size=size)
+    abort(404)
 
 @app.route("/manage-fields/upload", methods=["POST"])
 def manage_fields_upload():
-    file = request.files.get("fields_csv")
-    if not file or file.filename == "":
-        flash("Please choose a CSV file.", "warning")
-        return redirect(url_for("manage_fields"))
-    filename = file.filename.lower()
-    if not filename.endswith(".csv"):
-        flash("Only .csv files are supported.", "warning")
-        return redirect(url_for("manage_fields"))
-    try:
-        file.save(FIELDS_CSV_PATH)
-        flash("Fields CSV uploaded successfully.", "success")
-    except Exception as e:
-        flash(f"Upload failed: {e}", "danger")
-    return redirect(url_for("manage_fields"))
+    abort(404)
 
 @app.route("/presales", methods=["GET"])
 def presales():
@@ -177,8 +163,7 @@ def presales():
 
 @app.route("/predeploy", methods=["GET"])
 def predeploy():
-    # Entry page for Pre-Deployment checklist builder (scope-only preview)
-    return render_template("predeploy.html")
+    return redirect(url_for("pdg"))
 
 @app.route("/predeploy/build", methods=["POST"])
 def predeploy_build():
