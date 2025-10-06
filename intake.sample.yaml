@@ -1,0 +1,75 @@
+customer:
+  name: Diamondback Energy
+  industry: Energy
+  contacts:
+    sponsor: Jane Smith
+    it_owner: John Doe
+    security: Alice Carter
+
+engagement:
+  version: "1.1.0"
+  changes:
+    - "Added Pod 2 and enabled CPA."
+    - "Clarified UAG is internal-only during POC."
+  phases:
+    - name: Assessment & HLD
+      billing_milestone: 30%
+      deliverables: ["HLD"]
+    - name: Build & LLD
+      billing_milestone: 40%
+      deliverables: ["LLD"]
+    - name: Pilot & PDG
+      billing_milestone: 20%
+      deliverables: ["PDG"]
+    - name: As‑Built & Handover
+      billing_milestone: 10%
+      deliverables: ["As‑Built"]
+  timeline:
+    start_date: 2025-10-13
+    notes: "NET 10/13 start; CRB Tue/Thu targeting week of 10/20, fallback 10/27."
+
+horizon:
+  version: "2503.1"
+  cpa_enabled: true
+  pods:
+    - name: Pod 1
+      site: DC1
+      region: Central US
+      uag:
+        internet_facing: false
+        count: 2
+      vcenter: vcsa01.dbe.local
+    - name: Pod 2
+      site: DC2
+      region: US East 2
+      uag:
+        internet_facing: false
+        count: 2
+      vcenter: vcsa02.dbe.local
+
+image_mgmt:
+  os: "Windows 11 23H2"
+  instant_clone: true
+  dem: true
+  fslogix:
+    enabled: true
+    cloud_cache: true
+    capacity_target: "PowerScale SMB"
+
+security:
+  mfa: "Duo"
+  certs_managed_by: "PKI team"
+  external_exposure_in_poc: false
+
+constraints:
+  out_of_scope:
+    - "Internet-facing UAGs in POC"
+    - "Non-VDI automation beyond image factory"
+  assumptions:
+    - "DNS, NTP, and routing provided by customer"
+    - "Licensing provided by customer"
+
+deliverable_options:
+  include_architecture_diagrams: true
+  include_risk_register: true
+  include_runbooks: true

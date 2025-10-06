@@ -1,0 +1,76 @@
+# Canonical schema for VDI/Horizon engagements
+# Use this as reference for building your intake YAMLs.
+
+customer:
+  name: ""        # REQUIRED
+  industry: ""    # optional
+  contacts:
+    sponsor: ""
+    it_owner: ""
+    security: ""
+
+engagement:
+  version: "1.0.0"     # doc set version
+  changes: []          # list of change log bullet items
+  phases:              # REQUIRED – used for SOW & schedule
+    - name: "Assessment & HLD"
+      billing_milestone: "30%"
+      deliverables: ["HLD"]
+    - name: "Build & LLD"
+      billing_milestone: "40%"
+      deliverables: ["LLD"]
+    - name: "Pilot & PDG"
+      billing_milestone: "20%"
+      deliverables: ["PDG"]
+    - name: "As‑Built & Handover"
+      billing_milestone: "10%"
+      deliverables: ["As‑Built"]
+  timeline:
+    start_date: ""     # e.g., 2025-10-13
+    notes: ""
+
+horizon:
+  version: "2503.1"
+  cpa_enabled: true
+  pods:
+    - name: "Pod 1"
+      site: "DC1"
+      region: "Central US"
+      uag:
+        internet_facing: false
+        count: 2
+      vcenter: "vcsa01.company.local"
+    - name: "Pod 2"
+      site: "DC2"
+      region: "US East 2"
+      uag:
+        internet_facing: false
+        count: 2
+      vcenter: "vcsa02.company.local"
+
+image_mgmt:
+  os: "Windows 11 23H2"
+  instant_clone: true
+  dem: true
+  fslogix:
+    enabled: true
+    cloud_cache: true
+    capacity_target: "Azure Files"  # or SMB/PowerScale/etc.
+
+security:
+  mfa: "Duo"
+  certs_managed_by: "PKI team"
+  external_exposure_in_poc: false
+
+constraints:
+  out_of_scope:
+    - "Cost optimization beyond initial sizing"
+    - "External UAG exposure in POC"
+  assumptions:
+    - "Customer provides PKI and MFA integration details"
+    - "IP/DNS and routing are available per LLD"
+
+deliverable_options:
+  include_architecture_diagrams: true
+  include_risk_register: true
+  include_runbooks: true

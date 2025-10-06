@@ -1,0 +1,20 @@
+# As‑Built Documentation — {{ customer.name }}
+
+## Final State Summary
+- Horizon version: {{ horizon.version }}
+- Pods deployed: {{ horizon.pods | length }}
+- CPA: {{ 'Enabled' if horizon.cpa_enabled else 'Not used' }}
+
+## Configuration Details
+{% for p in horizon.pods %}
+### {{ p.name }}
+- Site: {{ p.site }} ({{ p.region }})
+- UAG posture: {{ 'internet-facing' if p.uag.internet_facing else 'internal-only' }} × {{ p.uag.count }}
+- vCenter: {{ p.vcenter }}
+{% endfor %}
+
+## Change Log (v{{ engagement.version }})
+{% if engagement.changes|length == 0 %}- Initial version.
+{% else %}{% for c in engagement.changes -%}
+- {{ c }}
+{%- endfor %}{% endif %}

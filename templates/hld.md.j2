@@ -1,0 +1,26 @@
+# High-Level Design — {{ customer.name }}
+
+## Overview
+Horizon {{ horizon.version }} across {{ horizon.pods | length }} pod{% if horizon.pods|length>1 %}s{% endif %}; CPA {{ 'enabled' if horizon.cpa_enabled else 'not used' }}. External exposure in POC: {{ 'Yes' if security.external_exposure_in_poc else 'No (internal-only validation)' }}.
+
+## Architecture Summary
+{% for p in horizon.pods %}
+### {{ p.name }} ({{ p.site }} / {{ p.region }})
+- UAG: {{ 'internet-facing' if p.uag.internet_facing else 'internal-only' }} × {{ p.uag.count }}
+- vCenter: {{ p.vcenter }}
+{% endfor %}
+
+## Image & Persona
+- OS: {{ image_mgmt.os }}, Instant Clone: {{ 'Yes' if image_mgmt.instant_clone else 'No' }}
+- DEM: {{ 'Enabled' if image_mgmt.dem else 'Not used' }}
+- FSLogix: {{ 'Enabled' if image_mgmt.fslogix.enabled else 'Not used' }}{% if image_mgmt.fslogix.enabled %}, Cloud Cache: {{ 'Yes' if image_mgmt.fslogix.cloud_cache else 'No' }}, Capacity Target: {{ image_mgmt.fslogix.capacity_target }}{% endif %}
+
+## Security
+- MFA: {{ security.mfa }}
+- Certificates managed by: {{ security.certs_managed_by }}
+
+{% if deliverable_options.include_risk_register %}
+## Risks (Initial)
+- Misaligned UAG exposure expectations between POC and Prod.
+- Image management drift without governance.
+{% endif %}
