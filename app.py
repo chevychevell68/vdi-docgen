@@ -103,5 +103,25 @@ def manage_fields_upload():
         flash(f"Upload failed: {e}", "danger")
     return redirect(url_for("manage_fields"))
 
+@app.route("/presales", methods=["GET"])
+def presales():
+    # Explicit route for the presales questionnaire
+    return render_template("form.html")
+
+@app.route("/predeploy", methods=["GET"])
+def predeploy():
+    # Entry page for Pre-Deployment checklist builder (scope-only preview)
+    return render_template("predeploy.html")
+
+@app.route("/predeploy/build", methods=["POST"])
+def predeploy_build():
+    # Build checklist using only the selected pod scope (single/multi)
+    pod_scope = request.form.get("pod_scope", "single")
+    is_multi = (pod_scope == "multi")
+    fields = load_fields_from_csv()
+    data = {"pod_scope": pod_scope}  # minimal context for rendering
+    return render_template("checklist.html", data=data, fields=fields, is_multi=is_multi, now=datetime.utcnow())
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
