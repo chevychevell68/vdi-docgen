@@ -1,0 +1,71 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 mb-3">Pre-Deployment Checklist</h1>
+<p class="text-muted">Generated {{ now.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+
+<form method="POST" action="{{ url_for('checklist_download') }}">
+  {% for key, val in data.items() %}
+    {% if val is string %}
+      <input type="hidden" name="{{ key }}" value="{{ val|e }}">
+    {% else %}
+      {% for v in val %}
+        <input type="hidden" name="{{ key }}" value="{{ v|e }}">
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+
+  <h2 class="h5 mt-4">Global</h2>
+  <ul class="list-group mb-3">
+    {% for f in fields if f.applies_to|lower in ["global", "both"] %}
+      <li class="list-group-item d-flex justify-content-between align-items-start">
+        <div>
+          <div class="fw-semibold">{{ f.label }}</div>
+          {% if f.type == "select" %}
+            <div class="text-muted">Options: {{ f.options }}</div>
+          {% endif %}
+        </div>
+        <span class="badge bg-light text-dark">{{ "Required" if f.required|lower in ["yes","true","1"] else "Optional" }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <h2 class="h5 mt-4">Pod 1</h2>
+  <ul class="list-group mb-3">
+    {% for f in fields if f.applies_to|lower in ["pod1","both"] %}
+      <li class="list-group-item d-flex justify-content-between align-items-start">
+        <div class="fw-semibold">{{ f.label }}</div>
+        <span class="badge bg-light text-dark">{{ "Required" if f.required|lower in ["yes","true","1"] else "Optional" }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if is_multi %}
+    <h2 class="h5 mt-4">Pod 2</h2>
+    <ul class="list-group mb-3">
+      {% for f in fields if f.applies_to|lower in ["pod2","both"] %}
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+          <div class="fw-semibold">{{ f.label }}</div>
+          <span class="badge bg-light text-dark">{{ "Required" if f.required|lower in ["yes","true","1"] else "Optional" }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+
+    <h2 class="h5 mt-4">GSLB (Multi-Pod)</h2>
+    <ul class="list-group mb-3">
+      <li class="list-group-item"><strong>Enable GSLB?</strong> (Yes/No)</li>
+      <li class="list-group-item"><strong>GSLB FQDN(s) for Horizon:</strong> Internal and External URLs</li>
+      <li class="list-group-item"><strong>GTM Configuration:</strong> Data centers, pools, monitors</li>
+      <li class="list-group-item"><strong>LTM VIPs per Site:</strong> UAG, Connection Server, Admin, App Volumes, DEM</li>
+      <li class="list-group-item"><strong>Health Monitors:</strong> Types, intervals, response codes</li>
+      <li class="list-group-item"><strong>Failover/Steering Policy:</strong> Round-robin, topology, latency, geo</li>
+      <li class="list-group-item"><strong>Certificates & SNI:</strong> SANs/Wildcards, renewal ownership</li>
+    </ul>
+  {% endif %}
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-success" type="submit">Download Checklist (Markdown)</button>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Start Over</a>
+  </div>
+</form>
+{% endblock %}

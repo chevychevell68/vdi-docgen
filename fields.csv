@@ -1,0 +1,12 @@
+
+section,field_key,label,type,options,required,applies_to
+General,project_name,Project Name,text,,yes,global
+General,customer_name,Customer Name,text,,yes,global
+Networking,mgmt_cidr,Management Network CIDR,text,,yes,both
+Networking,vmotion_cidr,vMotion Network CIDR,text,,no,both
+Storage,datastore_naming,Datastore Naming Standard,text,,no,both
+Horizon,uag_count,UAG Count,text,,yes,both
+Horizon,cs_count,Connection Server Count,text,,yes,both
+Horizon,appvols_url,App Volumes Manager URL,text,,no,both
+Security,cert_contact,Certificate Owner/Contact,text,,yes,global
+Security,pkcs12_password,PKCS#12 Password escrowed?,select,Yes|No,yes,global

@@ -9,7 +9,6 @@
     {% if val is string %}
       <input type="hidden" name="{{ key }}" value="{{ val|e }}">
     {% else %}
-      {# handle lists if any #}
       {% for v in val %}
         <input type="hidden" name="{{ key }}" value="{{ v|e }}">
       {% endfor %}
@@ -88,7 +87,7 @@
   <h2 class="h6 mt-4">Access & Identity</h2>
   <div class="row g-3">
     <div class="col-md-4">
-      <label class="form-label">3rd‑party IdP?</label>
+      <label class="form-label">3rd-party IdP?</label>
       <div class="form-control">{{ data.get('idp_integrate','') }}</div>
     </div>
     {% if data.get('idp_integrate') == 'yes' %}
@@ -108,7 +107,19 @@
 
   <div class="d-flex gap-2 mt-4">
     <button class="btn btn-success" type="submit">Download Markdown</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('index') }}">Edit</a>
   </div>
+</form>
+
+<form method="POST" action="{{ url_for('checklist') }}" class="mt-3">
+  {% for key, val in data.items() %}
+    {% if val is string %}
+      <input type="hidden" name="{{ key }}" value="{{ val|e }}">
+    {% else %}
+      {% for v in val %}
+        <input type="hidden" name="{{ key }}" value="{{ v|e }}">
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+  <button class="btn btn-primary" type="submit">Generate Pre-Deployment Checklist</button>
 </form>
 {% endblock %}

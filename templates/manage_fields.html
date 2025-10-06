@@ -1,0 +1,48 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 mb-3">Manage Pre-Deployment Fields</h1>
+<p class="text-muted">Upload your spreadsheet as a CSV to drive the checklist. The app will render exactly the fields you provide.</p>
+
+<div class="alert alert-info">
+  <div class="fw-semibold">CSV Columns (header row required)</div>
+  <ul class="mb-0">
+    <li><code>section</code> – (optional) Logical section name (e.g., Networking, Storage)</li>
+    <li><code>field_key</code> – Stable key (no spaces)</li>
+    <li><code>label</code> – Human-readable question/field label</li>
+    <li><code>type</code> – <em>text</em> or <em>select</em> (for dropdowns)</li>
+    <li><code>options</code> – Pipe-separated options for selects (e.g., <code>Yes|No|TBD</code>)</li>
+    <li><code>required</code> – yes/no</li>
+    <li><code>applies_to</code> – one of <code>global</code>, <code>pod1</code>, <code>pod2</code>, <code>both</code></li>
+  </ul>
+</div>
+
+<div class="mb-3">
+  {% if exists %}
+    <span class="badge bg-success">Current CSV: present ({{ size }} bytes)</span>
+  {% else %}
+    <span class="badge bg-secondary">No CSV uploaded yet</span>
+  {% endif %}
+</div>
+
+<form method="POST" action="{{ url_for('manage_fields_upload') }}" enctype="multipart/form-data" class="mt-2">
+  <div class="mb-3">
+    <label class="form-label">Upload Fields CSV</label>
+    <input class="form-control" type="file" name="fields_csv" accept=".csv">
+  </div>
+  <button class="btn btn-primary" type="submit">Upload</button>
+  <a class="btn btn-outline-secondary" href="{{ url_for('index') }}">Back to Questionnaire</a>
+</form>
+
+<hr class="my-4">
+
+<h2 class="h6">GSLB Fields (auto-added when Multi-Pod)</h2>
+<ul>
+  <li>GSLB FQDN(s) (Internal/External URLs)</li>
+  <li>GTM: data centers, pools, monitors</li>
+  <li>LTM VIPs per site (UAG, CS, Admin, App Volumes, DEM)</li>
+  <li>Health monitors (types, intervals, response codes)</li>
+  <li>Steering policy (round-robin, topology, latency, geo)</li>
+  <li>Certificates &amp; SNI (SANs, wildcards, renewal)</li>
+</ul>
+{% endblock %}
