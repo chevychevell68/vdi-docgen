@@ -1,0 +1,30 @@
+name: Create default reference.docx
+
+on:
+  workflow_dispatch:
+
+jobs:
+  make-refdoc:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install Pandoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+
+      - name: Generate styles/reference.docx
+        run: |
+          mkdir -p styles
+          pandoc --print-default-data-file=reference.docx > styles/reference.docx
+          ls -l styles/
+
+      - name: Commit file to repo
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Add default styles/reference.docx"
+          file_pattern: styles/reference.docx
