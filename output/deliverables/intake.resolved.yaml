@@ -1,0 +1,55 @@
+customer:
+  name: NewCo
+engagement:
+  version: 1.0.0
+  changes: []
+  phases:
+  - name: Assessment & HLD
+    billing_milestone: 30%
+  - name: Build & LLD
+    billing_milestone: 40%
+  - name: Pilot & PDG
+    billing_milestone: 20%
+  - name: As-Built & Handover
+    billing_milestone: 10%
+  timeline:
+    start_date: ''
+    notes: this is a test.
+horizon:
+  version: '2503.1'
+  cpa_enabled: true
+  pods:
+  - name: Pod 1
+    site: DC1
+    region: Central US
+    vcenter: vcsa01.newco.com
+    uag:
+      internet_facing: true
+      count: 2
+  - name: Pod 2
+    site: DC2
+    region: US East 2
+    vcenter: vcsa02.newco.com
+    uag:
+      internet_facing: true
+      count: 2
+image_mgmt:
+  os: Windows 11 23H2
+  instant_clone: true
+  dem: true
+  fslogix:
+    enabled: true
+    cloud_cache: true
+    capacity_target: SMB
+security:
+  mfa: Azure Identity
+  certs_managed_by: PKI team
+  external_exposure_in_poc: true
+constraints:
+  assumptions:
+  - DNS/NTP/routing provided by customer
+  out_of_scope: []
+deliverable_options:
+  include_architecture_diagrams: true
+  include_risk_register: true
+  include_runbooks: true
