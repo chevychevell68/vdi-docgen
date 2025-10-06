@@ -70,4 +70,99 @@
         <label>Are we setting up the endpoints?</label>
         <select name="setup_endpoints"><option>no</option><option>yes</option></select>
         <label>What type of endpoints will be connecting?</label>
-        <input name="endpoint_types" placeholder="comma-separated (thin, Windows, mac_
+        <input name="endpoint_types" placeholder="comma-separated (thin, Windows, macOS, IGEL...)" />
+        <label>Thin Client management required?</label>
+        <select name="thin_client_mgmt_required"><option>no</option><option>yes</option></select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Profiles & Apps</legend>
+        <label>Include profile management?</label>
+        <select name="profile_mgmt_included"><option>yes</option><option>no</option></select>
+        <label>Include virtual applications?</label>
+        <select name="virtual_apps_included"><option>no</option><option>yes</option></select>
+        <label>Would WWT be responsible for application packaging?</label>
+        <select name="app_packaging_by_wwt"><option>no</option><option>yes</option></select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Graphics</legend>
+        <label>Will GPU acceleration be required?</label>
+        <select name="gpu_required"><option>no</option><option>yes</option></select>
+        <label>GPU Use Case</label>
+        <input name="gpu_use_case" placeholder="apps, AI, VDI power users..." />
+      </fieldset>
+
+      <fieldset>
+        <legend>Images</legend>
+        <label>Is more than one image required?</label>
+        <select name="multiple_images_required"><option>no</option><option>yes</option></select>
+        <label>Will they provide the image or will WWT build it?</label>
+        <select name="image_source"><option>provided_by_customer</option><option>built_by_wwt</option></select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Authentication & Security</legend>
+        <label>Is Multi-Factor Authentication required?</label>
+        <select name="mfa_required"><option>no</option><option>yes</option></select>
+        <label>Does an MFA solution already exist?</label>
+        <select name="mfa_solution_exists"><option>no</option><option>yes</option></select>
+        <label>Will they need to use smart card authentication?</label>
+        <select name="smartcard_required"><option>no</option><option>yes</option></select>
+        <label>Incorporate with Workspace ONE Access?</label>
+        <select name="workspace_one_access"><option>no</option><option>yes</option></select>
+        <label>Will there be any mobile device management required for this deployment?</label>
+        <select name="mdm_required"><option>no</option><option>yes</option></select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Users, Sites & Use Cases</legend>
+        <label>How many concurrent users?</label>
+        <input type="number" name="concurrent_users" />
+        <label>How many total users?</label>
+        <input type="number" name="total_users" />
+        <label>How many user locations, where?</label>
+        <input name="user_locations" placeholder="comma-separated (City A, City B)" />
+        <label>How many datacenters, where?</label>
+        <input name="datacenters" placeholder="comma-separated (DC1, DC2)" />
+        <label>How many use cases?</label>
+        <input type="number" name="use_cases_count" />
+        <label>What is the main use case(s)?</label>
+        <input name="main_use_cases" placeholder="comma-separated" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Operations & Enablement</legend>
+        <label>How is OGS staffed, dedicated or part time?</label>
+        <input name="ogs_staffing" placeholder="dedicated / part_time" />
+        <label>What type of training will be required?</label>
+        <input name="training_type" placeholder="admin / helpdesk / end user" />
+        <label>TRAINING REQUIRED</label>
+        <select name="training_required"><option>no</option><option>yes</option></select>
+        <label>What does KT look like to you?</label>
+        <input name="knowledge_transfer" />
+        <label>Will a “Run Book” be required?</label>
+        <select name="runbook_required"><option>no</option><option>yes</option></select>
+        <label>Will any Adoption Services be needed?</label>
+        <select name="adoption_services_required"><option>no</option><option>yes</option></select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Resilience, I/O & Monitoring</legend>
+        <label>Is there a plan for HA/DA?</label>
+        <input name="ha_da_plan" placeholder="yes/no + notes" />
+        <label>Is local printing required?</label>
+        <select name="local_printing_required"><option>no</option><option>yes</option></select>
+        <label>Are mass storage devices required?</label>
+        <select name="mass_storage_devices_required"><option>no</option><option>yes</option></select>
+        <label>Monitoring?</label>
+        <input name="monitoring" placeholder="tool(s), scope" />
+        <label>Heavy requirements for onboarding</label>
+        <select name="heavy_onboarding_requirements"><option>no</option><option>yes</option></select>
+      </fieldset>
+
+      <p><label><input type="checkbox" name="push_to_github" /> Push to GitHub (build/&lt;slug&gt;)</label></p>
+      <button type="submit">Generate</button>
+    </form>
+  </body>
+</html>
