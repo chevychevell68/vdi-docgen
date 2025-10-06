@@ -1,0 +1,16 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h4 mb-3">PDG Review</h1>
+<p class="text-muted">Submitted at {{ submitted_at }}</p>
+
+<form method="POST" action="/pdg/download-docx">
+  {% for k, v in data.items() %}
+    <input type="hidden" name="{{ k|e }}" value="{{ v|e }}">
+  {% endfor %}
+  <div class="d-flex gap-2">
+    <button class="btn btn-success" type="submit">Download PDG (.docx)</button>
+    <a class="btn btn-outline-secondary" href="/pdg">Edit</a>
+  </div>
+</form>
+{% endblock %}
