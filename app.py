@@ -1,118 +1,77 @@
-import io, zipfile, os, yaml
+import os, io, time, base64, zipfile, yaml, requests
 from flask import Flask, render_template, request, send_file, abort
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
-
-app = Flask(__name__)
-
-TEMPLATES_DIR = "templates"
-DOC_TEMPLATES = [
-    ("sow.md.j2", "SOW.md"),
-    ("hld.md.j2", "HLD.md"),
-    ("lld.md.j2", "LLD.md"),
-    ("pdg.md.j2", "PDG.md"),
-    ("asbuilt.md.j2", "AsBuilt.md"),
-]
-
-def render_docs(data: dict) -> dict:
-    env = Environment(
-        loader=FileSystemLoader(TEMPLATES_DIR),
-        undefined=StrictUndefined,
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
-    files = {}
-    # simple validation
-    for sec, key in [("customer","name"),("horizon","version"),("horizon","pods"),("engagement","phases")]:
-        if not (sec in data and key in data[sec] and data[sec][key]):
-            raise ValueError(f"Missing required field: {sec}.{key}")
-
-    for tpl, outname in DOC_TEMPLATES:
-        tpl_obj = env.get_template(tpl)
-        files[outname] = tpl_obj.render(**data)
-    return files
-
-@app.route("/", methods=["GET"])
-def index():
-    return render_template("index.html")
-
-@app.route("/generate", methods=["POST"])
-def generate():
+app = Flask(__name__); app.secret_key=os.getenv("SECRET_KEY","dev")
+GITHUB_TOKEN=os.getenv("GITHUB_TOKEN"); OWNER=os.getenv("GITHUB_OWNER"); REPO=os.getenv("GITHUB_REPO"); MAIN=os.getenv("GITHUB_MAIN","main")
+API="https://api.github.com"
+DOC_TPL=[("sow.md.j2","SOW.md"),("loe.md.j2","LOE.md"),("wbs.md.j2","WBS.md"),("hld.md.j2","HLD.md"),("lld.md.j2","LLD.md"),("atp.md.j2","ATP.md"),("asbuilt.md.j2","AsBuilt.md")]
+def env(): return Environment(loader=FileSystemLoader("templates/docs"), undefined=StrictUndefined, trim_blocks=True, lstrip_blocks=True)
+def render_md(data): 
+    e=env(); out={}
+    for t,o in DOC_TPL: out[o]=e.get_template(t).render(**data)
+    return out
+def hdr(): 
+    if not GITHUB_TOKEN: raise RuntimeError("GITHUB_TOKEN not set")
+    return {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept":"application/vnd.github+json"}
+def main_sha():
+    r=requests.get(f"{API}/repos/{OWNER}/{REPO}/git/ref/heads/{MAIN}", headers=hdr()); r.raise_for_status(); return r.json()["object"]["sha"]
+def mk_branch(slug):
+    sha=main_sha(); br=f"build/{slug}"
+    r=requests.get(f"{API}/repos/{OWNER}/{REPO}/git/ref/heads/{br}", headers=hdr())
+    if r.status_code==200: br=f"{br}-{int(time.time())}"
+    r=requests.post(f"{API}/repos/{OWNER}/{REPO}/git/refs", headers=hdr(), json={"ref":f"refs/heads/{br}","sha":sha}); r.raise_for_status(); return br
+def put_file(branch,path,bytes_,msg):
+    url=f"{API}/repos/{OWNER}/{REPO}/contents/{path}"
+    r=requests.put(url, headers=hdr(), json={"message":msg,"branch":branch,"content":base64.b64encode(bytes_).decode()})
+    r.raise_for_status()
+@app.get("/") 
+def home(): return render_template("home.html")
+@app.get("/presales")
+def pre_get(): return render_template("forms/presales.html")
+@app.post("/presales")
+def pre_post():
+    f=lambda n,d="":request.form.get(n,d).strip(); y=lambda n:request.form.get(n,"no").lower() in ("yes","true","on","1")
+    slug=f("client_slug") or f("project_name").lower().replace(" ","-") or "client"
+    data={"project":{"name":f("project_name"),"client_slug":slug},"platform":{"deployment_model":f("deployment_model","on_prem")}, "core":{"dns":[s.strip() for s in f("dns").split(",") if s.strip()]}, "topology":{"pods":[{"name":"Pod 1","site":f("pod1_site","DC1"),"region":f("pod1_region","Central US"),"vcenter":f("pod1_vcenter"),"uag":{"count":int(f("pod1_uag_count","2") or 2),"internet_facing":y("pod1_uag_internet")}}]}}
+    files=render_md(data); mem=io.BytesIO(); 
+    with zipfile.ZipFile(mem,"w") as z:
+        z.writestr("intake.presales.yaml", yaml.safe_dump(data, sort_keys=False))
+        for n,c in files.items(): z.writestr(f"output/{slug}/{n}", c)
+    mem.seek(0)
+    if request.form.get("push_to_github")=="on":
+        br=mk_branch(slug)
+        for n,c in files.items(): put_file(br, f"output/{slug}/{n}", c.encode(), f"add {n}")
+        put_file(br, f"output/{slug}/intake.presales.yaml", yaml.safe_dump(data, sort_keys=False).encode(), "add intake")
+        return f"Pushed to {br}. Get DOCX later at /docx/{slug}."
+    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name="presales-output.zip")
+@app.get("/predeploy")
+def pd_get(): return render_template("forms/predeploy.html")
+@app.post("/predeploy")
+def pd_post():
+    f=lambda n,d="":request.form.get(n,d).strip(); slug=f("client_slug") or "client"
+    data={"project":{"name":f("project_name",slug),"client_slug":slug}, "core":{"dns":[s.strip() for s in f("dns").split(",") if s.strip()], "ntp":[s.strip() for s in f("ntp").split(",") if s.strip()]}, "access":{"uag":{"pod1":{"vip_fqdn":f("pod1_uag_vip"),"cert_cn":f("pod1_uag_cert")}}, "load_balancer":f("lb_vendor")}, "images":{"os":[s.strip() for s in f("image_os").split(",") if s.strip()], "count":int(f("image_count","1") or 1)}}
+    files=render_md(data); mem=io.BytesIO(); 
+    with zipfile.ZipFile(mem,"w") as z:
+        z.writestr("intake.predeploy.yaml", yaml.safe_dump(data, sort_keys=False))
+        for n,c in files.items(): z.writestr(f"output/{slug}/{n}", c)
+    mem.seek(0)
+    if request.form.get("push_to_github")=="on":
+        br=mk_branch(slug)
+        for n,c in files.items(): put_file(br, f"output/{slug}/{n}", c.encode(), f"add {n}")
+        put_file(br, f"output/{slug}/intake.predeploy.yaml", yaml.safe_dump(data, sort_keys=False).encode(), "add intake")
+        return f"Pushed to {br}. Get DOCX later at /docx/{slug}."
+    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name="predeploy-output.zip")
+@app.get("/docx/<slug>")
+def docx(slug):
     try:
-        # Option A: YAML upload
-        if "intake_yaml" in request.files and request.files["intake_yaml"].filename:
-            data = yaml.safe_load(request.files["intake_yaml"].read().decode("utf-8"))
-        else:
-            # Option B: quick form (minimal fields)
-            customer = request.form.get("customer_name","").strip()
-            horizon_version = request.form.get("horizon_version","2503.1").strip()
-            pods_count = int(request.form.get("pods_count","1"))
-            uag_internet = (request.form.get("uag_internet","no") == "yes")
-            pods = []
-            for i in range(pods_count):
-                pods.append({
-                    "name": f"Pod {i+1}",
-                    "site": request.form.get(f"pod{i+1}_site","DC1"),
-                    "region": request.form.get(f"pod{i+1}_region","Central US"),
-                    "vcenter": request.form.get(f"pod{i+1}_vcenter","vcsa01.local"),
-                    "uag": {"internet_facing": uag_internet, "count": 2},
-                })
-
-            data = {
-                "customer": {"name": customer or "Customer"},
-                "engagement": {
-                    "version": request.form.get("version","1.0.0"),
-                    "changes": [],
-                    "phases": [
-                        {"name":"Assessment & HLD","billing_milestone":"30%"},
-                        {"name":"Build & LLD","billing_milestone":"40%"},
-                        {"name":"Pilot & PDG","billing_milestone":"20%"},
-                        {"name":"As-Built & Handover","billing_milestone":"10%"},
-                    ],
-                    "timeline": {
-                        "start_date": request.form.get("start_date",""),
-                        "notes": request.form.get("timeline_notes","")
-                    }
-                },
-                "horizon": {
-                    "version": horizon_version,
-                    "cpa_enabled": (pods_count > 1),
-                    "pods": pods
-                },
-                "image_mgmt": {
-                    "os": request.form.get("os","Windows 11 23H2"),
-                    "instant_clone": True,
-                    "dem": True,
-                    "fslogix": {"enabled": True, "cloud_cache": True, "capacity_target":"SMB"}
-                },
-                "security": {
-                    "mfa": request.form.get("mfa","Duo"),
-                    "certs_managed_by": request.form.get("certs_owner","PKI team"),
-                    "external_exposure_in_poc": (request.form.get("poc_external","no")=="yes")
-                },
-                "constraints": {
-                    "assumptions": ["DNS/NTP/routing provided by customer"],
-                    "out_of_scope": ["Internet-facing UAGs in POC"] if request.form.get("poc_external","no")!="yes" else []
-                },
-                "deliverable_options": {
-                    "include_architecture_diagrams": True,
-                    "include_risk_register": True,
-                    "include_runbooks": True
-                }
-            }
-
-        files = render_docs(data)
-
-        # stream a ZIP back to the browser
-        mem = io.BytesIO()
-        with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
-            # include the resolved intake for audit
-            z.writestr("intake.resolved.yaml", yaml.safe_dump(data, sort_keys=False))
-            for name, content in files.items():
-                z.writestr(name, content)
-        mem.seek(0)
-        return send_file(mem, mimetype="application/zip", as_attachment=True, download_name="deliverables.zip")
+        r=requests.get(f"{API}/repos/{OWNER}/{REPO}/actions/artifacts", headers=hdr()); r.raise_for_status()
+        arts=r.json().get("artifacts",[])
+        for a in arts:
+            if a.get("expired"): continue
+            if "docx" in a.get("name",""):
+                dl=requests.get(a["archive_download_url"], headers=hdr()); dl.raise_for_status()
+                return send_file(io.BytesIO(dl.content), mimetype="application/zip", as_attachment=True, download_name=f"{a['name']}.zip")
+        return "No artifact yet. Check repo output-docx/."
     except Exception as e:
-        return abort(400, str(e))
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
+        return f"Error: {e}", 400
+if __name__=="__main__": app.run(host="0.0.0.0", port=int(os.getenv("PORT","5000")), debug=True)

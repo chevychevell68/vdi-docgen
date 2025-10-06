@@ -1,0 +1,3 @@
+# LLD — {{ project.name or project.client_slug }}
+DNS: {{ core.dns|join(', ') if core and core.dns }}
+UAG VIP: {{ access.uag.pod1.vip_fqdn if access and access.uag and access.uag.pod1 }}
