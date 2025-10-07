@@ -71,6 +71,15 @@
         <label class="form-label">Datacenters/regions (where)</label>
         <input class="form-control" name="datacenters_detail" value="{{ (form.datacenters_detail if form else '') }}" placeholder="City/region list">
       </div>
+      <div class="col-md-4">
+        <label class="form-label">Deployment type</label>
+          <select class="form-select" name="deployment_type">
+            <option value="" {{ 'selected' if (form and form.deployment_type=='') else '' }}>Select…</option>
+            <option {{ 'selected' if (form and form.deployment_type=='On-prem') else '' }}>On-prem</option>
+            <option {{ 'selected' if (form and form.deployment_type=='Cloud') else '' }}>Cloud</option>
+            <option {{ 'selected' if (form and form.deployment_type=='Hybrid') else '' }}>Hybrid</option>
+          </select>
+      </div>
 
       <!-- Region checklist with % -->
       <div class="col-12">
@@ -134,35 +143,44 @@
     </div>
   </fieldset>
 
-  <!-- 2) Graphics / GPU -->
-  <fieldset class="border p-3 mb-4">
-    <legend>Graphics / GPU</legend>
-    <div class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label d-block">GPU required?</label>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_no" value="No" {% if form and form.gpu_required=='No' %}checked{% endif %}>
-          <label class="form-check-label" for="gpu_required_no">No</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_yes" value="Yes" {% if form and form.gpu_required=='Yes' %}checked{% endif %}>
-          <label class="form-check-label" for="gpu_required_yes">Yes</label>
-        </div>
+ <!-- 2) Graphics / GPU -->
+<fieldset class="border p-3 mb-4">
+  <legend>Graphics / GPU</legend>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label d-block">GPU required?</label>
+
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_no" value="No" {% if form and form.gpu_required=='No' %}checked{% endif %}>
+        <label class="form-check-label" for="gpu_required_no">No</label>
       </div>
-      <div class="col-md-4">
-        <label class="form-label">GPU users (estimate)</label>
-        <input type="number" class="form-control" name="gpu_users" min="0" value="{{ (form.gpu_users if form else '') }}">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Target GPU profile / VRAM per user (GB)</label>
-        <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5" value="{{ (form.gpu_vram_per_user if form else '') }}">
-      </div>
-      <div class="col-12">
-        <label class="form-label">GPU use case</label>
-        <input class="form-control" name="gpu_use_case" value="{{ (form.gpu_use_case if form else '') }}" placeholder="3D/CAD, imaging, video editing, ML inferencing…">
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_yes" value="Yes" {% if form and form.gpu_required=='Yes' %}checked{% endif %}>
+        <label class="form-check-label" for="gpu_required_yes">Yes</label>
       </div>
     </div>
-  </fieldset>
+
+    <!-- GPU detail fields: hidden unless GPU required = Yes -->
+    <div id="gpu_details" style="{% if form and form.gpu_required=='Yes' %}display:block{% else %}display:none{% endif %};">
+      <div class="row g-3 mt-1">
+        <div class="col-md-4">
+          <label class="form-label">GPU users (estimate)</label>
+          <input type="number" class="form-control" name="gpu_users" min="0" value="{{ (form.gpu_users if form else '') }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Target GPU profile / VRAM per user (GB)</label>
+          <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5" value="{{ (form.gpu_vram_per_user if form else '') }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label">GPU use case</label>
+          <input class="form-control" name="gpu_use_case" value="{{ (form.gpu_use_case if form else '') }}" placeholder="3D/CAD, imaging, video editing, ML inferencing…">
+        </div>
+      </div>
+    </div>
+    <!-- /#gpu_details -->
+  </div>
+</fieldset>
+
 
   <!-- 3) Image & Applications -->
   <fieldset class="border p-3 mb-4">
@@ -621,16 +639,6 @@
   <!-- 9) Logistics & Delivery Model -->
   <fieldset class="border p-3 mb-4">
     <legend>Logistics & Delivery Model</legend>
-    <div class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label">Deployment type</label>
-        <select class="form-select" name="deployment_type">
-          <option value="" {{ 'selected' if (form and form.deployment_type=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.deployment_type=='On-prem') else '' }}>On-prem</option>
-          <option {{ 'selected' if (form and form.deployment_type=='Cloud') else '' }}>Cloud</option>
-          <option {{ 'selected' if (form and form.deployment_type=='Hybrid') else '' }}>Hybrid</option>
-        </select>
-      </div>
 
       <div class="col-md-8">
         <label class="form-label">Delivery model</label>
@@ -726,14 +734,16 @@
   function toggleExistingVDI(){
     const r = document.querySelector('input[name="existing_vdi"]:checked');
     const show = r && r.value === "Yes";
-    document.getElementById("existing_vdi_pain_group").style.display = show ? "" : "none";
+    const grp = document.getElementById("existing_vdi_pain_group");
+    if (grp) grp.style.display = show ? "" : "none";
   }
 
   // ----- App Volumes required apps toggle (checkboxes) -----
   function toggleRequiredApps(){
     const appvol = document.getElementById("va_appvol");
     const show = !!(appvol && appvol.checked);
-    document.getElementById("required_apps_group").style.display = show ? "" : "none";
+    const grp = document.getElementById("required_apps_group");
+    if (grp) grp.style.display = show ? "" : "none";
   }
 
   // ----- vSAN vs non-vSAN fields -----
@@ -747,7 +757,16 @@
   function toggleMFA(){
     const r = document.querySelector('input[name="mfa_required"]:checked');
     const show = r && r.value === "Yes";
-    document.getElementById("mfa_solution_group").style.display = show ? "" : "none";
+    const grp = document.getElementById("mfa_solution_group");
+    if (grp) grp.style.display = show ? "" : "none";
+  }
+
+  // --- GPU show/hide based on radio ---
+  function toggleGPU(){
+    const r = document.querySelector('input[name="gpu_required"]:checked');
+    const show = r && r.value === "Yes";
+    const wrap = document.getElementById("gpu_details");
+    if (wrap) wrap.style.display = show ? "" : "none";
   }
 
   // vSAN capacity for Instant Clones (GB)
@@ -867,6 +886,7 @@
     toggleRequiredApps();
     toggleStorageGroups();
     toggleMFA();
+    toggleGPU();
     computeVSAN();
     computeDensity();
   }
@@ -877,6 +897,7 @@
     // radio/checkbox listeners for toggles
     document.querySelectorAll('input[name="existing_vdi"]').forEach(r => r.addEventListener("change", toggleExistingVDI));
     document.querySelectorAll('input[name="mfa_required"]').forEach(r => r.addEventListener("change", toggleMFA));
+    document.querySelectorAll('input[name="gpu_required"]').forEach(r => r.addEventListener("change", toggleGPU));
     document.querySelectorAll('.va-check').forEach(c => c.addEventListener("change", toggleRequiredApps));
     document.getElementById("num_personas")?.addEventListener("input", renderUseCaseFields);
 
@@ -906,5 +927,3 @@
   }
 })();
 </script>
-
-{% endblock %}
