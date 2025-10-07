@@ -1,11 +1,21 @@
-
 from flask import Flask, render_template, request, send_file, redirect, url_for
 from datetime import datetime
 import io
 
 app = Flask(__name__)
 
-# ---------------- Shared helpers ----------------
+# ----- Canary / diagnostics -----
+APP_VERSION = "repo-fresh-1.0.3"
+
+@app.route("/__version")
+def __version():
+    return APP_VERSION, 200
+
+@app.route("/__health")
+def __health():
+    return "ok-" + APP_VERSION, 200
+
+# ---------------- Helpers ----------------
 def form_to_dict(form):
     data = {}
     for k in form.keys():
@@ -13,8 +23,8 @@ def form_to_dict(form):
         data[k] = vals[0] if len(vals) == 1 else vals
     return data
 
-# ---------------- PDG schema (approximation aligned to pod deployments) ----------------
-# tuple: (section, key, label, type, options, required, applies_to) where applies_to in {"global","both"}
+# ---------------- PDG schema ----------------
+# (section, key, label, type, options, required, applies_to) where applies_to in {"global","both"}
 SCHEMA_PDG = [
     # Global / Admin
     ("Global", "project_name", "Project Name", "text", "", True, "global"),
@@ -79,17 +89,17 @@ def pdg_groups(is_multi):
 
 # ---------------- Routes ----------------
 
-# Root = Presales (explicit)
+# Home = Presales
 @app.route("/", methods=["GET"])
 @app.route("/presales", methods=["GET"])
 def presales():
-    return render_template("presales_form.html")
+    return render_template("presales_form.html", app_version=APP_VERSION)
 
 @app.route("/presales/submit", methods=["POST"])
 def presales_submit():
     data = form_to_dict(request.form)
     submitted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    return render_template("presales_results.html", data=data, submitted_at=submitted_at)
+    return render_template("presales_results.html", data=data, submitted_at=submitted_at, app_version=APP_VERSION)
 
 @app.route("/presales/download", methods=["POST"])
 def presales_download():
@@ -106,7 +116,7 @@ def predeploy_redirect():
 
 @app.route("/pdg", methods=["GET"])
 def pdg_scope():
-    return render_template("pdg_scope.html")
+    return render_template("pdg_scope.html", app_version=APP_VERSION)
 
 @app.route("/pdg/form", methods=["POST"])
 def pdg_form():
@@ -117,7 +127,8 @@ def pdg_form():
                            is_multi=is_multi,
                            g_items=g_items,
                            pod1_items=pod1_items,
-                           pod2_items=pod2_items)
+                           pod2_items=pod2_items,
+                           app_version=APP_VERSION)
 
 @app.route("/pdg/submit", methods=["POST"])
 def pdg_submit():
@@ -125,7 +136,7 @@ def pdg_submit():
     is_multi = (scope == "multi")
     data = {k: request.form.get(k, "") for k in request.form.keys()}
     submitted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    return render_template("pdg_results.html", data=data, is_multi=is_multi, submitted_at=submitted_at)
+    return render_template("pdg_results.html", data=data, is_multi=is_multi, submitted_at=submitted_at, app_version=APP_VERSION)
 
 @app.route("/pdg/download-docx", methods=["POST"])
 def pdg_download_docx():
@@ -142,7 +153,6 @@ def pdg_download_docx():
     doc.add_paragraph(f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
     doc.add_paragraph(f"Scope: {'Multi-pod' if is_multi else 'Single pod'}")
 
-    # helper to write a group
     def write_group(heading, items, prefix):
         doc.add_heading(heading, level=1)
         current = None
@@ -161,7 +171,6 @@ def pdg_download_docx():
     write_group("Pod 1", pod1_items, "pod1")
     if is_multi:
         write_group("Pod 2", pod2_items, "pod2")
-        # GSLB block
         doc.add_heading("GSLB (Multi-Pod)", level=1)
         for label, key in [
             ("Enable GSLB?", "gslb_enable"),
@@ -184,6 +193,5 @@ def pdg_download_docx():
     return send_file(out, mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                      as_attachment=True, download_name=fname)
 
-# ---------------- main ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
