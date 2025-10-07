@@ -23,15 +23,19 @@ from flask import (
     abort,
 )
 
+# Optional Word support (pip install python-docx)
+try:
+    from docx import Document  # type: ignore
+except Exception:
+    Document = None
+
 # --------------------------------------------------------------------------------------
 # App setup
 # --------------------------------------------------------------------------------------
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
-# Persistent storage dir:
-# - Prefer /var/data on Render (persistent disk)
-# - Fall back to ./data locally
+# Prefer persistent disk on Render; fall back locally
 STORAGE_DIR_CANDIDATES = ["/var/data", "./data"]
 for _d in STORAGE_DIR_CANDIDATES:
     try:
@@ -41,21 +45,21 @@ for _d in STORAGE_DIR_CANDIDATES:
     except Exception:
         continue
 else:
-    # Last resort: current dir (may be ephemeral)
     STORAGE_DIR = "."
 
 ENTRIES_PATH = os.path.join(STORAGE_DIR, "entries.jsonl")
 
 
 # --------------------------------------------------------------------------------------
-# Utilities: persistence (JSONL append-only)
+# Persistence helpers (JSONL append-only)
 # --------------------------------------------------------------------------------------
 def _now_utc_str() -> str:
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
+
 def _gen_entry_id() -> str:
-    # time-ordered-ish id with UUID suffix
     return datetime.utcnow().strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:8]
+
 
 def _safe_read_lines(path: str) -> List[str]:
     if not os.path.exists(path):
@@ -63,19 +67,21 @@ def _safe_read_lines(path: str) -> List[str]:
     with open(path, "r", encoding="utf-8") as f:
         return f.read().splitlines()
 
+
 def _write_line(path: str, line: str) -> None:
     with open(path, "a", encoding="utf-8") as f:
         f.write(line + "\n")
+
 
 def append_entry(payload: Dict[str, Any]) -> str:
     """Append a submission to entries.jsonl and return an entry_id."""
     entry = dict(payload)  # shallow copy
     entry_id = _gen_entry_id()
     entry["entry_id"] = entry_id
-    # Normalize a submitted timestamp field
     entry["submitted_utc"] = entry.get("submitted_utc") or _now_utc_str()
     _write_line(ENTRIES_PATH, json.dumps(entry, ensure_ascii=False))
     return entry_id
+
 
 def read_all_entries() -> List[Dict[str, Any]]:
     lines = _safe_read_lines(ENTRIES_PATH)
@@ -90,8 +96,8 @@ def read_all_entries() -> List[Dict[str, Any]]:
                 out.append(obj)
         except Exception:
             continue
-    # Newest first (sort by entry_id timestamp portion)
     return sorted(out, key=lambda x: x.get("entry_id", ""), reverse=True)
+
 
 def get_entry(entry_id: str) -> Optional[Dict[str, Any]]:
     for e in read_all_entries():
@@ -223,7 +229,7 @@ def presales():
                     pct = 0
                 location_mix[key] = pct
 
-    # Validate total = 100
+    # Validate total = 100 (only if any region boxes were checked)
     if sum(location_mix.values()) != 100 and any(form.get(f"region_ck_{k}") for k, _ in REGIONS):
         flash("Regional mix must total 100%.", "error")
         prefill = form.to_dict(flat=True)
@@ -655,23 +661,41 @@ def entry_package(entry_id: str):
 
 
 # --------------------------------------------------------------------------------------
-# Shared: package builder
+# Shared: package builder (writes both .md and .docx when python-docx is available)
 # --------------------------------------------------------------------------------------
+def _build_docx_bytes(title: str, company: str, opp: str, ir: str, opp_url: str, now_str: str) -> bytes:
+    if Document is None:
+        return b""
+    doc = Document()
+    doc.add_heading(title, level=1)
+    doc.add_paragraph(f"Company: {company}")
+    doc.add_paragraph(f"Opportunity: {opp}")
+    doc.add_paragraph(f"IR: {ir}")
+    doc.add_paragraph(f"Opportunity URL: {opp_url or '(n/a)'}")
+    doc.add_paragraph(f"Generated: {now_str}")
+    doc.add_paragraph("")  # spacer
+    doc.add_paragraph("This is a generated scaffold based on the presales discovery submission.")
+    bio = io.BytesIO()
+    doc.save(bio)
+    bio.seek(0)
+    return bio.read()
+
+
 def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
-    """Create the in-memory ZIP using the current/archived payload."""
+    """Create the in-memory ZIP using the current/archived payload. Writes both .md and .docx."""
     requested = data.get("docs_requested") or []
     if isinstance(requested, str):
         requested = [requested]
 
     def safe_name(label: str) -> str:
         base = (
-            label.replace("/", "_")
+            (label or "").replace("/", "_")
             .replace("\\", "_")
             .replace(" ", "_")
             .replace("(", "")
             .replace(")", "")
         )
-        return base.upper()
+        return base.upper() or "DOCUMENT"
 
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     company = (data.get("company_name") or "Customer").strip() or "Customer"
@@ -681,15 +705,12 @@ def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
 
     def doc_body(title: str) -> str:
         header = f"{title}\n{'=' * len(title)}\n"
-        meta = textwrap.dedent(
-            f"""
-            Company: {company}
-            Opportunity: {opp}
-            IR: {ir}
-            Opportunity URL: {opp_url or '(n/a)'}
-            Generated: {now}
-
-            """
+        meta = (
+            f"Company: {company}\n"
+            f"Opportunity: {opp}\n"
+            f"IR: {ir}\n"
+            f"Opportunity URL: {opp_url or '(n/a)'}\n"
+            f"Generated: {now}\n\n"
         )
         summary = "This is a generated scaffold based on the presales discovery submission.\n\n"
         return header + meta + summary
@@ -699,28 +720,33 @@ def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
         # README
         zf.writestr(
             "README.txt",
-            textwrap.dedent(
-                f"""\
-                Document Package
-                =================
-                Generated: {now}
-
-                Included documents: {', '.join(requested) if requested else '(none specified)'}
-                """
-            ),
+            f"Document Package\n=================\nGenerated: {now}\n\n"
+            f"Included documents: {', '.join(requested) if requested else '(none specified)'}\n"
+            f"Formats: Markdown (.md){' and Word (.docx)' if Document else ''}\n"
+            f"{'' if Document else 'Note: python-docx not installed; only .md files were generated.'}\n"
         )
-        # JSON context for downstream tools
+        # JSON context
         zf.writestr("context/presales_payload.json", json.dumps(data, indent=2))
 
-        # Write each requested doc as a .md scaffold
+        # Each requested label -> write .md and (if available) .docx
         for label in requested:
             fname = safe_name(label)
-            title = label.upper()
+            title = (label or "DOCUMENT").upper()
+
+            # Markdown
             zf.writestr(f"docs/{fname}.md", doc_body(title))
 
-        # Include a quick ROM text if requested
+            # DOCX (if python-docx is available)
+            docx_bytes = _build_docx_bytes(title, company, opp, ir, opp_url, now)
+            if docx_bytes:
+                zf.writestr(f"docs/{fname}.docx", docx_bytes)
+
+        # Optional ROM convenience if requested
         if any((x or "").upper() in ("ROM", "ROM ESTIMATE") for x in requested):
             zf.writestr("docs/ROM_ESTIMATE.md", doc_body("ROM ESTIMATE"))
+            docx_bytes = _build_docx_bytes("ROM ESTIMATE", company, opp, ir, opp_url, now)
+            if docx_bytes:
+                zf.writestr("docs/ROM_ESTIMATE.docx", docx_bytes)
 
     mem.seek(0)
     dl_name = f"WWT_VDI_Doc_Package_{company.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.zip"
