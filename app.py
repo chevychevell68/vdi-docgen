@@ -111,6 +111,40 @@ def presales():
     if request.method == "POST":
         # Flatten + collect multi-selects
         data = request.form.to_dict(flat=True)
+        # Build a structured region mix (only checked + >0 values)
+REGIONS = [
+    ("US", "Continental US"),
+    ("CAN", "Canada"),
+    ("LATAM", "LATAM"),
+    ("EMEA", "EMEA"),
+    ("APAC", "APAC"),
+    ("INDIA", "India"),
+    ("ANZ", "ANZ"),
+    ("OTHER", "Other"),
+]
+
+location_mix = {}
+total_pct = 0
+for key, _label in REGIONS:
+    checked = request.form.get(f"region_ck_{key}")
+    pct_raw = request.form.get(f"region_pct_{key}", "").strip()
+    if checked and pct_raw:
+        try:
+            pct = int(round(float(pct_raw)))
+        except ValueError:
+            pct = 0
+        if pct > 0:
+            location_mix[key] = pct
+            total_pct += pct
+
+# Server-side enforcement: must equal 100%
+if total_pct != 100:
+    flash(f"Regional mix must total 100% (currently {total_pct}%).", "error")
+    return render_template("presales_form.html", form=data)
+
+# Put the structured mix into the payload
+data["location_mix"] = location_mix
+
         data["docs_requested"]    = request.form.getlist("docs_requested")
         data["training_required"] = request.form.getlist("training_required")
 

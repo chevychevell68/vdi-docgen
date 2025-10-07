@@ -71,10 +71,51 @@
         <input class="form-control" name="datacenters_detail" value="{{ (form.datacenters_detail if form else '') }}" placeholder="City/region list">
       </div>
 
-      <div class="col-12">
-        <label class="form-label">User locations (count & where)</label>
-        <input class="form-control" name="locations_detail" value="{{ (form.locations_detail if form else '') }}" placeholder="e.g., 5 locations — Phoenix, Dallas, Tampa, …">
+     <div class="col-12">
+  <label class="form-label d-block">User locations (regional mix)</label>
+
+  <div class="row g-2 align-items-center">
+    <!-- Region checklist + % inputs -->
+    {% set regions = [
+      ('US', 'Continental US'),
+      ('CAN', 'Canada'),
+      ('LATAM', 'LATAM'),
+      ('EMEA', 'EMEA'),
+      ('APAC', 'APAC'),
+      ('INDIA', 'India'),
+      ('ANZ', 'ANZ'),
+      ('OTHER', 'Other')
+    ] %}
+
+    {% for key, label in regions %}
+      <div class="col-md-3">
+        <div class="form-check">
+          <input class="form-check-input region-check" type="checkbox"
+                 id="reg_{{key}}" name="region_ck_{{key}}"
+                 {% if form and form['region_ck_' ~ key] %}checked{% endif %}>
+          <label class="form-check-label" for="reg_{{key}}">{{ label }}</label>
+        </div>
+        <div class="input-group input-group-sm mt-1">
+          <input type="number" min="0" max="100" step="1"
+                 class="form-control region-pct"
+                 id="reg_{{key}}_pct" name="region_pct_{{key}}"
+                 value="{{ (form['region_pct_' ~ key] if form and form['region_pct_' ~ key] else '') }}"
+                 placeholder="%" {% if not (form and form['region_ck_' ~ key]) %}disabled{% endif %}>
+          <span class="input-group-text">%</span>
+        </div>
       </div>
+    {% endfor %}
+  </div>
+
+  <div class="mt-2">
+    <span class="badge text-bg-secondary">Total: <span id="region_total">0</span>%</span>
+    <small class="text-muted ms-2">Must equal 100%.</small>
+    <div id="region_error" class="text-danger small mt-1" style="display:none;">
+      Regional mix must total 100%.
+    </div>
+  </div>
+</div>
+
 
       <div class="col-md-4">
         <label class="form-label"># of distinct personas/use cases</label>
@@ -707,7 +748,71 @@
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach); else attach();
+
+// ----- Region mix (checkbox enables input; sum must be 100) -----
+  function regionToggleEnable(e) {
+    const key = e.target.id.replace("reg_", "");
+    const pct = document.getElementById(`reg_${key}_pct`);
+    if (!pct) return;
+    pct.disabled = !e.target.checked;
+    if (!e.target.checked) pct.value = "";
+    sumRegions();
+  }
+
+  function sumRegions() {
+    const inputs = document.querySelectorAll(".region-pct:not([disabled])");
+    let total = 0;
+    inputs.forEach(i => {
+      const v = parseFloat(i.value);
+      if (!isNaN(v)) total += v;
+    });
+    const totEl = document.getElementById("region_total");
+    if (totEl) totEl.textContent = String(Math.round(total));
+    const err = document.getElementById("region_error");
+    if (err) err.style.display = (Math.round(total) === 100 ? "none" : "");
+    return Math.round(total);
+  }
+
+  function attachRegionHandlers() {
+    document.querySelectorAll(".region-check").forEach(cb => {
+      cb.addEventListener("change", regionToggleEnable);
+    });
+    document.querySelectorAll(".region-pct").forEach(inp => {
+      inp.addEventListener("input", sumRegions);
+    });
+    // Initial calculation (handles pre-filled form)
+    sumRegions();
+  }
+
+  // Block submit if region total != 100
+  function guardSubmitForRegions() {
+    const form = document.getElementById("presales-form");
+    if (!form) return;
+    form.addEventListener("submit", function (e) {
+      const total = sumRegions();
+      if (total !== 100) {
+        e.preventDefault();
+        e.stopPropagation();
+        // optional: scroll to the block
+        document.getElementById("region_error")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  }
+
+  // Hook into your existing attach flow:
+  function attach(){
+    // existing watched/event bindings you already have...
+    watched.forEach(id => { const e = el(id); if (e) e.addEventListener("input", recalc); });
+    // NEW:
+    attachRegionHandlers();
+    guardSubmitForRegions();
+    recalc();
+  }
+
+  // keep the rest of your IIFE as-is...
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach); else attach();
 })();
+
 </script>
 
 {% endblock %}
