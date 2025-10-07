@@ -5,7 +5,7 @@ import io
 app = Flask(__name__)
 
 # ----- Canary / diagnostics -----
-APP_VERSION = "repo-fresh-1.0.3"
+APP_VERSION = "repo-fresh-1.0.4"
 
 @app.route("/__version")
 def __version():
@@ -171,6 +171,7 @@ def pdg_download_docx():
     write_group("Pod 1", pod1_items, "pod1")
     if is_multi:
         write_group("Pod 2", pod2_items, "pod2")
+        # GSLB block
         doc.add_heading("GSLB (Multi-Pod)", level=1)
         for label, key in [
             ("Enable GSLB?", "gslb_enable"),

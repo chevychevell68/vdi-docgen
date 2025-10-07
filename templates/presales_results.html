@@ -14,22 +14,60 @@
     {% endif %}
   {% endfor %}
 
+  <h2 class="h6 mt-2">Customer & Project</h2>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Customer Name</label>
+      <div class="form-control">{{ data.get('customer_name','') }}</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Customer Slug</label>
+      <div class="form-control">{{ data.get('customer_slug','') }}</div>
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Project Name</label>
+      <div class="form-control">{{ data.get('project_name','') }}</div>
+    </div>
+  </div>
+
+  <h2 class="h6 mt-4">Primary Contacts</h2>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Primary Contact (Name)</label>
+      <div class="form-control">{{ data.get('primary_contact_name','') }}</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Primary Contact (Email)</label>
+      <div class="form-control">{{ data.get('primary_contact_email','') }}</div>
+    </div>
+  </div>
+  {% if data.get('secondary_contacts') %}
+  <div class="mb-3 mt-3">
+    <label class="form-label">Secondary / Ops Contacts</label>
+    <div class="form-control">{{ data.get('secondary_contacts','') }}</div>
+  </div>
+  {% endif %}
+
+  <h2 class="h6 mt-4">Voice of the Customer</h2>
   <div class="mb-3">
-    <label class="form-label">Voice of the Customer</label>
     <div class="form-control" style="white-space:pre-wrap;">{{ data.get('voc','') }}</div>
   </div>
 
+  <h2 class="h6 mt-4">Scope</h2>
   <div class="row g-3">
-    <div class="col-md-6">
+    <div class="col-md-4">
       <label class="form-label">Deployment Scope</label>
       <div class="form-control">{{ data.get('pod_scope','') }}</div>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-4">
       <label class="form-label">Include Test/Dev</label>
       <div class="form-control">{{ data.get('include_test_dev','') }}</div>
     </div>
+    <div class="col-md-4">
+      <label class="form-label">Concurrent Users</label>
+      <div class="form-control">{{ data.get('concurrent_users','') }}</div>
+    </div>
   </div>
-
   {% if data.get('test_dev_notes') %}
   <div class="mb-3 mt-3">
     <label class="form-label">Test/Dev Notes</label>
@@ -37,35 +75,84 @@
   </div>
   {% endif %}
 
-  <h2 class="h6 mt-4">Host / Cluster Configuration</h2>
+  <h2 class="h6 mt-4">Host / Cluster Sizing</h2>
   <div class="row g-3">
-    <div class="col-md-6">
+    <div class="col-md-3">
+      <label class="form-label">ESXi Hosts (per pod)</label>
+      <div class="form-control">{{ data.get('host_count','') }}</div>
+    </div>
+    <div class="col-md-3">
       <label class="form-label">CPU per Host</label>
       <div class="form-control">{{ data.get('cpu_per_host','') }}</div>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-3">
       <label class="form-label">RAM per Host</label>
       <div class="form-control">{{ data.get('ram_per_host','') }}</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Other Host Details</label>
+      <div class="form-control">{{ data.get('other_host_config','') }}</div>
     </div>
   </div>
 
   <h2 class="h6 mt-4">Storage</h2>
   <div class="row g-3">
-    <div class="col-md-4">
+    <div class="col-md-3">
       <label class="form-label">Type</label>
       <div class="form-control">{{ data.get('storage_type','') }}</div>
     </div>
-    {% if data.get('storage_type') != 'vsan' %}
-    <div class="col-md-4">
+    {% if data.get('storage_type') != 'vSAN' %}
+    <div class="col-md-3">
       <label class="form-label">Vendor</label>
       <div class="form-control">{{ data.get('storage_vendor','') }}</div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
       <label class="form-label">Model</label>
       <div class="form-control">{{ data.get('storage_model','') }}</div>
     </div>
+    <div class="col-md-3">
+      <label class="form-label">Usable Capacity (TB)</label>
+      <div class="form-control">{{ data.get('storage_capacity_tb','') }}</div>
+    </div>
     {% endif %}
   </div>
+
+  <h2 class="h6 mt-4">Networking & LB</h2>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Load Balancer</label>
+      <div class="form-control">{{ data.get('load_balancer','') }}</div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Management Network CIDR</label>
+      <div class="form-control">{{ data.get('mgmt_cidr','') }}</div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">VM / Desktop Networks</label>
+      <div class="form-control">{{ data.get('vm_networks','') }}</div>
+    </div>
+  </div>
+
+  <h2 class="h6 mt-4">Access & Identity</h2>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">3rd-party IdP?</label>
+      <div class="form-control">{{ data.get('idp_integrate','') }}</div>
+    </div>
+    {% if data.get('idp_integrate') == 'yes' %}
+    <div class="col-md-8">
+      <label class="form-label">IdP Provider</label>
+      <div class="form-control">{{ data.get('idp_provider','') }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if data.get('notes') %}
+  <h2 class="h6 mt-4">Notes</h2>
+  <div class="mb-3">
+    <div class="form-control" style="white-space:pre-wrap;">{{ data.get('notes','') }}</div>
+  </div>
+  {% endif %}
 
   <div class="d-flex gap-2 mt-4">
     <button class="btn btn-success" type="submit">Download Markdown</button>
