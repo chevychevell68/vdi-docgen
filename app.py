@@ -1,421 +1,461 @@
-import os
+# app.py
+from __future__ import annotations
+
 import io
 import json
 import math
-import base64
+import textwrap
 import zipfile
-import datetime as dt
-from pathlib import Path
-from flask import Flask, request, render_template, redirect, url_for, flash, send_file
+from datetime import datetime
+from typing import Dict, Any, List, Tuple
 
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
+from flask import (
+    Flask,
+    render_template,
+    render_template_string,
+    request,
+    redirect,
+    url_for,
+    flash,
+    send_file,
+)
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
+app = Flask(__name__)
+app.config["SECRET_KEY"] = "dev-secret-change-me"  # set SECRET_KEY in environment for prod
 
-# --------- GitHub settings (set these in Render env) ----------
-GITHUB_TOKEN  = os.getenv("GITHUB_TOKEN", "").strip()
-REPO_OWNER    = os.getenv("REPO_OWNER", "").strip()
-REPO_NAME     = os.getenv("REPO_NAME", "").strip()
-REPO_BRANCH   = os.getenv("REPO_BRANCH", "main").strip()
 
-# -------------------- Helpers --------------------
-
-def github_upsert_file(repo_owner: str, repo_name: str, branch: str, path: str, content_bytes: bytes, commit_msg: str) -> bool:
-    """Create or update a file via GitHub REST API."""
-    if not (GITHUB_TOKEN and repo_owner and repo_name and branch and path):
-        return False
-    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{path}"
-    body = {
-        "message": commit_msg,
-        "content": base64.b64encode(content_bytes).decode("utf-8"),
-        "branch": branch
-    }
-    data = json.dumps(body).encode("utf-8")
-    req = Request(url, data=data, method="PUT", headers={
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-        "Content-Type": "application/json",
-        "X-GitHub-Api-Version": "2022-11-28"
-    })
-    try:
-        with urlopen(req) as resp:
-            return 200 <= resp.status < 300
-    except HTTPError as e:
-        try:
-            err_txt = e.read().decode("utf-8", errors="ignore")
-        except Exception:
-            err_txt = ""
-        print("GitHub HTTPError:", e.code, err_txt)
-        return False
-    except URLError as e:
-        print("GitHub URLError:", e.reason)
-        return False
-
-def save_locally(path: Path, content_bytes: bytes) -> bool:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(content_bytes)
-        return True
-    except Exception as e:
-        print("Local save error:", e)
-        return False
-
-def persist_submission(payload: dict) -> str:
-    timestamp = dt.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-    filename = f"session-{timestamp}.json"
-    rel_dir = "presales_sessions"
-    rel_path = f"{rel_dir}/{filename}"
-    content = json.dumps(payload, indent=2).encode("utf-8")
-    commit_msg = f"Presales submission {filename}"
-
-    if GITHUB_TOKEN and REPO_OWNER and REPO_NAME:
-        ok = github_upsert_file(REPO_OWNER, REPO_NAME, REPO_BRANCH, rel_path, content, commit_msg)
-        if ok:
-            return f"Saved to GitHub: {REPO_OWNER}/{REPO_NAME}@{REPO_BRANCH}/{rel_path}"
-
-    local_path = Path("./data") / rel_path
-    ok = save_locally(local_path, content)
-    if ok:
-        return f"Saved locally at: {local_path}"
-    return "Failed to persist (GitHub not configured and local write failed)."
-
-def _as_float(v, dflt):
-    try:
-        if v is None or v == "":
-            return float(dflt)
-        return float(v)
-    except Exception:
-        return float(dflt)
-
-def compute_vsan_capacity(form_dict):
-    """
-    Total GB for Instant Clones on vSAN (server-side, mirrors client calc).
-    Returns int(GB) or None if not applicable.
-    """
-    if (form_dict.get("storage_type") or "") != "vSAN":
-        return None
-
-    N           = _as_float(form_dict.get("concurrent_users"), 0)
-    images      = _as_float(form_dict.get("num_images"), 1)
-    vmMem       = _as_float(form_dict.get("vm_ram_gb"), 8)
-    baseImg     = _as_float(form_dict.get("base_image_gb"), 40)
-    factor      = _as_float(form_dict.get("vsan_policy_factor"), 2.0)
-    delta       = _as_float(form_dict.get("delta_gb"), 6)
-    overhead    = _as_float(form_dict.get("per_vm_overhead_gb"), 1)
-    growth      = _as_float(form_dict.get("growth_factor"), 1.10)
-
-    per_vm_writable = delta + vmMem + overhead
-    replicas        = images * baseImg
-    raw             = (N * per_vm_writable) + replicas
-    total           = raw * factor * growth
-    return int(math.ceil(total))
-
-def compute_density(form_dict):
-    """
-    Users per host; min of CPU, RAM, and optional GPU session cap.
-    Returns int or None if inputs missing.
-    """
-    cores    = _as_float(form_dict.get("host_cpu_cores"), 0)
-    hostMem  = _as_float(form_dict.get("host_ram_gb"), 0)
-    vmvCPU   = _as_float(form_dict.get("vm_vcpu"), 2)
-    vmMem    = _as_float(form_dict.get("vm_ram_gb"), 8)
-    ratio    = _as_float(form_dict.get("vcpu_to_pcpu"), 4)
-    headroom = _as_float(form_dict.get("mem_headroom_pct"), 0.20)
-    esxiOH   = _as_float(form_dict.get("esxi_overhead_gb"), 8)
-    gpuCap   = _as_float(form_dict.get("gpu_sessions_cap"), 0)
-
-    try:
-        cpu_cap = int(math.floor((cores * ratio) / vmvCPU))
-        usable  = (hostMem * (1 - headroom)) - esxiOH
-        mem_cap = int(math.floor(usable / vmMem))
-        d       = min(cpu_cap, mem_cap)
-        if gpuCap > 0:
-            d = min(d, int(gpuCap))
-        return max(0, d)
-    except Exception:
-        return None
-
-def render_doc_template(name: str, context: dict) -> str:
-    """
-    Render templates/docs/<name>.md.j2 with Jinja if present,
-    otherwise fallback to a short Markdown stub.
-    """
-    try:
-        return render_template(f"docs/{name}.md.j2", data=context)
-    except Exception:
-        pass
-
-    c = context
-    if name == "sow":
-        return f"""# Statement of Work (SOW)
-**Customer:** {c.get('company_name','')}
-**Primary Contact:** {c.get('customer_name','')}
-**Deployment Type:** {c.get('deployment_type','')}
-**Scope Summary:** {c.get('main_use_cases','')}
-
-## Objectives
-- Stand up VMware Horizon environment for ~{c.get('concurrent_users','')} concurrent users
-- Regions: {', '.join([f"{k}:{v}%" for k,v in (c.get('location_mix') or {}).items()])}
-
-## Assumptions
-- Platform: {c.get('platform','')} | Storage: {c.get('storage_type','')}
-- GPU required: {c.get('gpu_required','')}
-- Profile mgmt: {', '.join(c.get('profile_mgmt',[])) or '—'}
-- Virtual apps: {', '.join(c.get('virtual_apps',[])) or '—'}
-
-## Deliverables
-- HLD, LLD, Runbook, PDG, LOE/WBS, ROM, ATP
-
-## Out of Scope
-- TBD
-
-## Schedule
-- Target start: {c.get('start_date','')}
-- Milestones / deadlines: {c.get('timeline','')}
-"""
-    if name == "hld":
-        return f"""# High-Level Design (HLD)
-**Customer:** {c.get('company_name','')}
-**Deployment Type:** {c.get('deployment_type','')}
-
-## User Requirements
-- Total users: {c.get('total_users','—')} | Concurrent: {c.get('concurrent_users','—')}
-- Use cases:
-{''.join([f"- {u['label']}: {u['text']}\n" for u in c.get('use_cases_list',[])]) or '- —'}
-
-## Logical Architecture
-- Platform: {c.get('platform','')}
-- vCPU:pCPU: 1:{c.get('vcpu_to_pcpu','4')} | VM size: {c.get('vm_vcpu','')} vCPU / {c.get('vm_ram_gb','')} GB
-- Storage: {c.get('storage_type','')} {'(vSAN IC GB ~ ' + str(c.get('vsan_total_gb')) + ')' if c.get('vsan_total_gb') else ''}
-
-## Access & Identity
-- Remote access: {c.get('remote_access','')}
-- MFA: {c.get('mfa_required','')} {('('+c.get('mfa_solution','')+')') if c.get('mfa_required')=='Yes' else ''}
-
-## Endpoints
-- Types: {c.get('endpoint_types','')}
-"""
-    if name == "loe_wbs":
-        return f"""# LOE / WBS
-**Customer:** {c.get('company_name','')}
-
-> Placeholder. Replace with your standard task list and hour ranges by phase.
-
-## Phases & Tasks
-- Discovery & Planning
-- Build & Config
-- Image & Apps
-- Pilot & Validation
-- Knowledge Transfer & Handover
-"""
-    if name == "rom":
-        return f"""# Rough Order of Magnitude (ROM)
-**Customer:** {c.get('company_name','')}
-
-> Placeholder. Tie to LOE/WBS once finalized.
-
-## Assumptions
-- Concurrent users: {c.get('concurrent_users','')}
-- Users per host (est.): {c.get('per_host_density','—')}
-
-## ROM Summary
-- TBD
-"""
-    return f"# {name.upper()}\n\n(Empty template)\n"
-
-# -------------------- Routes --------------------
-
+# -------------------------------
+# Home
+# -------------------------------
 @app.route("/")
 def index():
-    # Simple landing menu so we don't accidentally show legacy index.html
-    return (
-        '<!doctype html><html><head><meta charset="utf-8"><title>VDI Tools</title>'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">'
-        '</head><body class="p-4" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial">'
-        '<div class="container" style="max-width:920px">'
-        '<h1 class="mb-3">VDI Discovery & Docs</h1>'
-        '<p class="text-muted">Choose a workflow:</p>'
-        '<div class="list-group">'
-        f'<a class="list-group-item list-group-item-action" href="{url_for("presales")}">Horizon Presales Discovery</a>'
-        f'<a class="list-group-item list-group-item-action" href="{url_for("pdg")}">Project Definition Guide (PDG)</a>'
-        f'<a class="list-group-item list-group-item-action" href="{url_for("predeploy")}">Pre-deploy</a>'
-        '</div>'
-        '</div></body></html>'
+    # Simple home even if base.html is missing
+    return render_template_string(
+        """
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>VDI Tools</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="p-4">
+  <div class="container" style="max-width: 820px;">
+    <h1 class="mb-4">VDI Discovery Tools</h1>
+    <div class="list-group">
+      <a class="list-group-item list-group-item-action" href="{{ url_for('presales') }}">Presales Discovery Form</a>
+      <a class="list-group-item list-group-item-action" href="{{ url_for('pdg') }}">Project Definition Guide (PDG)</a>
+      <a class="list-group-item list-group-item-action" href="{{ url_for('predeploy') }}">Pre-deploy Checklist</a>
+    </div>
+    <div class="text-muted mt-4">Home v1.0</div>
+  </div>
+</body>
+</html>
+        """
     )
 
+
+# -------------------------------
+# Presales form (GET/POST)
+# -------------------------------
 @app.route("/presales", methods=["GET", "POST"])
 def presales():
-    if request.method == "POST":
-        data = request.form.to_dict(flat=True)
+    """
+    GET: render form
+    POST: validate + compute + show submitted summary
+    """
+    if request.method == "GET":
+        return render_template("presales_form.html", form={})
 
-        # Multi-selects / checkboxes
-        data["docs_requested"]     = request.form.getlist("docs_requested")
-        data["training_required"]  = request.form.getlist("training_required")
-        data["profile_mgmt"]       = request.form.getlist("profile_mgmt")
-        data["virtual_apps"]       = request.form.getlist("virtual_apps")
+    # ----- POST -----
+    form = request.form
 
-        # Use cases (main + dynamic secondary fields)
-        use_cases = []
-        main_uc = (data.get("main_use_cases") or "").strip()
-        if main_uc:
-            use_cases.append({"label": "Main", "text": main_uc})
-        for k, v in request.form.items():
-            if k.startswith("secondary_use_case_"):
-                txt = (v or "").strip()
-                if txt:
-                    try:
-                        n = int(k.rsplit("_", 1)[-1])
-                    except ValueError:
-                        n = None
-                    label = f"Secondary {n}" if n else "Secondary"
-                    use_cases.append({"label": label, "text": txt})
-        data["use_cases_list"] = use_cases
+    # Multi-select fields (checkbox groups)
+    profile_mgmt = request.form.getlist("profile_mgmt")
+    virtual_apps = request.form.getlist("virtual_apps")
+    docs_requested = request.form.getlist("docs_requested")
+    training_required = request.form.getlist("training_required")
 
-        # Region mix: build structured map + validate 100%
-REGIONS = [
-    ("US","Continental US"),
-    ("US_HI","US – HI"),
-    ("US_AK","US – AK"),
-    ("CAN","Canada"),
-    ("LATAM","LATAM"),
-    ("EMEA","EMEA"),
-    ("APAC","APAC"),
-    ("INDIA","India"),
-    ("ANZ","ANZ"),
-    ("OTHER","Other"),
-]
+    # Regions must match the template’s list (includes HI/AK)
+    REGIONS: List[Tuple[str, str]] = [
+        ("US", "Continental US"),
+        ("US_HI", "US – HI"),
+        ("US_AK", "US – AK"),
+        ("CAN", "Canada"),
+        ("LATAM", "LATAM"),
+        ("EMEA", "EMEA"),
+        ("APAC", "APAC"),
+        ("INDIA", "India"),
+        ("ANZ", "ANZ"),
+        ("OTHER", "Other"),
+    ]
 
-        location_mix = {}
-        total_pct = 0
-        for key, _ in REGIONS:
-            if request.form.get(f"region_ck_{key}"):
-                pct_raw = (request.form.get(f"region_pct_{key}", "") or "").strip()
-                if pct_raw:
-                    try:
-                        pct = int(round(float(pct_raw)))
-                    except ValueError:
-                        pct = 0
-                    if pct > 0:
-                        location_mix[key] = pct
-                        total_pct += pct
-        if total_pct != 100:
-            flash(f"Regional mix must total 100% (currently {total_pct}%).", "error")
-            return render_template("presales_form.html", form=data)
-        data["location_mix"] = location_mix
+    # Build regional mix safely
+    location_mix: Dict[str, int] = {}
+    for key, _label in REGIONS:
+        if form.get(f"region_ck_{key}"):
+            raw = (form.get(f"region_pct_{key}") or "").strip()
+            if raw:
+                try:
+                    pct = int(raw)
+                except ValueError:
+                    pct = 0
+                location_mix[key] = pct
 
-        # Required fields
-        required = ["company_name","customer_name","concurrent_users","host_cpu_cores","host_ram_gb","vm_vcpu","vm_ram_gb"]
-        missing = [r for r in required if not (data.get(r) or "").strip()]
-        if missing:
-            flash(f"Missing required fields: {', '.join(missing)}", "error")
-            return render_template("presales_form.html", form=data)
+    # Validate total = 100
+    if sum(location_mix.values()) != 100:
+        flash("Regional mix must total 100%.", "error")
+        prefill = form.to_dict(flat=True)
+        prefill["profile_mgmt"] = profile_mgmt
+        prefill["virtual_apps"] = virtual_apps
+        prefill["docs_requested"] = docs_requested
+        prefill["training_required"] = training_required
+        for key, _label in REGIONS:
+            if form.get(f"region_ck_{key}"):
+                prefill[f"region_ck_{key}"] = True
+                prefill[f"region_pct_{key}"] = form.get(f"region_pct_{key}", "")
+        return render_template("presales_form.html", form=prefill), 400
 
-        # Server-side calcs for the summary page
-        vsan_total_gb = compute_vsan_capacity(data)
-        per_host_density = compute_density(data)
-        if vsan_total_gb is not None:
-            data["vsan_total_gb"] = vsan_total_gb
-        if per_host_density is not None:
-            data["per_host_density"] = per_host_density
+    # Utilities
+    def as_int(name: str, default=None):
+        v = form.get(name, "").strip()
+        if v == "":
+            return default
+        try:
+            return int(v)
+        except ValueError:
+            return default
 
-        # Persist payload
-        payload = {"submitted_utc": dt.datetime.utcnow().isoformat(timespec="seconds") + "Z", **data}
-        where = persist_submission(payload)
-        payload["persist_result"] = where
+    def as_float(name: str, default=None):
+        v = form.get(name, "").strip()
+        if v == "":
+            return default
+        try:
+            return float(v)
+        except ValueError:
+            return default
 
-        # Render a results page
-        return render_template("presales_submitted.html", data=payload)
+    # Server-side calcs mirroring the JS (so summary/ZIP have numbers even if JS was bypassed)
+    concurrent_users = as_int("concurrent_users", 0) or 0
+    num_images = as_int("num_images", 1) or 1
+    vm_ram_gb = as_float("vm_ram_gb", 8.0) or 8.0
+    base_image_gb = as_float("base_image_gb", 40.0) or 40.0
+    vsan_policy_factor = as_float("vsan_policy_factor", 2.0) or 2.0
+    delta_gb = as_float("delta_gb", 6.0) or 6.0
+    per_vm_overhead_gb = as_float("per_vm_overhead_gb", 1.0) or 1.0
+    growth_factor = as_float("growth_factor", 1.10) or 1.10
 
-    # GET
-    return render_template("presales_form.html")
+    storage_type = form.get("storage_type", "")
+    vsan_total_gb = None
+    if storage_type == "vSAN":
+        per_vm_writable = delta_gb + vm_ram_gb + per_vm_overhead_gb  # delta + mem + overhead
+        replicas = num_images * base_image_gb                        # base image replicas
+        raw = (concurrent_users * per_vm_writable) + replicas
+        vsan_total_gb = math.ceil(raw * vsan_policy_factor * growth_factor)
 
-@app.route("/predeploy", methods=["GET"])
-def predeploy():
+    host_cpu_cores = as_int("host_cpu_cores", 0) or 0
+    host_ram_gb = as_float("host_ram_gb", 0.0) or 0.0
+    vm_vcpu = as_int("vm_vcpu", 2) or 2
+    mem_headroom_pct = as_float("mem_headroom_pct", 0.20) or 0.20
+    esxi_overhead_gb = as_float("esxi_overhead_gb", 8.0) or 8.0
+    vcpu_to_pcpu = as_int("vcpu_to_pcpu", 4) or 4
+    gpu_sessions_cap = as_int("gpu_sessions_cap", 0) or 0
+
+    per_host_density = None
     try:
-        return render_template("predeploy.html")
+        cpu_cap = (host_cpu_cores * vcpu_to_pcpu) // vm_vcpu if vm_vcpu > 0 else 0
+        usable_mem = (host_ram_gb * (1 - mem_headroom_pct)) - esxi_overhead_gb
+        mem_cap = int(usable_mem // vm_ram_gb) if vm_ram_gb > 0 else 0
+        d = min(cpu_cap, mem_cap)
+        if gpu_sessions_cap > 0:
+            d = min(d, gpu_sessions_cap)
+        per_host_density = max(0, d)
     except Exception:
-        return redirect(url_for("presales"))
+        per_host_density = None
 
-@app.route("/pdg", methods=["GET"])
-def pdg():
-    try:
-        return render_template("pdg.html")
-    except Exception:
-        return (
-            '<!doctype html><html><head><meta charset="utf-8"><title>PDG</title>'
-            '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">'
-            '</head><body class="p-4" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial">'
-            '<div class="container" style="max-width:920px">'
-            '<h1 class="mb-3">Project Definition Guide (PDG)</h1>'
-            '<p class="mb-3">This is a placeholder. Wire this route to your PDG generator/export.</p>'
-            f'<a class="btn btn-primary" href="{url_for("presales")}">Open Presales Form</a>'
-            '</div></body></html>'
-        )
+    # Build payload for summary
+    data: Dict[str, Any] = {
+        # Customer
+        "company_name": form.get("company_name", ""),
+        "customer_name": form.get("customer_name", ""),
+        "sf_opportunity_name": form.get("sf_opportunity_name", ""),
+        "sf_opportunity_url": form.get("sf_opportunity_url", ""),
+        "ir_number": form.get("ir_number", ""),
+        "voc": form.get("voc", ""),
+        "submitted_utc": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
 
+        # Existing VDI
+        "existing_vdi": form.get("existing_vdi", ""),
+        "existing_vdi_pain": form.get("existing_vdi_pain", ""),
+
+        # Users & Scope
+        "total_users": as_int("total_users"),
+        "concurrent_users": concurrent_users,
+        "num_datacenters": as_int("num_datacenters"),
+        "datacenters_detail": form.get("datacenters_detail", ""),
+        "deployment_type": form.get("deployment_type", ""),
+        "location_mix": location_mix,
+        "num_personas": as_int("num_personas"),
+        "main_use_cases": form.get("main_use_cases", ""),
+        "use_cases_list": [],
+    }
+
+    # Use-cases list (main + N secondary)
+    if data["main_use_cases"]:
+        data["use_cases_list"].append({"label": "Main", "text": data["main_use_cases"]})
+    n_personas = data["num_personas"] or 0
+    for i in range(2, n_personas + 1):
+        v = (form.get(f"secondary_use_case_{i}", "") or "").strip()
+        if v:
+            data["use_cases_list"].append({"label": f"Secondary {i}", "text": v})
+
+    # GPU
+    data.update(
+        {
+            "gpu_required": form.get("gpu_required", ""),
+            "gpu_users": as_int("gpu_users"),
+            "gpu_vram_per_user": as_float("gpu_vram_per_user"),
+            "gpu_use_case": form.get("gpu_use_case", ""),
+        }
+    )
+
+    # Image & Apps
+    data.update(
+        {
+            "num_images": num_images,
+            "gold_image_source": form.get("gold_image_source", ""),
+            "profile_mgmt": profile_mgmt,
+            "virtual_apps": virtual_apps,
+            "required_apps": form.get("required_apps", ""),
+            "wwt_app_packaging": form.get("wwt_app_packaging", ""),
+        }
+    )
+
+    # Access & Identity
+    data.update(
+        {
+            "remote_access": form.get("remote_access", ""),
+            "mfa_required": form.get("mfa_required", ""),
+            "mfa_solution": form.get("mfa_solution", ""),
+            "smartcard": form.get("smartcard", ""),
+            "idp_provider": form.get("idp_provider", ""),
+        }
+    )
+
+    # Endpoints
+    data.update(
+        {
+            "endpoint_provisioning": form.get("endpoint_provisioning", ""),
+            "endpoint_types": form.get("endpoint_types", ""),
+            "thin_client_mgmt": form.get("thin_client_mgmt", ""),
+        }
+    )
+
+    # Directory & Core
+    data.update(
+        {
+            "ad_exists": form.get("ad_exists", ""),
+            "num_domains": as_int("num_domains"),
+            "vd_domain_name": form.get("vd_domain_name", ""),
+            "core_domain_name": form.get("core_domain_name", ""),
+        }
+    )
+
+    # Platform & Infra
+    data.update(
+        {
+            "platform": form.get("platform", ""),
+            "general_compute_cluster": form.get("general_compute_cluster", ""),
+            "host_cpu_cores": host_cpu_cores,
+            "host_ram_gb": host_ram_gb,
+            "hosts_count": as_int("hosts_count"),
+            "vm_vcpu": vm_vcpu,
+            "vm_ram_gb": vm_ram_gb,
+            "vcpu_to_pcpu": vcpu_to_pcpu,
+            "storage_type": storage_type,
+            "storage_vendor_model": form.get("storage_vendor_model", ""),
+            "storage_protocol": form.get("storage_protocol", ""),
+            "storage_usable_gb": as_int("storage_usable_gb"),
+            "base_image_gb": base_image_gb,
+            "vsan_policy_factor": vsan_policy_factor,
+            "delta_gb": delta_gb,
+            "per_vm_overhead_gb": per_vm_overhead_gb,
+            "growth_factor": growth_factor,
+            "mem_headroom_pct": mem_headroom_pct,
+            "esxi_overhead_gb": esxi_overhead_gb,
+            "gpu_sessions_cap": gpu_sessions_cap,
+            "vsan_total_gb": vsan_total_gb,
+            "per_host_density": per_host_density,
+            "load_balancer": form.get("load_balancer", ""),
+        }
+    )
+
+    # Ops & Delivery
+    data.update(
+        {
+            "ogs_staffing": form.get("ogs_staffing", ""),
+            "monitoring_stack": form.get("monitoring_stack", ""),
+            "local_printing": form.get("local_printing", ""),
+            "usb_redirection": form.get("usb_redirection", ""),
+            "training_required": training_required,
+            "onboarding_time_value": as_int("onboarding_time_value"),
+            "onboarding_time_unit": form.get("onboarding_time_unit", ""),
+            "kt_expectations": form.get("kt_expectations", ""),
+            "runbook_required": form.get("runbook_required", ""),
+            "adoption_services": form.get("adoption_services", ""),
+            "ha_dr": form.get("ha_dr", ""),
+            "delivery_model": form.get("delivery_model", ""),
+            "start_date": form.get("start_date", ""),
+            "timeline": form.get("timeline", ""),
+            "docs_requested": docs_requested,
+            "stakeholders": form.get("stakeholders", ""),
+        }
+    )
+
+    return render_template("presales_submitted.html", data=data)
+
+
+# -------------------------------
+# ZIP package generation
+# -------------------------------
 @app.route("/presales/package", methods=["POST"])
 def presales_package():
     """
-    Create a ZIP containing SOW.md, HLD.md, LOE-WBS.md, ROM.md from the
-    submission posted by the results page. If you add Jinja doc templates
-    under templates/docs/*.md.j2 they'll be used automatically.
+    Build a ZIP of requested docs based on a hidden JSON payload posted
+    from the submitted page.
     """
-    raw = request.form.get("payload")
-    if not raw:
-        return "Missing payload", 400
+    payload = request.form.get("payload", "")
+    if not payload:
+        flash("Missing payload for package generation.", "error")
+        return redirect(url_for("presales"))
+
     try:
-        data = json.loads(raw)
+        data = json.loads(payload)
     except Exception:
-        return "Invalid payload", 400
+        flash("Invalid payload for package generation.", "error")
+        return redirect(url_for("presales"))
 
-    files = {
-        "SOW.md":      render_doc_template("sow", data),
-        "HLD.md":      render_doc_template("hld", data),
-        "LOE-WBS.md":  render_doc_template("loe_wbs", data),
-        "ROM.md":      render_doc_template("rom", data),
-    }
+    requested = data.get("docs_requested") or []
+    if isinstance(requested, str):
+        requested = [requested]
 
+    # Friendly -> filename mapping helper
+    def safe_name(label: str) -> str:
+        base = (
+            label.replace("/", "_")
+            .replace("\\", "_")
+            .replace(" ", "_")
+            .replace("(", "")
+            .replace(")", "")
+        )
+        return base.upper()
+
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    company = data.get("company_name", "Customer")
+    opp = data.get("sf_opportunity_name", "")
+    ir = data.get("ir_number", "")
+    opp_url = data.get("sf_opportunity_url", "")
+
+    # Simple document scaffold body
+    def doc_body(title: str) -> str:
+        header = f"{title}\n{'=' * len(title)}\n"
+        meta = textwrap.dedent(
+            f"""
+            Company: {company}
+            Opportunity: {opp}
+            IR: {ir}
+            Opportunity URL: {opp_url or '(n/a)'}
+            Generated: {now}
+
+            """
+        )
+        summary = "This is a generated scaffold based on the presales discovery submission.\n\n"
+        # You can expand this to include more structured content from `data`
+        return header + meta + summary
+
+    # Assemble ZIP in-memory
     mem = io.BytesIO()
-    with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as zf:
-        for fname, content in files.items():
-            zf.writestr(fname, content)
+    with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        # README
+        zf.writestr(
+            "README.txt",
+            textwrap.dedent(
+                f"""\
+                Document Package
+                =================
+                Generated: {now}
+
+                Included documents: {', '.join(requested) if requested else '(none specified)'}
+                """
+            ),
+        )
+        # JSON context for downstream tools
+        zf.writestr("context/presales_payload.json", json.dumps(data, indent=2))
+
+        # Write each requested doc as a .md scaffold
+        for label in requested:
+            fname = safe_name(label)
+            title = label.upper()
+            zf.writestr(f"docs/{fname}.md", doc_body(title))
+
+        # Include a quick ROM text if requested or always? (leave only if requested)
+        if any(x.upper() in ("ROM", "ROM ESTIMATE") for x in requested):
+            zf.writestr("docs/ROM_ESTIMATE.md", doc_body("ROM ESTIMATE"))
+
     mem.seek(0)
+    dl_name = f"WWT_VDI_Doc_Package_{company.replace(' ', '_') or 'Customer'}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.zip"
+    return send_file(
+        mem,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=dl_name,
+    )
 
-    company = (data.get("company_name") or "Customer").replace(" ", "_")
-    ts = (data.get("submitted_utc") or "").replace(":", "").replace("-", "").replace("T", "_").replace("Z", "")
-    zipname = f"{company}_VDI_Doc_Package_{ts or 'now'}.zip"
 
-    return send_file(mem, as_attachment=True, download_name=zipname, mimetype="application/zip")
+# -------------------------------
+# PDG / Pre-deploy placeholders
+# -------------------------------
+@app.route("/pdg")
+def pdg():
+    # Minimal page so the link doesn't 404. Replace with your real PDG template anytime.
+    return render_template_string(
+        """
+{% extends "base.html" %}
+{% block title %}PDG{% endblock %}
+{% block content %}
+<h1>Project Definition Guide (PDG)</h1>
+<p class="text-muted">Placeholder page. Wire this to your actual PDG flow when ready.</p>
+<a class="btn btn-primary" href="{{ url_for('presales') }}">Go to Presales Form</a>
+{% endblock %}
+        """
+    )
 
-# ---------------- Error handlers ----------------
 
-@app.errorhandler(404)
-def not_found(e):
-    return (
-        '<!doctype html><html><head><meta charset="utf-8"><title>Not Found</title>'
-        '<meta name="viewport" content="width=device-width, initial-scale=1"></head>'
-        '<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:2rem">'
-        "<h1>404 — Not Found</h1>"
-        f'<p><a href="{url_for("index")}">Go to Home</a></p>'
-        "</body></html>"
-    ), 404
+@app.route("/predeploy")
+def predeploy():
+    # Minimal page so the link doesn't 404. Replace with your real pre-deploy template anytime.
+    return render_template_string(
+        """
+{% extends "base.html" %}
+{% block title %}Pre-deploy{% endblock %}
+{% block content %}
+<h1>Pre-deploy Checklist</h1>
+<p class="text-muted">Placeholder page. Add your checklist template when ready.</p>
+<a class="btn btn-primary" href="{{ url_for('presales') }}">Go to Presales Form</a>
+{% endblock %}
+        """
+    )
 
-@app.errorhandler(500)
-def server_error(e):
-    return (
-        '<!doctype html><html><head><meta charset="utf-8"><title>Server Error</title>'
-        '<meta name="viewport" content="width=device-width, initial-scale=1"></head>'
-        '<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:2rem">'
-        "<h1>500 — Internal Server Error</h1>"
-        f'<p><a href="{url_for("index")}">Go to Home</a></p>'
-        "</body></html>"
-    ), 500
 
-# ---------------- Main ----------------
+# -------------------------------
+# Health (useful for Render)
+# -------------------------------
+@app.route("/healthz")
+def healthz():
+    return {"ok": True, "ts": datetime.utcnow().isoformat()}
+
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port, debug=os.getenv("DEBUG", "1") == "1")
+    # For local runs only; Render will use gunicorn
+    app.run(host="0.0.0.0", port=5000, debug=True)
