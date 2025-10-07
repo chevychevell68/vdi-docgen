@@ -104,11 +104,85 @@ def presales_submit():
 
 @app.route("/presales/download", methods=["POST"])
 def presales_download():
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     data = form_to_dict(request.form)
-    md = render_template("presales_export.md", data=data, now=datetime.utcnow())
-    buf = io.BytesIO(md.encode("utf-8"))
-    fname = f"presales_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
-    return send_file(buf, mimetype="text/markdown", as_attachment=True, download_name=fname)
+
+    doc = Document()
+    doc.add_heading("Presales Questionnaire Export", 0)
+    doc.add_paragraph(f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+
+    def add_field(label, key):
+        p = doc.add_paragraph()
+        r = p.add_run(f"{label}: ")
+        r.bold = True
+        p.add_run(data.get(key, "") or "—")
+
+    # Sections (mirror markdown order)
+    doc.add_heading("Customer & Project", level=1)
+    for lbl, key in [
+        ("Customer Name", "customer_name"),
+        ("Customer Slug", "customer_slug"),
+        ("Project Name", "project_name")
+    ]: add_field(lbl, key)
+
+    doc.add_heading("Primary Contacts", level=1)
+    for lbl, key in [
+        ("Primary Contact (Name)", "primary_contact_name"),
+        ("Primary Contact (Email)", "primary_contact_email"),
+        ("Secondary / Ops Contacts", "secondary_contacts")
+    ]: add_field(lbl, key)
+
+    doc.add_heading("Voice of the Customer", level=1)
+    doc.add_paragraph(data.get("voc", "") or "—")
+
+    doc.add_heading("Scope", level=1)
+    for lbl, key in [
+        ("Deployment Scope", "pod_scope"),
+        ("Include Test/Dev", "include_test_dev"),
+        ("Concurrent Users", "concurrent_users"),
+        ("Test/Dev Notes", "test_dev_notes")
+    ]: add_field(lbl, key)
+
+    doc.add_heading("Host / Cluster Sizing", level=1)
+    for lbl, key in [
+        ("ESXi Hosts (per pod)", "host_count"),
+        ("CPU per Host", "cpu_per_host"),
+        ("RAM per Host", "ram_per_host"),
+        ("Other Host Details", "other_host_config")
+    ]: add_field(lbl, key)
+
+    doc.add_heading("Storage", level=1)
+    for lbl, key in [
+        ("Type", "storage_type"),
+        ("Vendor", "storage_vendor"),
+        ("Model", "storage_model"),
+        ("Usable Capacity (TB)", "storage_capacity_tb")
+    ]: add_field(lbl, key)
+
+    doc.add_heading("Networking & Load Balancing", level=1)
+    for lbl, key in [
+        ("Load Balancer", "load_balancer"),
+        ("Management Network CIDR", "mgmt_cidr"),
+        ("VM / Desktop Networks", "vm_networks")
+    ]: add_field(lbl, key)
+
+    doc.add_heading("Access & Identity", level=1)
+    for lbl, key in [
+        ("3rd-party IdP?", "idp_integrate"),
+        ("IdP Provider", "idp_provider")
+    ]: add_field(lbl, key)
+
+    doc.add_heading("Additional Notes", level=1)
+    doc.add_paragraph(data.get("notes", "") or "—")
+
+    out = io.BytesIO()
+    doc.save(out)
+    out.seek(0)
+    fname = f"Presales_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.docx"
+    return send_file(out,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        as_attachment=True, download_name=fname)
 
 # Pre-Deploy = PDG
 @app.route("/predeploy", methods=["GET"])
