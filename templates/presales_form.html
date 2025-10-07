@@ -12,31 +12,29 @@
     <div class="row g-3">
       <div class="col-md-6">
         <label class="form-label">Company name</label>
-        <input class="form-control" name="company_name" required>
+        <input class="form-control" name="company_name" value="{{ (form.company_name if form else '') }}" required>
       </div>
       <div class="col-md-6">
         <label class="form-label">Customer name (primary contact)</label>
-        <input class="form-control" name="customer_name" required>
+        <input class="form-control" name="customer_name" value="{{ (form.customer_name if form else '') }}" required>
       </div>
-      <div class="col-md-6">
+
+      <div class="col-md-4">
         <label class="form-label">Existing VDI in environment?</label>
-        <select class="form-select" name="existing_vdi">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+        <select class="form-select" name="existing_vdi" id="existing_vdi">
+          <option value="" {{ 'selected' if (form and form.existing_vdi=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.existing_vdi=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.existing_vdi=='Yes') else '' }}>Yes</option>
         </select>
       </div>
-      <div class="col-12">
+      <div class="col-12" id="existing_vdi_pain_group" style="display:none;">
         <label class="form-label">If yes, top pain points</label>
-        <textarea class="form-control" name="existing_vdi_pain" rows="2"></textarea>
+        <textarea class="form-control" name="existing_vdi_pain" rows="2">{{ (form.existing_vdi_pain if form else '') }}</textarea>
       </div>
+
       <div class="col-12">
         <label class="form-label">Voice of the Customer (VoC)</label>
-        <textarea class="form-control" name="voc" rows="4" placeholder="Business drivers, pain points, success criteria, deadlines, risk tolerance…"></textarea>
-      </div>
-      <div class="col-12">
-        <label class="form-label">Main use case(s)</label>
-        <textarea class="form-control" name="main_use_cases" rows="3" placeholder="e.g., knowledge workers, clinical, CAD, contact center…"></textarea>
+        <textarea class="form-control" name="voc" rows="4" placeholder="Business drivers, pain points, success criteria, deadlines, risk tolerance…">{{ (form.voc if form else '') }}</textarea>
       </div>
     </div>
   </fieldset>
@@ -47,246 +45,295 @@
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">Total users</label>
-        <input type="number" class="form-control" name="total_users" min="0">
+        <input type="number" class="form-control" name="total_users" min="0" value="{{ (form.total_users if form else '') }}">
       </div>
       <div class="col-md-4">
         <label class="form-label">Concurrent users (peak)</label>
-        <input type="number" class="form-control" id="concurrent_users" name="concurrent_users" min="0" required>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label"># of user locations (list below)</label>
-        <input type="number" class="form-control" name="num_locations" min="0">
-      </div>
-      <div class="col-12">
-        <label class="form-label">User locations (where)</label>
-        <input class="form-control" name="locations_detail" placeholder="City/region list">
+        <input type="number" class="form-control" id="concurrent_users" name="concurrent_users" min="0" required value="{{ (form.concurrent_users if form else '') }}">
       </div>
       <div class="col-md-4">
         <label class="form-label"># of datacenters/regions</label>
-        <input type="number" class="form-control" name="num_datacenters" min="1">
+        <input type="number" class="form-control" name="num_datacenters" min="1" value="{{ (form.num_datacenters if form else '') }}">
       </div>
       <div class="col-12">
         <label class="form-label">Datacenters/regions (where)</label>
-        <input class="form-control" name="datacenters_detail" placeholder="City/region list">
+        <input class="form-control" name="datacenters_detail" value="{{ (form.datacenters_detail if form else '') }}" placeholder="City/region list">
       </div>
+
+      <div class="col-12">
+        <label class="form-label">User locations (count & where)</label>
+        <input class="form-control" name="locations_detail" value="{{ (form.locations_detail if form else '') }}" placeholder="e.g., 5 locations — Phoenix, Dallas, Tampa, …">
+      </div>
+
       <div class="col-md-4">
         <label class="form-label"># of distinct personas/use cases</label>
-        <input type="number" class="form-control" name="num_personas" min="1">
+        <input type="number" class="form-control" id="num_personas" name="num_personas" min="1" value="{{ (form.num_personas if form else '') }}">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Main use case(s)</label>
+        <textarea class="form-control" name="main_use_cases" rows="3" placeholder="e.g., knowledge workers, clinical, CAD, contact center…">{{ (form.main_use_cases if form else '') }}</textarea>
       </div>
     </div>
   </fieldset>
 
-  <!-- 2) GPU -->
+  <!-- 2) Graphics / GPU -->
   <fieldset class="border p-3 mb-4">
     <legend>Graphics / GPU</legend>
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">GPU required?</label>
         <select class="form-select" name="gpu_required" id="gpu_required">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+          <option value="" {{ 'selected' if (form and form.gpu_required=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.gpu_required=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.gpu_required=='Yes') else '' }}>Yes</option>
         </select>
       </div>
       <div class="col-md-4">
         <label class="form-label">GPU users (estimate)</label>
-        <input type="number" class="form-control" name="gpu_users" min="0">
+        <input type="number" class="form-control" name="gpu_users" min="0" value="{{ (form.gpu_users if form else '') }}">
       </div>
       <div class="col-md-4">
         <label class="form-label">Target GPU profile / VRAM per user (GB)</label>
-        <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5">
+        <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5" value="{{ (form.gpu_vram_per_user if form else '') }}">
       </div>
       <div class="col-12">
         <label class="form-label">GPU use case</label>
-        <input class="form-control" name="gpu_use_case" placeholder="3D/CAD, imaging, video editing, ML inferencing…">
+        <input class="form-control" name="gpu_use_case" value="{{ (form.gpu_use_case if form else '') }}" placeholder="3D/CAD, imaging, video editing, ML inferencing…">
       </div>
     </div>
   </fieldset>
 
-  <!-- 3) Image & Apps -->
+  <!-- 3) Image & Applications -->
   <fieldset class="border p-3 mb-4">
     <legend>Image & Applications</legend>
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label"># of base images</label>
-        <input type="number" class="form-control" id="num_images" name="num_images" min="1" value="1">
+        <input type="number" class="form-control" id="num_images" name="num_images" min="1" value="{{ (form.num_images if form else '1') }}">
       </div>
       <div class="col-md-4">
         <label class="form-label">Gold image provided by customer?</label>
         <select class="form-select" name="gold_image_source">
-          <option>WWT builds</option>
-          <option>Customer provides</option>
+          <option {{ 'selected' if (form and form.gold_image_source=='WWT builds') else '' }}>WWT builds</option>
+          <option {{ 'selected' if (form and form.gold_image_source=='Customer provides') else '' }}>Customer provides</option>
         </select>
       </div>
+
       <div class="col-md-4">
         <label class="form-label">Profile management</label>
-        <select class="form-select" name="profile_mgmt">
-          <option value="">Select…</option>
-          <option>DEM</option>
-          <option>FSLogix</option>
-          <option>None</option>
+        <select class="form-select" name="profile_mgmt" id="profile_mgmt">
+          <option value="" {{ 'selected' if (form and form.profile_mgmt=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.profile_mgmt=='DEM') else '' }}>DEM</option>
+          <option {{ 'selected' if (form and form.profile_mgmt=='FSLogix') else '' }}>FSLogix</option>
+          <option {{ 'selected' if (form and form.profile_mgmt=='Both') else '' }}>Both</option>
+          <option {{ 'selected' if (form and form.profile_mgmt=='None') else '' }}>None</option>
         </select>
       </div>
+
       <div class="col-md-4">
         <label class="form-label">Virtual apps?</label>
         <select class="form-select" name="virtual_apps" id="virtual_apps">
-          <option value="">Select…</option>
-          <option>App Volumes</option>
-          <option>RDSH</option>
-          <option>None</option>
+          <option value="" {{ 'selected' if (form and form.virtual_apps=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.virtual_apps=='App Volumes') else '' }}>App Volumes</option>
+          <option {{ 'selected' if (form and form.virtual_apps=='RDSH') else '' }}>RDSH</option>
+          <option {{ 'selected' if (form and form.virtual_apps=='Both') else '' }}>Both</option>
+          <option {{ 'selected' if (form and form.virtual_apps=='None') else '' }}>None</option>
         </select>
       </div>
       <div class="col-12" id="required_apps_group" style="display:none;">
-        <label class="form-label">Required applications (if App Volumes)</label>
-        <textarea class="form-control" name="required_apps" rows="3" placeholder="List app names/versions/licensing nuances…"></textarea>
+        <label class="form-label">Required applications</label>
+        <textarea class="form-control" name="required_apps" rows="3" placeholder="List app names/versions/licensing nuances…">{{ (form.required_apps if form else '') }}</textarea>
       </div>
+
       <div class="col-md-4">
         <label class="form-label">WWT responsible for app packaging?</label>
         <select class="form-select" name="wwt_app_packaging">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+          <option value="" {{ 'selected' if (form and form.wwt_app_packaging=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.wwt_app_packaging=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.wwt_app_packaging=='Yes') else '' }}>Yes</option>
         </select>
       </div>
     </div>
   </fieldset>
 
-  <!-- 4) Endpoints & Access -->
+  <!-- 4) Access & Identity -->
   <fieldset class="border p-3 mb-4">
-    <legend>Endpoints & Access</legend>
+    <legend>Access & Identity</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Remote access required?</label>
+        <select class="form-select" name="remote_access" id="remote_access">
+          <option value="" {{ 'selected' if (form and form.remote_access=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.remote_access=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.remote_access=='Yes') else '' }}>Yes</option>
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">MFA required?</label>
+        <select class="form-select" name="mfa_required" id="mfa_required">
+          <option value="" {{ 'selected' if (form and form.mfa_required=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.mfa_required=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.mfa_required=='Yes') else '' }}>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-4" id="mfa_solution_group" style="display:none;">
+        <label class="form-label">Existing MFA solution</label>
+        <input class="form-control" name="mfa_solution" value="{{ (form.mfa_solution if form else '') }}" placeholder="Duo, Okta, Azure, etc.">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Smart card authentication?</label>
+        <select class="form-select" name="smartcard">
+          <option value="" {{ 'selected' if (form and form.smartcard=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.smartcard=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.smartcard=='Yes') else '' }}>Yes</option>
+        </select>
+      </div>
+
+      <div class="col-md-8">
+        <label class="form-label">Workspace ONE Access or 3rd-party IdP</label>
+        <input class="form-control" name="idp_provider" value="{{ (form.idp_provider if form else '') }}" placeholder="WS1 Access / Okta / Entra ID / ADFS / Ping…">
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 5) Endpoints -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Endpoints</legend>
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">Provision/configure endpoints?</label>
         <select class="form-select" name="endpoint_provisioning">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+          <option value="" {{ 'selected' if (form and form.endpoint_provisioning=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.endpoint_provisioning=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.endpoint_provisioning=='Yes') else '' }}>Yes</option>
         </select>
       </div>
       <div class="col-md-8">
         <label class="form-label">Endpoint types</label>
-        <input class="form-control" name="endpoint_types" placeholder="Thin clients, PCs/laptops, zero clients, tablets…">
+        <input class="form-control" name="endpoint_types" value="{{ (form.endpoint_types if form else '') }}" placeholder="Thin clients, PCs/laptops, zero clients, tablets…">
       </div>
       <div class="col-md-4">
         <label class="form-label">Thin client management required?</label>
-        <input class="form-control" name="thin_client_mgmt" placeholder="HPDM, Stratodesk, IGEL…">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Remote access required?</label>
-        <select class="form-select" name="remote_access">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">MFA required?</label>
-        <select class="form-select" name="mfa_required" id="mfa_required">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
-        </select>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Existing MFA solution (if Yes)</label>
-        <input class="form-control" name="mfa_solution" placeholder="Duo, Okta, Azure, etc.">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Smart card authentication?</label>
-        <select class="form-select" name="smartcard">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
-        </select>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Workspace ONE Access or 3rd-party IdP?</label>
-        <input class="form-control" name="idp_provider" placeholder="WS1 Access / Okta / AAD / ADFS / Ping…">
+        <input class="form-control" name="thin_client_mgmt" value="{{ (form.thin_client_mgmt if form else '') }}" placeholder="HPDM, Stratodesk, IGEL…">
       </div>
     </div>
   </fieldset>
 
-  <!-- 5) Identity & Core Services -->
+  <!-- 6) Directory & Core Services -->
   <fieldset class="border p-3 mb-4">
-    <legend>Identity & Core Services</legend>
+    <legend>Directory & Core Services</legend>
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">Existing AD forest/domains?</label>
         <select class="form-select" name="ad_exists">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+          <option value="" {{ 'selected' if (form and form.ad_exists=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.ad_exists=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.ad_exists=='Yes') else '' }}>Yes</option>
         </select>
       </div>
       <div class="col-md-4">
         <label class="form-label"># of domains / trusts</label>
-        <input type="number" class="form-control" name="num_domains" min="1">
+        <input type="number" class="form-control" name="num_domains" min="1" value="{{ (form.num_domains if form else '') }}">
       </div>
       <div class="col-md-4">
         <label class="form-label">DNS / DHCP / KMS ownership</label>
-        <input class="form-control" name="core_services_owner" placeholder="Customer / WWT">
+        <input class="form-control" name="core_services_owner" value="{{ (form.core_services_owner if form else '') }}" placeholder="Customer / WWT">
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Domain name for virtual desktops</label>
+        <input class="form-control" name="vd_domain_name" value="{{ (form.vd_domain_name if form else '') }}" placeholder="e.g., corp.example.com">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Separate domain for core servers?</label>
+        <input class="form-control" name="core_domain_name" value="{{ (form.core_domain_name if form else '') }}" placeholder="If separate, specify domain/FQDN">
       </div>
     </div>
   </fieldset>
 
-  <!-- 6) Platform & Infra (Dedicated VDI only) -->
+  <!-- 7) Platform & Infra -->
   <fieldset class="border p-3 mb-4">
     <legend>Platform & Infra</legend>
-    <div class="alert alert-info">
-      VDI will be deployed on <strong>dedicated hardware</strong> (no shared hosts).
-    </div>
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">Hypervisor/platform</label>
-        <input class="form-control" name="platform" value="vSphere">
+        <select class="form-select" name="platform" id="platform">
+          <option value="" {{ 'selected' if (form and form.platform=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.platform=='vSphere (ESXi)') else '' }}>vSphere (ESXi)</option>
+          <option {{ 'selected' if (form and form.platform=='Hyper-V') else '' }}>Hyper-V</option>
+          <option {{ 'selected' if (form and form.platform=='Nutanix AHV') else '' }}>Nutanix AHV</option>
+          <option {{ 'selected' if (form and form.platform=='KVM') else '' }}>KVM</option>
+          <option {{ 'selected' if (form and form.platform=='Other') else '' }}>Other</option>
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">General compute cluster available for core components?</label>
+        <select class="form-select" name="general_compute_cluster">
+          <option value="" {{ 'selected' if (form and form.general_compute_cluster=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.general_compute_cluster=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.general_compute_cluster=='Yes') else '' }}>Yes</option>
+        </select>
       </div>
 
       <!-- Host sizing (for density calc) -->
       <div class="col-md-3">
         <label class="form-label">Host CPU cores</label>
-        <input type="number" class="form-control" id="host_cpu_cores" name="host_cpu_cores" min="1" required>
+        <input type="number" class="form-control" id="host_cpu_cores" name="host_cpu_cores" min="1" required value="{{ (form.host_cpu_cores if form else '') }}">
       </div>
       <div class="col-md-3">
         <label class="form-label">Host RAM (GB)</label>
-        <input type="number" class="form-control" id="host_ram_gb" name="host_ram_gb" min="1" required>
+        <input type="number" class="form-control" id="host_ram_gb" name="host_ram_gb" min="1" required value="{{ (form.host_ram_gb if form else '') }}">
       </div>
       <div class="col-md-3">
         <label class="form-label"># of hosts (cluster)</label>
-        <input type="number" class="form-control" name="hosts_count" min="1">
+        <input type="number" class="form-control" name="hosts_count" min="1" value="{{ (form.hosts_count if form else '') }}">
       </div>
 
       <!-- VM persona sizing -->
       <div class="col-md-3">
         <label class="form-label">VM vCPU</label>
-        <input type="number" class="form-control" id="vm_vcpu" name="vm_vcpu" min="1" value="2" required>
+        <input type="number" class="form-control" id="vm_vcpu" name="vm_vcpu" min="1" value="{{ (form.vm_vcpu if form else '2') }}" required>
       </div>
       <div class="col-md-3">
         <label class="form-label">VM RAM (GB)</label>
-        <input type="number" class="form-control" id="vm_ram_gb" name="vm_ram_gb" min="1" value="8" required>
+        <input type="number" class="form-control" id="vm_ram_gb" name="vm_ram_gb" min="1" value="{{ (form.vm_ram_gb if form else '8') }}" required>
+      </div>
+
+      <!-- vCPU:pCPU ratio selection -->
+      <div class="col-md-3">
+        <label class="form-label">vCPU : pCPU ratio</label>
+        <select class="form-select" id="vcpu_to_pcpu" name="vcpu_to_pcpu">
+          <option value="4" {{ 'selected' if (not form or form.vcpu_to_pcpu=='4') else '' }}>1:4</option>
+          <option value="5" {{ 'selected' if (form and form.vcpu_to_pcpu=='5') else '' }}>1:5</option>
+          <option value="6" {{ 'selected' if (form and form.vcpu_to_pcpu=='6') else '' }}>1:6</option>
+        </select>
       </div>
 
       <!-- Storage -->
-      <div class="col-md-4">
+      <div class="col-md-3">
         <label class="form-label">Storage type</label>
         <select class="form-select" name="storage_type" id="storage_type">
-          <option value="">Select…</option>
-          <option>vSAN</option>
-          <option>Pure</option>
-          <option>Other</option>
+          <option value="" {{ 'selected' if (form and form.storage_type=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.storage_type=='vSAN') else '' }}>vSAN</option>
+          <option {{ 'selected' if (form and form.storage_type=='Pure') else '' }}>Pure</option>
+          <option {{ 'selected' if (form and form.storage_type=='Other') else '' }}>Other</option>
         </select>
       </div>
 
       <!-- vSAN calc inputs (shown when vSAN selected) -->
       <div class="col-md-3 vsan-only" style="display:none;">
         <label class="form-label">Base image size (GB)</label>
-        <input type="number" class="form-control" id="base_image_gb" name="base_image_gb" value="40" min="1">
+        <input type="number" class="form-control" id="base_image_gb" name="base_image_gb" value="{{ (form.base_image_gb if form else '40') }}" min="1">
       </div>
       <div class="col-md-3 vsan-only" style="display:none;">
         <label class="form-label">vSAN policy factor</label>
         <select class="form-select" id="vsan_policy_factor" name="vsan_policy_factor">
-          <option value="2.0">FTT1 RAID1 (≈2.0x)</option>
-          <option value="1.33">FTT1 RAID5 (≈1.33x)</option>
-          <option value="3.0">FTT2 RAID1 (≈3.0x)</option>
+          <option value="2.0"  {{ 'selected' if (not form or form.vsan_policy_factor=='2.0') else '' }}>FTT1 RAID1 (≈2.0x)</option>
+          <option value="1.33" {{ 'selected' if (form and form.vsan_policy_factor=='1.33') else '' }}>FTT1 RAID5 (≈1.33x)</option>
+          <option value="3.0"  {{ 'selected' if (form and form.vsan_policy_factor=='3.0') else '' }}>FTT2 RAID1 (≈3.0x)</option>
         </select>
       </div>
 
@@ -297,31 +344,27 @@
           <div class="row g-3 mt-2">
             <div class="col-md-3">
               <label class="form-label">IC delta per user (GB)</label>
-              <input type="number" class="form-control" id="delta_gb" name="delta_gb" value="6">
+              <input type="number" class="form-control" id="delta_gb" name="delta_gb" value="{{ (form.delta_gb if form else '6') }}">
             </div>
             <div class="col-md-3">
               <label class="form-label">Per-VM overhead (GB)</label>
-              <input type="number" class="form-control" id="per_vm_overhead_gb" name="per_vm_overhead_gb" value="1">
+              <input type="number" class="form-control" id="per_vm_overhead_gb" name="per_vm_overhead_gb" value="{{ (form.per_vm_overhead_gb if form else '1') }}">
             </div>
             <div class="col-md-3">
               <label class="form-label">Growth/cushion factor</label>
-              <input type="number" step="0.01" class="form-control" id="growth_factor" name="growth_factor" value="1.10">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">vCPU:pCPU ratio</label>
-              <input type="number" class="form-control" id="vcpu_to_pcpu" name="vcpu_to_pcpu" value="4">
+              <input type="number" step="0.01" class="form-control" id="growth_factor" name="growth_factor" value="{{ (form.growth_factor if form else '1.10') }}">
             </div>
             <div class="col-md-3">
               <label class="form-label">Mem headroom (%)</label>
-              <input type="number" class="form-control" id="mem_headroom_pct" name="mem_headroom_pct" value="0.20" step="0.01">
+              <input type="number" class="form-control" id="mem_headroom_pct" name="mem_headroom_pct" value="{{ (form.mem_headroom_pct if form else '0.20') }}" step="0.01">
             </div>
             <div class="col-md-3">
               <label class="form-label">ESXi overhead (GB)</label>
-              <input type="number" class="form-control" id="esxi_overhead_gb" name="esxi_overhead_gb" value="8">
+              <input type="number" class="form-control" id="esxi_overhead_gb" name="esxi_overhead_gb" value="{{ (form.esxi_overhead_gb if form else '8') }}">
             </div>
             <div class="col-md-3">
               <label class="form-label">GPU sessions cap (per host)</label>
-              <input type="number" class="form-control" id="gpu_sessions_cap" name="gpu_sessions_cap" value="0" min="0">
+              <input type="number" class="form-control" id="gpu_sessions_cap" name="gpu_sessions_cap" value="{{ (form.gpu_sessions_cap if form else '0') }}" min="0">
             </div>
           </div>
         </details>
@@ -337,132 +380,196 @@
         <div class="form-control-plaintext fw-bold" id="per_host_density">—</div>
       </div>
 
-      <!-- External array fields (only if non-vSAN) -->
+      <!-- External array fields -->
       <div class="col-md-4 non-vsan-only" style="display:none;">
         <label class="form-label">Storage vendor/model</label>
-        <input class="form-control" name="storage_vendor_model" placeholder="e.g., Pure X50R3">
+        <input class="form-control" name="storage_vendor_model" value="{{ (form.storage_vendor_model if form else '') }}" placeholder="e.g., Pure X50R3">
       </div>
       <div class="col-md-4 non-vsan-only" style="display:none;">
         <label class="form-label">Protocol</label>
-        <input class="form-control" name="storage_protocol" placeholder="NFS / iSCSI / FC">
+        <input class="form-control" name="storage_protocol" value="{{ (form.storage_protocol if form else '') }}" placeholder="NFS / iSCSI / FC">
       </div>
       <div class="col-md-4 non-vsan-only" style="display:none;">
         <label class="form-label">Usable capacity (GB)</label>
-        <input type="number" class="form-control" name="storage_usable_gb" min="1">
+        <input type="number" class="form-control" name="storage_usable_gb" min="1" value="{{ (form.storage_usable_gb if form else '') }}">
       </div>
 
       <!-- Load balancer -->
       <div class="col-md-4">
         <label class="form-label">Load balancer</label>
-        <input class="form-control" name="load_balancer" placeholder="F5, NSX ALB/Avi, etc.">
+        <input class="form-control" name="load_balancer" value="{{ (form.load_balancer if form else '') }}" placeholder="F5, NSX ALB/Avi, etc.">
       </div>
     </div>
   </fieldset>
 
-  <!-- 7) Operations & Enablement -->
+  <!-- 8) Operations & Enablement -->
   <fieldset class="border p-3 mb-4">
     <legend>Operations & Enablement</legend>
     <div class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label">OGS staffing</label>
+      <div class="col-md-6">
+        <label class="form-label">Operations staffing</label>
         <select class="form-select" name="ogs_staffing">
-          <option value="">Select…</option>
-          <option>Dedicated</option>
-          <option>Part-time</option>
+          <option value="" {{ 'selected' if (form and form.ogs_staffing=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.ogs_staffing=='Dedicated to VDI') else '' }}>Dedicated to VDI</option>
+          <option {{ 'selected' if (form and form.ogs_staffing=='Shared — other duties besides VDI') else '' }}>Shared — other duties besides VDI</option>
         </select>
       </div>
-      <div class="col-md-4">
+
+      <div class="col-md-6">
         <label class="form-label">Monitoring</label>
-        <input class="form-control" name="monitoring_stack" placeholder="vROps, ControlUp, Edge DX, etc.">
+        <select class="form-select" name="monitoring_stack" id="monitoring_stack">
+          <option value="" {{ 'selected' if (form and form.monitoring_stack=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='ControlUp (Platform)') else '' }}>ControlUp (Platform)</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='ControlUp Edge DX') else '' }}>ControlUp Edge DX</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='VMware Aria Operations (vROps)') else '' }}>VMware Aria Operations (vROps)</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Lakeside SysTrack') else '' }}>Lakeside SysTrack</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Nexthink') else '' }}>Nexthink</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Liquidware Stratusphere UX') else '' }}>Liquidware Stratusphere UX</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Goliath') else '' }}>Goliath</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='eG Innovations') else '' }}>eG Innovations</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Login VSI / Login Enterprise') else '' }}>Login VSI / Login Enterprise</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Other') else '' }}>Other</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='None') else '' }}>None</option>
+        </select>
       </div>
+
       <div class="col-md-4">
         <label class="form-label">Local printing?</label>
         <select class="form-select" name="local_printing">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+          <option value="" {{ 'selected' if (form and form.local_printing=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.local_printing=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.local_printing=='Yes') else '' }}>Yes</option>
         </select>
       </div>
       <div class="col-md-4">
         <label class="form-label">USB / mass-storage redirection?</label>
         <select class="form-select" name="usb_redirection">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+          <option value="" {{ 'selected' if (form and form.usb_redirection=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.usb_redirection=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.usb_redirection=='Yes') else '' }}>Yes</option>
         </select>
       </div>
+
       <div class="col-md-12">
-        <label class="form-label">Training required</label>
-        <input class="form-control" name="training" placeholder="Admin / Helpdesk / End-user">
+        <label class="form-label d-block">Training required</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="train_admin" name="training_required" value="Admin" checked>
+          <label class="form-check-label" for="train_admin">Admin</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="train_helpdesk" name="training_required" value="Helpdesk" checked>
+          <label class="form-check-label" for="train_helpdesk">Helpdesk</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="train_enduser" name="training_required" value="End-user" checked>
+          <label class="form-check-label" for="train_enduser">End-user</label>
+        </div>
       </div>
+
       <div class="col-md-12">
         <label class="form-label">Knowledge Transfer (KT) expectations</label>
-        <textarea class="form-control" name="kt_expectations" rows="2"></textarea>
+        <textarea class="form-control" name="kt_expectations" rows="2">{{ (form.kt_expectations if form else '') }}</textarea>
       </div>
       <div class="col-md-4">
         <label class="form-label">Runbook required?</label>
         <select class="form-select" name="runbook_required">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+          <option value="" {{ 'selected' if (form and form.runbook_required=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.runbook_required=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.runbook_required=='Yes') else '' }}>Yes</option>
         </select>
       </div>
       <div class="col-md-4">
         <label class="form-label">Adoption Services needed?</label>
         <select class="form-select" name="adoption_services">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+          <option value="" {{ 'selected' if (form and form.adoption_services=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.adoption_services=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.adoption_services=='Yes') else '' }}>Yes</option>
         </select>
       </div>
       <div class="col-md-4">
-        <label class="form-label">HA/DA in-scope?</label>
-        <select class="form-select" name="ha_da">
-          <option value="">Select…</option>
-          <option>No</option>
-          <option>Yes</option>
+        <label class="form-label">HA/DR in-scope?</label>
+        <select class="form-select" name="ha_dr">
+          <option value="" {{ 'selected' if (form and form.ha_dr=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.ha_dr=='No') else '' }}>No</option>
+          <option {{ 'selected' if (form and form.ha_dr=='Yes') else '' }}>Yes</option>
         </select>
       </div>
     </div>
   </fieldset>
 
-  <!-- 8) Logistics & Delivery Model -->
+  <!-- 9) Logistics & Delivery Model -->
   <fieldset class="border p-3 mb-4">
     <legend>Logistics & Delivery Model</legend>
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">Deployment type</label>
         <select class="form-select" name="deployment_type">
-          <option value="">Select…</option>
-          <option>On-prem</option>
-          <option>Cloud</option>
-          <option>Hybrid</option>
+          <option value="" {{ 'selected' if (form and form.deployment_type=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.deployment_type=='On-prem') else '' }}>On-prem</option>
+          <option {{ 'selected' if (form and form.deployment_type=='Cloud') else '' }}>Cloud</option>
+          <option {{ 'selected' if (form and form.deployment_type=='Hybrid') else '' }}>Hybrid</option>
         </select>
       </div>
+
       <div class="col-md-8">
         <label class="form-label">Delivery model</label>
         <select class="form-select" name="delivery_model">
-          <option value="">Select…</option>
-          <option>WWT builds end-to-end</option>
-          <option>WWT over-the-shoulder workshops</option>
-          <option>Hybrid (shared tasks)</option>
+          <option value="" {{ 'selected' if (form and form.delivery_model=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.delivery_model=='WWT builds end-to-end') else '' }}>WWT builds end-to-end</option>
+          <option {{ 'selected' if (form and form.delivery_model=='WWT over-the-shoulder workshops') else '' }}>WWT over-the-shoulder workshops</option>
+          <option {{ 'selected' if (form and form.delivery_model=='Hybrid (shared tasks)') else '' }}>Hybrid (shared tasks)</option>
         </select>
       </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Target start date</label>
+        <input type="date" class="form-control" id="start_date" name="start_date" value="{{ (form.start_date if form else '') }}">
+      </div>
+
       <div class="col-md-4">
         <label class="form-label">Timeline / deadlines</label>
-        <input class="form-control" name="timeline">
+        <input class="form-control" name="timeline" value="{{ (form.timeline if form else '') }}">
       </div>
+
       <div class="col-md-4">
-        <label class="form-label">Budget / cost sensitivity (optional)</label>
-        <input class="form-control" name="budget">
+        <label class="form-label d-block">Docs requested</label>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_sow"   name="docs_requested" value="SOW" checked>
+          <label class="form-check-label" for="doc_sow">SOW</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_hld"   name="docs_requested" value="HLD" checked>
+          <label class="form-check-label" for="doc_hld">HLD</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_lld"   name="docs_requested" value="LLD" checked>
+          <label class="form-check-label" for="doc_lld">LLD</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_runbook" name="docs_requested" value="Runbook" checked>
+          <label class="form-check-label" for="doc_runbook">Runbook</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_pdg"   name="docs_requested" value="PDG" checked>
+          <label class="form-check-label" for="doc_pdg">PDG (Project Definition Guide)</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_loe"   name="docs_requested" value="LOE/WBS" checked>
+          <label class="form-check-label" for="doc_loe">LOE / WBS</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_atp"   name="docs_requested" value="ATP" checked>
+          <label class="form-check-label" for="doc_atp">ATP (Acceptance Test Plan)</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_adopt" name="docs_requested" value="Adoption Plan" checked>
+          <label class="form-check-label" for="doc_adopt">Adoption Plan</label>
+        </div>
       </div>
-      <div class="col-md-4">
-        <label class="form-label">Docs requested</label>
-        <input class="form-control" name="docs_requested" placeholder="SOW, HLD, Runbook…">
-      </div>
+
       <div class="col-12">
         <label class="form-label">Stakeholders / 3rd parties</label>
-        <textarea class="form-control" name="stakeholders" rows="2"></textarea>
+        <textarea class="form-control" name="stakeholders" rows="2">{{ (form.stakeholders if form else '') }}</textarea>
       </div>
     </div>
   </fieldset>
@@ -473,44 +580,59 @@
 <!-- Conditional UI & Auto-calcs -->
 <script>
 (function () {
-  const DEFAULTS = {
-    delta_gb: 6,
-    per_vm_overhead_gb: 1,
-    growth_factor: 1.10,
-    vcpu_to_pcpu: 4,
-    mem_headroom_pct: 0.20,
-    esxi_overhead_gb: 8,
-  };
-
+  // Helpers
   function el(id){return document.getElementById(id);}
-  function num(id, fallback=0){ const n=parseFloat((el(id)||{}).value); return isNaN(n)?fallback:n; }
+  function num(id, fallback=0){ const e=el(id); const v=parseFloat(e?.value); return isNaN(v)?fallback:v; }
   function setText(id,v){ const e=el(id); if(e){ e.textContent = v; } }
 
-  function toggleVsanGroups(){
-    const type = (document.getElementById("storage_type")?.value || "");
-    const vsanOnly   = document.querySelectorAll(".vsan-only");
-    const nonVsanOnly= document.querySelectorAll(".non-vsan-only");
-    vsanOnly.forEach(x => x.style.display = (type === "vSAN" ? "" : "none"));
-    nonVsanOnly.forEach(x => x.style.display = (type && type !== "vSAN" ? "" : "none"));
+  // Default start date = ~1 month from today (30 days) if empty
+  (function setDefaultStartDate(){
+    const input = el("start_date");
+    if (!input || input.value) return;
+    const d = new Date(); d.setDate(d.getDate() + 30);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    input.value = `${yyyy}-${mm}-${dd}`;
+  })();
+
+  // Show/Hide: existing VDI pain when "Yes"
+  function toggleExistingVDI(){
+    const v = el("existing_vdi")?.value || "";
+    document.getElementById("existing_vdi_pain_group").style.display = (v === "Yes" ? "" : "none");
   }
 
+  // Show/Hide: App Volumes applications list when Virtual apps includes App Volumes (App Volumes or Both)
   function toggleRequiredApps(){
-    const v = document.getElementById("virtual_apps")?.value || "";
-    document.getElementById("required_apps_group").style.display = (v === "App Volumes" ? "" : "none");
+    const v = el("virtual_apps")?.value || "";
+    const show = (v === "App Volumes" || v === "Both");
+    document.getElementById("required_apps_group").style.display = show ? "" : "none";
   }
 
+  // Show/Hide: vSAN vs non-vSAN fields
+  function toggleStorageGroups(){
+    const t = el("storage_type")?.value || "";
+    document.querySelectorAll(".vsan-only").forEach(x => x.style.display = (t === "vSAN" ? "" : "none"));
+    document.querySelectorAll(".non-vsan-only").forEach(x => x.style.display = (t && t !== "vSAN" ? "" : "none"));
+  }
+
+  // Show/Hide: MFA solution if MFA required = Yes
+  function toggleMFA(){
+    const v = el("mfa_required")?.value || "";
+    document.getElementById("mfa_solution_group").style.display = (v === "Yes" ? "" : "none");
+  }
+
+  // vSAN capacity for Instant Clones (GB)
   function computeVSAN(){
-    if ((document.getElementById("storage_type")?.value || "") !== "vSAN"){
-      setText("vsan_total_gb", "—"); return;
-    }
+    if ((el("storage_type")?.value || "") !== "vSAN"){ setText("vsan_total_gb", "—"); return; }
     const N          = num("concurrent_users");
     const images     = num("num_images", 1);
     const vmMem      = num("vm_ram_gb", 8);
     const baseImg    = num("base_image_gb", 40);
     const vsanFactor = num("vsan_policy_factor", 2.0);
-    const delta      = num("delta_gb", DEFAULTS.delta_gb);
-    const overhead   = num("per_vm_overhead_gb", DEFAULTS.per_vm_overhead_gb);
-    const growth     = num("growth_factor", DEFAULTS.growth_factor);
+    const delta      = num("delta_gb", 6);
+    const overhead   = num("per_vm_overhead_gb", 1);
+    const growth     = num("growth_factor", 1.10);
 
     const perVMWritable = delta + vmMem + overhead;   // ~delta + vswap + misc
     const replicas      = images * baseImg;
@@ -520,16 +642,17 @@
     setText("vsan_total_gb", Math.ceil(total).toLocaleString());
   }
 
+  // Users per host (density) using vCPU:pCPU from dropdown (1:4 -> value 4, etc.)
   function computeDensity(){
     const cores   = num("host_cpu_cores");
     const hostMem = num("host_ram_gb");
     const vmvCPU  = num("vm_vcpu", 2);
     const vmMem   = num("vm_ram_gb", 8);
 
-    const ratio     = num("vcpu_to_pcpu", DEFAULTS.vcpu_to_pcpu);
-    const headroom  = num("mem_headroom_pct", DEFAULTS.mem_headroom_pct);
-    const esxiOH    = num("esxi_overhead_gb", DEFAULTS.esxi_overhead_gb);
-    const gpuCap    = num("gpu_sessions_cap", 0);
+    const ratio     = num("vcpu_to_pcpu", 4);      // 4 means 1:4
+    const headroom  = num("mem_headroom_pct", 0.20);
+    const esxiOH    = num("esxi_overhead_gb", 8);
+    const gpuCap    = num("gpu_sessions_cap", 0); // optional cap (0 = ignore)
 
     const cpuCap  = Math.floor((cores * ratio) / vmvCPU);
     const usable  = (hostMem * (1 - headroom)) - esxiOH;
@@ -541,17 +664,37 @@
   }
 
   const watched = [
-    "storage_type","virtual_apps","concurrent_users","num_images","vm_ram_gb",
-    "base_image_gb","vsan_policy_factor","delta_gb","per_vm_overhead_gb","growth_factor",
+    "existing_vdi","virtual_apps","storage_type","mfa_required",
+    "concurrent_users","num_images","vm_ram_gb","base_image_gb","vsan_policy_factor",
+    "delta_gb","per_vm_overhead_gb","growth_factor",
     "host_cpu_cores","host_ram_gb","vm_vcpu","vcpu_to_pcpu","mem_headroom_pct","esxi_overhead_gb","gpu_sessions_cap"
   ];
 
-  function recalc(){ toggleVsanGroups(); toggleRequiredApps(); computeVSAN(); computeDensity(); }
+  function recalc(){
+    toggleExistingVDI();
+    toggleRequiredApps();
+    toggleStorageGroups();
+    toggleMFA();
+    computeVSAN();
+    computeDensity();
+  }
 
   function attach(){
-    watched.forEach(id => { const e=el(id); if(e) e.addEventListener("input", recalc); });
+    watched.forEach(id => { const e = el(id); if (e) e.addEventListener("input", recalc); });
     recalc();
   }
+
+  // Safety defaults if advanced tunables are absent in DOM
+  if (!el("mem_headroom_pct")) {
+    const hidden = document.createElement("div");
+    hidden.innerHTML = `
+      <input type="hidden" id="mem_headroom_pct" value="0.20">
+      <input type="hidden" id="esxi_overhead_gb" value="8">
+      <input type="hidden" id="gpu_sessions_cap" value="0">
+    `;
+    document.body.appendChild(hidden);
+  }
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach); else attach();
 })();
 </script>
