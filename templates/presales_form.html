@@ -1,162 +1,198 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="h4 mb-3">Submission Review (Presales)</h1>
-<p class="text-muted">Submitted at {{ submitted_at }}</p>
+<h1 class="h3 mb-3">Presales Questionnaire</h1>
+<p class="help-text mb-4">Fill out all fields needed to generate the HLD/PDG inputs.</p>
 
-<form method="POST" action="/presales/download">
-  {% for key, val in data.items() %}
-    {% if val is string %}
-      <input type="hidden" name="{{ key }}" value="{{ val|e }}">
-    {% else %}
-      {% for v in val %}
-        <input type="hidden" name="{{ key }}" value="{{ v|e }}">
-      {% endfor %}
-    {% endif %}
-  {% endfor %}
-
-  <h2 class="h6 mt-2">Customer & Project</h2>
+<form method="POST" action="/presales/submit" id="presalesForm">
+  <!-- Customer & Project -->
+  <h2 class="h5 section-title">Customer & Project</h2>
   <div class="row g-3">
     <div class="col-md-6">
-      <label class="form-label">Customer Name</label>
-      <div class="form-control">{{ data.get('customer_name','') }}</div>
+      <label class="form-label required">Customer Name</label>
+      <input class="form-control" name="customer_name" placeholder="Acme Corp">
     </div>
     <div class="col-md-6">
-      <label class="form-label">Customer Slug</label>
-      <div class="form-control">{{ data.get('customer_slug','') }}</div>
+      <label class="form-label required">Customer Slug (URL/filename safe)</label>
+      <input class="form-control" name="customer_slug" placeholder="acme">
     </div>
+  </div>
+  <div class="row g-3 mt-1">
     <div class="col-md-12">
-      <label class="form-label">Project Name</label>
-      <div class="form-control">{{ data.get('project_name','') }}</div>
+      <label class="form-label required">Project Name</label>
+      <input class="form-control" name="project_name" placeholder="VDI Modernization">
     </div>
   </div>
 
-  <h2 class="h6 mt-4">Primary Contacts</h2>
+  <!-- Contacts -->
+  <h2 class="h5 section-title">Primary Contacts</h2>
   <div class="row g-3">
     <div class="col-md-6">
-      <label class="form-label">Primary Contact (Name)</label>
-      <div class="form-control">{{ data.get('primary_contact_name','') }}</div>
+      <label class="form-label required">Primary Technical Contact (Name)</label>
+      <input class="form-control" name="primary_contact_name" placeholder="Jane Smith">
     </div>
     <div class="col-md-6">
-      <label class="form-label">Primary Contact (Email)</label>
-      <div class="form-control">{{ data.get('primary_contact_email','') }}</div>
+      <label class="form-label required">Primary Technical Contact (Email)</label>
+      <input class="form-control" name="primary_contact_email" placeholder="jane.smith@example.com">
     </div>
   </div>
-  {% if data.get('secondary_contacts') %}
   <div class="mb-3 mt-3">
-    <label class="form-label">Secondary / Ops Contacts</label>
-    <div class="form-control">{{ data.get('secondary_contacts','') }}</div>
+    <label class="form-label">Secondary / Operations Contacts</label>
+    <input class="form-control" name="secondary_contacts" placeholder="ops@example.com; oncall@example.com">
   </div>
-  {% endif %}
 
-  <h2 class="h6 mt-4">Voice of the Customer</h2>
+  <!-- Voice of Customer -->
+  <h2 class="h5 section-title">Voice of the Customer</h2>
   <div class="mb-3">
-    <div class="form-control" style="white-space:pre-wrap;">{{ data.get('voc','') }}</div>
+    <label class="form-label required">Objectives / Outcomes</label>
+    <textarea class="form-control" name="voc" rows="5" placeholder="Key drivers, success criteria, constraints."></textarea>
   </div>
 
-  <h2 class="h6 mt-4">Scope</h2>
+  <!-- Scope -->
+  <h2 class="h5 section-title">Scope</h2>
   <div class="row g-3">
     <div class="col-md-4">
-      <label class="form-label">Deployment Scope</label>
-      <div class="form-control">{{ data.get('pod_scope','') }}</div>
+      <label class="form-label required">Deployment Scope</label>
+      <select class="form-select" name="pod_scope" id="pod_scope">
+        <option value="single">Single pod</option>
+        <option value="multi">Multi-pod</option>
+      </select>
     </div>
     <div class="col-md-4">
-      <label class="form-label">Include Test/Dev</label>
-      <div class="form-control">{{ data.get('include_test_dev','') }}</div>
+      <label class="form-label required">Include Test/Dev Environments?</label>
+      <select class="form-select" name="include_test_dev" id="include_test_dev">
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
     </div>
     <div class="col-md-4">
-      <label class="form-label">Concurrent Users</label>
-      <div class="form-control">{{ data.get('concurrent_users','') }}</div>
+      <label class="form-label">Estimated Concurrent Users</label>
+      <input class="form-control" name="concurrent_users" placeholder="e.g., 1200">
     </div>
   </div>
-  {% if data.get('test_dev_notes') %}
-  <div class="mb-3 mt-3">
+  <div class="mb-3 mt-3" id="test_dev_notes_group" style="display:none;">
     <label class="form-label">Test/Dev Notes</label>
-    <div class="form-control" style="white-space:pre-wrap;">{{ data.get('test_dev_notes','') }}</div>
+    <textarea class="form-control" name="test_dev_notes" rows="3" placeholder="Environments, purpose, sizing, lifecycle expectations."></textarea>
   </div>
-  {% endif %}
 
-  <h2 class="h6 mt-4">Host / Cluster Sizing</h2>
+  <!-- Hosts / Sizing -->
+  <h2 class="h5 section-title">Host / Cluster Sizing</h2>
   <div class="row g-3">
     <div class="col-md-3">
-      <label class="form-label">ESXi Hosts (per pod)</label>
-      <div class="form-control">{{ data.get('host_count','') }}</div>
+      <label class="form-label required">ESXi Hosts (per pod)</label>
+      <input class="form-control" name="host_count" placeholder="e.g., 8">
     </div>
     <div class="col-md-3">
-      <label class="form-label">CPU per Host</label>
-      <div class="form-control">{{ data.get('cpu_per_host','') }}</div>
+      <label class="form-label required">CPU per Host</label>
+      <input class="form-control" name="cpu_per_host" placeholder="e.g., 2× 32-core">
     </div>
     <div class="col-md-3">
-      <label class="form-label">RAM per Host</label>
-      <div class="form-control">{{ data.get('ram_per_host','') }}</div>
+      <label class="form-label required">RAM per Host</label>
+      <input class="form-control" name="ram_per_host" placeholder="e.g., 512 GB">
     </div>
     <div class="col-md-3">
       <label class="form-label">Other Host Details</label>
-      <div class="form-control">{{ data.get('other_host_config','') }}</div>
+      <input class="form-control" name="other_host_config" placeholder="NICs, GPU, firmware, etc.">
     </div>
   </div>
 
-  <h2 class="h6 mt-4">Storage</h2>
-  <div class="row g-3">
-    <div class="col-md-3">
-      <label class="form-label">Type</label>
-      <div class="form-control">{{ data.get('storage_type','') }}</div>
-    </div>
-    {% if data.get('storage_type') != 'vSAN' %}
-    <div class="col-md-3">
-      <label class="form-label">Vendor</label>
-      <div class="form-control">{{ data.get('storage_vendor','') }}</div>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Model</label>
-      <div class="form-control">{{ data.get('storage_model','') }}</div>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Usable Capacity (TB)</label>
-      <div class="form-control">{{ data.get('storage_capacity_tb','') }}</div>
-    </div>
-    {% endif %}
-  </div>
-
-  <h2 class="h6 mt-4">Networking & LB</h2>
+  <!-- Storage -->
+  <h2 class="h5 section-title">Storage</h2>
   <div class="row g-3">
     <div class="col-md-4">
-      <label class="form-label">Load Balancer</label>
-      <div class="form-control">{{ data.get('load_balancer','') }}</div>
+      <label class="form-label required">Primary Storage Type</label>
+      <select class="form-select" name="storage_type" id="storage_type">
+        <option value="vSAN">vSAN</option>
+        <option value="Pure Storage">Pure Storage</option>
+        <option value="PowerScale">PowerScale</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="col-md-4 storage-extra">
+      <label class="form-label">Storage Vendor</label>
+      <input class="form-control" name="storage_vendor" placeholder="e.g., Pure Storage">
+    </div>
+    <div class="col-md-4 storage-extra">
+      <label class="form-label">Storage Model</label>
+      <input class="form-control" name="storage_model" placeholder="e.g., //X50R2">
+    </div>
+    <div class="col-md-4 storage-extra">
+      <label class="form-label">Usable Capacity (TB)</label>
+      <input class="form-control" name="storage_capacity_tb" placeholder="e.g., 150">
+    </div>
+  </div>
+
+  <!-- Networking / LB -->
+  <h2 class="h5 section-title">Networking & Load Balancing</h2>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label required">Load Balancer</label>
+      <select class="form-select" name="load_balancer">
+        <option value="F5 BIG-IP">F5 BIG-IP</option>
+        <option value="Avi / NSX ALB">Avi / NSX ALB</option>
+        <option value="Netscaler (Citrix ADC)">Netscaler (Citrix ADC)</option>
+        <option value="Other / TBD">Other / TBD</option>
+        <option value="None">None</option>
+      </select>
     </div>
     <div class="col-md-4">
       <label class="form-label">Management Network CIDR</label>
-      <div class="form-control">{{ data.get('mgmt_cidr','') }}</div>
+      <input class="form-control" name="mgmt_cidr" placeholder="e.g., 10.0.0.0/24">
     </div>
     <div class="col-md-4">
       <label class="form-label">VM / Desktop Networks</label>
-      <div class="form-control">{{ data.get('vm_networks','') }}</div>
+      <input class="form-control" name="vm_networks" placeholder="list or ranges">
     </div>
   </div>
 
-  <h2 class="h6 mt-4">Access & Identity</h2>
+  <!-- Access & Identity -->
+  <h2 class="h5 section-title">Access & Identity</h2>
   <div class="row g-3">
     <div class="col-md-4">
-      <label class="form-label">3rd-party IdP?</label>
-      <div class="form-control">{{ data.get('idp_integrate','') }}</div>
+      <label class="form-label required">Integrate with 3rd-party IdP?</label>
+      <select class="form-select" name="idp_integrate" id="idp_integrate">
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
     </div>
-    {% if data.get('idp_integrate') == 'yes' %}
-    <div class="col-md-8">
+    <div class="col-md-8" id="idp_provider_group" style="display:none;">
       <label class="form-label">IdP Provider</label>
-      <div class="form-control">{{ data.get('idp_provider','') }}</div>
+      <input class="form-control" name="idp_provider" placeholder="Okta, Entra ID, Ping, ADFS">
     </div>
-    {% endif %}
   </div>
 
-  {% if data.get('notes') %}
-  <h2 class="h6 mt-4">Notes</h2>
+  <!-- Notes -->
+  <h2 class="h5 section-title">Additional Notes</h2>
   <div class="mb-3">
-    <div class="form-control" style="white-space:pre-wrap;">{{ data.get('notes','') }}</div>
+    <label class="form-label">Notes / Assumptions / Risks</label>
+    <textarea class="form-control" name="notes" rows="4" placeholder="Anything else we should know?"></textarea>
   </div>
-  {% endif %}
 
-  <div class="d-flex gap-2 mt-4">
-    <button class="btn btn-success" type="submit">Download Markdown</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('presales') }}">Edit</a>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary" type="submit">Review Submission</button>
+    <a class="btn btn-outline-secondary" href="/">Reset</a>
   </div>
 </form>
+
+<script>
+  function toggleTestDev() {
+    const sel = document.getElementById('include_test_dev');
+    const grp = document.getElementById('test_dev_notes_group');
+    grp.style.display = sel.value === 'yes' ? 'block' : 'none';
+  }
+  function toggleStorage() {
+    const sel = document.getElementById('storage_type');
+    const extras = document.querySelectorAll('.storage-extra');
+    const showExtras = sel.value !== 'vSAN';
+    extras.forEach(el => el.style.display = showExtras ? 'block' : 'none');
+  }
+  function toggleIdP() {
+    const sel = document.getElementById('idp_integrate');
+    const grp = document.getElementById('idp_provider_group');
+    grp.style.display = sel.value === 'yes' ? 'block' : 'none';
+  }
+  document.getElementById('include_test_dev')?.addEventListener('change', toggleTestDev);
+  document.getElementById('storage_type')?.addEventListener('change', toggleStorage);
+  document.getElementById('idp_integrate')?.addEventListener('change', toggleIdP);
+  toggleTestDev(); toggleStorage(); toggleIdP();
+</script>
 {% endblock %}

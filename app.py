@@ -93,7 +93,8 @@ def pdg_groups(is_multi):
 @app.route("/", methods=["GET"])
 @app.route("/presales", methods=["GET"])
 def presales():
-    return render_template("presales_form.html", app_version=APP_VERSION)
+    # Pass an empty data dict so templates that reference 'data' won't error
+    return render_template("presales_form.html", app_version=APP_VERSION, data={})
 
 @app.route("/presales/submit", methods=["POST"])
 def presales_submit():
