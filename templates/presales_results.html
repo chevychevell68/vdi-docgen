@@ -4,13 +4,14 @@
 <p class="text-muted">Submitted at {{ submitted_at }}</p>
 
 <form method="POST" action="/presales/download">
+  {# Robustly carry all fields to the download step without using 'is string' #}
   {% for key, val in data.items() %}
-    {% if val is string %}
-      <input type="hidden" name="{{ key }}" value="{{ val|e }}">
-    {% else %}
+    {% if val is iterable and (val is not string) %}
       {% for v in val %}
         <input type="hidden" name="{{ key }}" value="{{ v|e }}">
       {% endfor %}
+    {% else %}
+      <input type="hidden" name="{{ key }}" value="{{ val|e }}">
     {% endif %}
   {% endfor %}
 
