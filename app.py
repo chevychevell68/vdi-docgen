@@ -10,7 +10,7 @@ from urllib.error import HTTPError, URLError
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
-# --------- GitHub settings (set in Render) ----------
+# --------- GitHub settings (set in Render env) ----------
 GITHUB_TOKEN  = os.getenv("GITHUB_TOKEN", "").strip()
 REPO_OWNER    = os.getenv("REPO_OWNER", "").strip()
 REPO_NAME     = os.getenv("REPO_NAME", "").strip()
@@ -18,9 +18,7 @@ REPO_BRANCH   = os.getenv("REPO_BRANCH", "main").strip()
 
 def github_upsert_file(repo_owner: str, repo_name: str, branch: str, path: str, content_bytes: bytes, commit_msg: str) -> bool:
     """
-    Create a new file in GitHub via the Contents API.
-    If the file exists, this will fail unless you first fetch the SHA and include it.
-    We generate unique timestamped filenames, so create is sufficient.
+    Create a new file in GitHub via the Contents API (unique filename).
     """
     if not (GITHUB_TOKEN and repo_owner and repo_name and branch and path):
         return False
@@ -40,10 +38,8 @@ def github_upsert_file(repo_owner: str, repo_name: str, branch: str, path: str, 
     })
     try:
         with urlopen(req) as resp:
-            # 201 Created expected
             return 200 <= resp.status < 300
     except HTTPError as e:
-        # Surface a friendly error in logs; UI message handled by flash
         print("GitHub HTTPError:", e.code, e.read().decode("utf-8", errors="ignore"))
         return False
     except URLError as e:
@@ -62,7 +58,6 @@ def save_locally(path: Path, content_bytes: bytes) -> bool:
 def persist_submission(payload: dict) -> str:
     """
     Persist payload as JSON to GitHub (preferred) or local disk (fallback).
-    Returns a human-readable message about where it went.
     """
     timestamp = dt.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
     filename = f"session-{timestamp}.json"
@@ -78,7 +73,7 @@ def persist_submission(payload: dict) -> str:
         if ok:
             return f"Saved to GitHub: {REPO_OWNER}/{REPO_NAME}@{REPO_BRANCH}/{rel_path}"
 
-    # Fallback: local (Render disk)
+    # Fallback: local
     local_path = Path("./data") / rel_path
     ok = save_locally(local_path, content)
     if ok:
@@ -101,7 +96,7 @@ def index():
             "</body></html>"
         )
 
-# -------------- NOTE: route changed to /presales (no /new) --------------
+# ------------------ MAIN FORM ROUTE (no /new) ------------------
 @app.route("/presales", methods=["GET", "POST"])
 def presales():
     """
@@ -109,46 +104,45 @@ def presales():
     Renders templates/presales_form.html.
     """
     if request.method == "POST":
-        # Flatten + collect multi-selects
         data = request.form.to_dict(flat=True)
-        # Build a structured region mix (only checked + >0 values)
-REGIONS = [
-    ("US", "Continental US"),
-    ("CAN", "Canada"),
-    ("LATAM", "LATAM"),
-    ("EMEA", "EMEA"),
-    ("APAC", "APAC"),
-    ("INDIA", "India"),
-    ("ANZ", "ANZ"),
-    ("OTHER", "Other"),
-]
 
-location_mix = {}
-total_pct = 0
-for key, _label in REGIONS:
-    checked = request.form.get(f"region_ck_{key}")
-    pct_raw = request.form.get(f"region_pct_{key}", "").strip()
-    if checked and pct_raw:
-        try:
-            pct = int(round(float(pct_raw)))
-        except ValueError:
-            pct = 0
-        if pct > 0:
-            location_mix[key] = pct
-            total_pct += pct
-
-# Server-side enforcement: must equal 100%
-if total_pct != 100:
-    flash(f"Regional mix must total 100% (currently {total_pct}%).", "error")
-    return render_template("presales_form.html", form=data)
-
-# Put the structured mix into the payload
-data["location_mix"] = location_mix
-
+        # Multi-selects / checkboxes (read lists)
         data["docs_requested"]    = request.form.getlist("docs_requested")
         data["training_required"] = request.form.getlist("training_required")
 
-        # Basic validation
+        # -------- Region mix: build structured map + validate 100% ----------
+        REGIONS = [
+            ("US", "Continental US"),
+            ("CAN", "Canada"),
+            ("LATAM", "LATAM"),
+            ("EMEA", "EMEA"),
+            ("APAC", "APAC"),
+            ("INDIA", "India"),
+            ("ANZ", "ANZ"),
+            ("OTHER", "Other"),
+        ]
+        location_mix = {}
+        total_pct = 0
+        for key, _label in REGIONS:
+            checked = request.form.get(f"region_ck_{key}")
+            pct_raw = request.form.get(f"region_pct_{key}", "").strip()
+            if checked and pct_raw:
+                try:
+                    pct = int(round(float(pct_raw)))
+                except ValueError:
+                    pct = 0
+                if pct > 0:
+                    location_mix[key] = pct
+                    total_pct += pct
+
+        if total_pct != 100:
+            flash(f"Regional mix must total 100% (currently {total_pct}%).", "error")
+            return render_template("presales_form.html", form=data)
+
+        data["location_mix"] = location_mix
+        # -------------------------------------------------------------------
+
+        # Minimal required fields to avoid empty submissions
         required = [
             "company_name", "customer_name",
             "concurrent_users",
@@ -160,18 +154,13 @@ data["location_mix"] = location_mix
             flash(f"Missing required fields: {', '.join(missing)}", "error")
             return render_template("presales_form.html", form=data)
 
-        # Add metadata (UTC timestamp) to payload
-        payload = {
-            "submitted_utc": dt.datetime.utcnow().isoformat(timespec="seconds") + "Z",
-            **data
-        }
-
+        # Add metadata (UTC timestamp)
+        payload = {"submitted_utc": dt.datetime.utcnow().isoformat(timespec="seconds") + "Z", **data}
         where = persist_submission(payload)
         if where.startswith("Failed"):
             flash(where, "error")
         else:
             flash(f"Presales discovery saved. {where}", "success")
-
         return redirect(url_for("presales"))
 
     # GET
