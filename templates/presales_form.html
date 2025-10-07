@@ -1,198 +1,559 @@
 {% extends "base.html" %}
+{% block title %}Horizon Presales Discovery{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">Presales Questionnaire</h1>
-<p class="help-text mb-4">Fill out all fields needed to generate the HLD/PDG inputs.</p>
 
-<form method="POST" action="/presales/submit" id="presalesForm">
-  <!-- Customer & Project -->
-  <h2 class="h5 section-title">Customer & Project</h2>
-  <div class="row g-3">
-    <div class="col-md-6">
-      <label class="form-label required">Customer Name</label>
-      <input class="form-control" name="customer_name" placeholder="Acme Corp">
-    </div>
-    <div class="col-md-6">
-      <label class="form-label required">Customer Slug (URL/filename safe)</label>
-      <input class="form-control" name="customer_slug" placeholder="acme">
-    </div>
-  </div>
-  <div class="row g-3 mt-1">
-    <div class="col-md-12">
-      <label class="form-label required">Project Name</label>
-      <input class="form-control" name="project_name" placeholder="VDI Modernization">
-    </div>
-  </div>
+<h1 class="mb-3">Horizon Presales Discovery</h1>
+<p class="text-muted">Architect-led conversation. Do not send to customers.</p>
 
-  <!-- Contacts -->
-  <h2 class="h5 section-title">Primary Contacts</h2>
-  <div class="row g-3">
-    <div class="col-md-6">
-      <label class="form-label required">Primary Technical Contact (Name)</label>
-      <input class="form-control" name="primary_contact_name" placeholder="Jane Smith">
+<form method="post" id="presales-form">
+  <!-- 0) Customer Info -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Customer Info</legend>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Company name</label>
+        <input class="form-control" name="company_name" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Customer name (primary contact)</label>
+        <input class="form-control" name="customer_name" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Existing VDI in environment?</label>
+        <select class="form-select" name="existing_vdi">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label">If yes, top pain points</label>
+        <textarea class="form-control" name="existing_vdi_pain" rows="2"></textarea>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Voice of the Customer (VoC)</label>
+        <textarea class="form-control" name="voc" rows="4" placeholder="Business drivers, pain points, success criteria, deadlines, risk tolerance…"></textarea>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Main use case(s)</label>
+        <textarea class="form-control" name="main_use_cases" rows="3" placeholder="e.g., knowledge workers, clinical, CAD, contact center…"></textarea>
+      </div>
     </div>
-    <div class="col-md-6">
-      <label class="form-label required">Primary Technical Contact (Email)</label>
-      <input class="form-control" name="primary_contact_email" placeholder="jane.smith@example.com">
-    </div>
-  </div>
-  <div class="mb-3 mt-3">
-    <label class="form-label">Secondary / Operations Contacts</label>
-    <input class="form-control" name="secondary_contacts" placeholder="ops@example.com; oncall@example.com">
-  </div>
+  </fieldset>
 
-  <!-- Voice of Customer -->
-  <h2 class="h5 section-title">Voice of the Customer</h2>
-  <div class="mb-3">
-    <label class="form-label required">Objectives / Outcomes</label>
-    <textarea class="form-control" name="voc" rows="5" placeholder="Key drivers, success criteria, constraints."></textarea>
-  </div>
+  <!-- 1) Users & Scope -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Users & Scope</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Total users</label>
+        <input type="number" class="form-control" name="total_users" min="0">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Concurrent users (peak)</label>
+        <input type="number" class="form-control" id="concurrent_users" name="concurrent_users" min="0" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label"># of user locations (list below)</label>
+        <input type="number" class="form-control" name="num_locations" min="0">
+      </div>
+      <div class="col-12">
+        <label class="form-label">User locations (where)</label>
+        <input class="form-control" name="locations_detail" placeholder="City/region list">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label"># of datacenters/regions</label>
+        <input type="number" class="form-control" name="num_datacenters" min="1">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Datacenters/regions (where)</label>
+        <input class="form-control" name="datacenters_detail" placeholder="City/region list">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label"># of distinct personas/use cases</label>
+        <input type="number" class="form-control" name="num_personas" min="1">
+      </div>
+    </div>
+  </fieldset>
 
-  <!-- Scope -->
-  <h2 class="h5 section-title">Scope</h2>
-  <div class="row g-3">
-    <div class="col-md-4">
-      <label class="form-label required">Deployment Scope</label>
-      <select class="form-select" name="pod_scope" id="pod_scope">
-        <option value="single">Single pod</option>
-        <option value="multi">Multi-pod</option>
-      </select>
+  <!-- 2) GPU -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Graphics / GPU</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">GPU required?</label>
+        <select class="form-select" name="gpu_required" id="gpu_required">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">GPU users (estimate)</label>
+        <input type="number" class="form-control" name="gpu_users" min="0">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Target GPU profile / VRAM per user (GB)</label>
+        <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5">
+      </div>
+      <div class="col-12">
+        <label class="form-label">GPU use case</label>
+        <input class="form-control" name="gpu_use_case" placeholder="3D/CAD, imaging, video editing, ML inferencing…">
+      </div>
     </div>
-    <div class="col-md-4">
-      <label class="form-label required">Include Test/Dev Environments?</label>
-      <select class="form-select" name="include_test_dev" id="include_test_dev">
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Estimated Concurrent Users</label>
-      <input class="form-control" name="concurrent_users" placeholder="e.g., 1200">
-    </div>
-  </div>
-  <div class="mb-3 mt-3" id="test_dev_notes_group" style="display:none;">
-    <label class="form-label">Test/Dev Notes</label>
-    <textarea class="form-control" name="test_dev_notes" rows="3" placeholder="Environments, purpose, sizing, lifecycle expectations."></textarea>
-  </div>
+  </fieldset>
 
-  <!-- Hosts / Sizing -->
-  <h2 class="h5 section-title">Host / Cluster Sizing</h2>
-  <div class="row g-3">
-    <div class="col-md-3">
-      <label class="form-label required">ESXi Hosts (per pod)</label>
-      <input class="form-control" name="host_count" placeholder="e.g., 8">
+  <!-- 3) Image & Apps -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Image & Applications</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label"># of base images</label>
+        <input type="number" class="form-control" id="num_images" name="num_images" min="1" value="1">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Gold image provided by customer?</label>
+        <select class="form-select" name="gold_image_source">
+          <option>WWT builds</option>
+          <option>Customer provides</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Profile management</label>
+        <select class="form-select" name="profile_mgmt">
+          <option value="">Select…</option>
+          <option>DEM</option>
+          <option>FSLogix</option>
+          <option>None</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Virtual apps?</label>
+        <select class="form-select" name="virtual_apps" id="virtual_apps">
+          <option value="">Select…</option>
+          <option>App Volumes</option>
+          <option>RDSH</option>
+          <option>None</option>
+        </select>
+      </div>
+      <div class="col-12" id="required_apps_group" style="display:none;">
+        <label class="form-label">Required applications (if App Volumes)</label>
+        <textarea class="form-control" name="required_apps" rows="3" placeholder="List app names/versions/licensing nuances…"></textarea>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">WWT responsible for app packaging?</label>
+        <select class="form-select" name="wwt_app_packaging">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
     </div>
-    <div class="col-md-3">
-      <label class="form-label required">CPU per Host</label>
-      <input class="form-control" name="cpu_per_host" placeholder="e.g., 2× 32-core">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label required">RAM per Host</label>
-      <input class="form-control" name="ram_per_host" placeholder="e.g., 512 GB">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Other Host Details</label>
-      <input class="form-control" name="other_host_config" placeholder="NICs, GPU, firmware, etc.">
-    </div>
-  </div>
+  </fieldset>
 
-  <!-- Storage -->
-  <h2 class="h5 section-title">Storage</h2>
-  <div class="row g-3">
-    <div class="col-md-4">
-      <label class="form-label required">Primary Storage Type</label>
-      <select class="form-select" name="storage_type" id="storage_type">
-        <option value="vSAN">vSAN</option>
-        <option value="Pure Storage">Pure Storage</option>
-        <option value="PowerScale">PowerScale</option>
-        <option value="Other">Other</option>
-      </select>
+  <!-- 4) Endpoints & Access -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Endpoints & Access</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Provision/configure endpoints?</label>
+        <select class="form-select" name="endpoint_provisioning">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Endpoint types</label>
+        <input class="form-control" name="endpoint_types" placeholder="Thin clients, PCs/laptops, zero clients, tablets…">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Thin client management required?</label>
+        <input class="form-control" name="thin_client_mgmt" placeholder="HPDM, Stratodesk, IGEL…">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Remote access required?</label>
+        <select class="form-select" name="remote_access">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">MFA required?</label>
+        <select class="form-select" name="mfa_required" id="mfa_required">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Existing MFA solution (if Yes)</label>
+        <input class="form-control" name="mfa_solution" placeholder="Duo, Okta, Azure, etc.">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Smart card authentication?</label>
+        <select class="form-select" name="smartcard">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Workspace ONE Access or 3rd-party IdP?</label>
+        <input class="form-control" name="idp_provider" placeholder="WS1 Access / Okta / AAD / ADFS / Ping…">
+      </div>
     </div>
-    <div class="col-md-4 storage-extra">
-      <label class="form-label">Storage Vendor</label>
-      <input class="form-control" name="storage_vendor" placeholder="e.g., Pure Storage">
-    </div>
-    <div class="col-md-4 storage-extra">
-      <label class="form-label">Storage Model</label>
-      <input class="form-control" name="storage_model" placeholder="e.g., //X50R2">
-    </div>
-    <div class="col-md-4 storage-extra">
-      <label class="form-label">Usable Capacity (TB)</label>
-      <input class="form-control" name="storage_capacity_tb" placeholder="e.g., 150">
-    </div>
-  </div>
+  </fieldset>
 
-  <!-- Networking / LB -->
-  <h2 class="h5 section-title">Networking & Load Balancing</h2>
-  <div class="row g-3">
-    <div class="col-md-4">
-      <label class="form-label required">Load Balancer</label>
-      <select class="form-select" name="load_balancer">
-        <option value="F5 BIG-IP">F5 BIG-IP</option>
-        <option value="Avi / NSX ALB">Avi / NSX ALB</option>
-        <option value="Netscaler (Citrix ADC)">Netscaler (Citrix ADC)</option>
-        <option value="Other / TBD">Other / TBD</option>
-        <option value="None">None</option>
-      </select>
+  <!-- 5) Identity & Core Services -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Identity & Core Services</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Existing AD forest/domains?</label>
+        <select class="form-select" name="ad_exists">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label"># of domains / trusts</label>
+        <input type="number" class="form-control" name="num_domains" min="1">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">DNS / DHCP / KMS ownership</label>
+        <input class="form-control" name="core_services_owner" placeholder="Customer / WWT">
+      </div>
     </div>
-    <div class="col-md-4">
-      <label class="form-label">Management Network CIDR</label>
-      <input class="form-control" name="mgmt_cidr" placeholder="e.g., 10.0.0.0/24">
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">VM / Desktop Networks</label>
-      <input class="form-control" name="vm_networks" placeholder="list or ranges">
-    </div>
-  </div>
+  </fieldset>
 
-  <!-- Access & Identity -->
-  <h2 class="h5 section-title">Access & Identity</h2>
-  <div class="row g-3">
-    <div class="col-md-4">
-      <label class="form-label required">Integrate with 3rd-party IdP?</label>
-      <select class="form-select" name="idp_integrate" id="idp_integrate">
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
-      </select>
+  <!-- 6) Platform & Infra (Dedicated VDI only) -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Platform & Infra</legend>
+    <div class="alert alert-info">
+      VDI will be deployed on <strong>dedicated hardware</strong> (no shared hosts).
     </div>
-    <div class="col-md-8" id="idp_provider_group" style="display:none;">
-      <label class="form-label">IdP Provider</label>
-      <input class="form-control" name="idp_provider" placeholder="Okta, Entra ID, Ping, ADFS">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Hypervisor/platform</label>
+        <input class="form-control" name="platform" value="vSphere">
+      </div>
+
+      <!-- Host sizing (for density calc) -->
+      <div class="col-md-3">
+        <label class="form-label">Host CPU cores</label>
+        <input type="number" class="form-control" id="host_cpu_cores" name="host_cpu_cores" min="1" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Host RAM (GB)</label>
+        <input type="number" class="form-control" id="host_ram_gb" name="host_ram_gb" min="1" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label"># of hosts (cluster)</label>
+        <input type="number" class="form-control" name="hosts_count" min="1">
+      </div>
+
+      <!-- VM persona sizing -->
+      <div class="col-md-3">
+        <label class="form-label">VM vCPU</label>
+        <input type="number" class="form-control" id="vm_vcpu" name="vm_vcpu" min="1" value="2" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">VM RAM (GB)</label>
+        <input type="number" class="form-control" id="vm_ram_gb" name="vm_ram_gb" min="1" value="8" required>
+      </div>
+
+      <!-- Storage -->
+      <div class="col-md-4">
+        <label class="form-label">Storage type</label>
+        <select class="form-select" name="storage_type" id="storage_type">
+          <option value="">Select…</option>
+          <option>vSAN</option>
+          <option>Pure</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <!-- vSAN calc inputs (shown when vSAN selected) -->
+      <div class="col-md-3 vsan-only" style="display:none;">
+        <label class="form-label">Base image size (GB)</label>
+        <input type="number" class="form-control" id="base_image_gb" name="base_image_gb" value="40" min="1">
+      </div>
+      <div class="col-md-3 vsan-only" style="display:none;">
+        <label class="form-label">vSAN policy factor</label>
+        <select class="form-select" id="vsan_policy_factor" name="vsan_policy_factor">
+          <option value="2.0">FTT1 RAID1 (≈2.0x)</option>
+          <option value="1.33">FTT1 RAID5 (≈1.33x)</option>
+          <option value="3.0">FTT2 RAID1 (≈3.0x)</option>
+        </select>
+      </div>
+
+      <!-- Advanced (collapsible) -->
+      <div class="col-12 vsan-only" style="display:none;">
+        <details>
+          <summary>Advanced vSAN & density tunables</summary>
+          <div class="row g-3 mt-2">
+            <div class="col-md-3">
+              <label class="form-label">IC delta per user (GB)</label>
+              <input type="number" class="form-control" id="delta_gb" name="delta_gb" value="6">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Per-VM overhead (GB)</label>
+              <input type="number" class="form-control" id="per_vm_overhead_gb" name="per_vm_overhead_gb" value="1">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Growth/cushion factor</label>
+              <input type="number" step="0.01" class="form-control" id="growth_factor" name="growth_factor" value="1.10">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">vCPU:pCPU ratio</label>
+              <input type="number" class="form-control" id="vcpu_to_pcpu" name="vcpu_to_pcpu" value="4">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Mem headroom (%)</label>
+              <input type="number" class="form-control" id="mem_headroom_pct" name="mem_headroom_pct" value="0.20" step="0.01">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">ESXi overhead (GB)</label>
+              <input type="number" class="form-control" id="esxi_overhead_gb" name="esxi_overhead_gb" value="8">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">GPU sessions cap (per host)</label>
+              <input type="number" class="form-control" id="gpu_sessions_cap" name="gpu_sessions_cap" value="0" min="0">
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Read-only results -->
+      <div class="col-md-4 vsan-only" style="display:none;">
+        <label class="form-label">vSAN capacity for Instant Clones (GB)</label>
+        <div class="form-control-plaintext fw-bold" id="vsan_total_gb">—</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Users per host (est.)</label>
+        <div class="form-control-plaintext fw-bold" id="per_host_density">—</div>
+      </div>
+
+      <!-- External array fields (only if non-vSAN) -->
+      <div class="col-md-4 non-vsan-only" style="display:none;">
+        <label class="form-label">Storage vendor/model</label>
+        <input class="form-control" name="storage_vendor_model" placeholder="e.g., Pure X50R3">
+      </div>
+      <div class="col-md-4 non-vsan-only" style="display:none;">
+        <label class="form-label">Protocol</label>
+        <input class="form-control" name="storage_protocol" placeholder="NFS / iSCSI / FC">
+      </div>
+      <div class="col-md-4 non-vsan-only" style="display:none;">
+        <label class="form-label">Usable capacity (GB)</label>
+        <input type="number" class="form-control" name="storage_usable_gb" min="1">
+      </div>
+
+      <!-- Load balancer -->
+      <div class="col-md-4">
+        <label class="form-label">Load balancer</label>
+        <input class="form-control" name="load_balancer" placeholder="F5, NSX ALB/Avi, etc.">
+      </div>
     </div>
-  </div>
+  </fieldset>
 
-  <!-- Notes -->
-  <h2 class="h5 section-title">Additional Notes</h2>
-  <div class="mb-3">
-    <label class="form-label">Notes / Assumptions / Risks</label>
-    <textarea class="form-control" name="notes" rows="4" placeholder="Anything else we should know?"></textarea>
-  </div>
+  <!-- 7) Operations & Enablement -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Operations & Enablement</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">OGS staffing</label>
+        <select class="form-select" name="ogs_staffing">
+          <option value="">Select…</option>
+          <option>Dedicated</option>
+          <option>Part-time</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Monitoring</label>
+        <input class="form-control" name="monitoring_stack" placeholder="vROps, ControlUp, Edge DX, etc.">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Local printing?</label>
+        <select class="form-select" name="local_printing">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">USB / mass-storage redirection?</label>
+        <select class="form-select" name="usb_redirection">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-12">
+        <label class="form-label">Training required</label>
+        <input class="form-control" name="training" placeholder="Admin / Helpdesk / End-user">
+      </div>
+      <div class="col-md-12">
+        <label class="form-label">Knowledge Transfer (KT) expectations</label>
+        <textarea class="form-control" name="kt_expectations" rows="2"></textarea>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Runbook required?</label>
+        <select class="form-select" name="runbook_required">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Adoption Services needed?</label>
+        <select class="form-select" name="adoption_services">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">HA/DA in-scope?</label>
+        <select class="form-select" name="ha_da">
+          <option value="">Select…</option>
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+    </div>
+  </fieldset>
 
-  <div class="d-flex gap-2">
-    <button class="btn btn-primary" type="submit">Review Submission</button>
-    <a class="btn btn-outline-secondary" href="/">Reset</a>
-  </div>
+  <!-- 8) Logistics & Delivery Model -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Logistics & Delivery Model</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Deployment type</label>
+        <select class="form-select" name="deployment_type">
+          <option value="">Select…</option>
+          <option>On-prem</option>
+          <option>Cloud</option>
+          <option>Hybrid</option>
+        </select>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Delivery model</label>
+        <select class="form-select" name="delivery_model">
+          <option value="">Select…</option>
+          <option>WWT builds end-to-end</option>
+          <option>WWT over-the-shoulder workshops</option>
+          <option>Hybrid (shared tasks)</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Timeline / deadlines</label>
+        <input class="form-control" name="timeline">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Budget / cost sensitivity (optional)</label>
+        <input class="form-control" name="budget">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Docs requested</label>
+        <input class="form-control" name="docs_requested" placeholder="SOW, HLD, Runbook…">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Stakeholders / 3rd parties</label>
+        <textarea class="form-control" name="stakeholders" rows="2"></textarea>
+      </div>
+    </div>
+  </fieldset>
+
+  <button class="btn btn-primary">Save</button>
 </form>
 
+<!-- Conditional UI & Auto-calcs -->
 <script>
-  function toggleTestDev() {
-    const sel = document.getElementById('include_test_dev');
-    const grp = document.getElementById('test_dev_notes_group');
-    grp.style.display = sel.value === 'yes' ? 'block' : 'none';
+(function () {
+  const DEFAULTS = {
+    delta_gb: 6,
+    per_vm_overhead_gb: 1,
+    growth_factor: 1.10,
+    vcpu_to_pcpu: 4,
+    mem_headroom_pct: 0.20,
+    esxi_overhead_gb: 8,
+  };
+
+  function el(id){return document.getElementById(id);}
+  function num(id, fallback=0){ const n=parseFloat((el(id)||{}).value); return isNaN(n)?fallback:n; }
+  function setText(id,v){ const e=el(id); if(e){ e.textContent = v; } }
+
+  function toggleVsanGroups(){
+    const type = (document.getElementById("storage_type")?.value || "");
+    const vsanOnly   = document.querySelectorAll(".vsan-only");
+    const nonVsanOnly= document.querySelectorAll(".non-vsan-only");
+    vsanOnly.forEach(x => x.style.display = (type === "vSAN" ? "" : "none"));
+    nonVsanOnly.forEach(x => x.style.display = (type && type !== "vSAN" ? "" : "none"));
   }
-  function toggleStorage() {
-    const sel = document.getElementById('storage_type');
-    const extras = document.querySelectorAll('.storage-extra');
-    const showExtras = sel.value !== 'vSAN';
-    extras.forEach(el => el.style.display = showExtras ? 'block' : 'none');
+
+  function toggleRequiredApps(){
+    const v = document.getElementById("virtual_apps")?.value || "";
+    document.getElementById("required_apps_group").style.display = (v === "App Volumes" ? "" : "none");
   }
-  function toggleIdP() {
-    const sel = document.getElementById('idp_integrate');
-    const grp = document.getElementById('idp_provider_group');
-    grp.style.display = sel.value === 'yes' ? 'block' : 'none';
+
+  function computeVSAN(){
+    if ((document.getElementById("storage_type")?.value || "") !== "vSAN"){
+      setText("vsan_total_gb", "—"); return;
+    }
+    const N          = num("concurrent_users");
+    const images     = num("num_images", 1);
+    const vmMem      = num("vm_ram_gb", 8);
+    const baseImg    = num("base_image_gb", 40);
+    const vsanFactor = num("vsan_policy_factor", 2.0);
+    const delta      = num("delta_gb", DEFAULTS.delta_gb);
+    const overhead   = num("per_vm_overhead_gb", DEFAULTS.per_vm_overhead_gb);
+    const growth     = num("growth_factor", DEFAULTS.growth_factor);
+
+    const perVMWritable = delta + vmMem + overhead;   // ~delta + vswap + misc
+    const replicas      = images * baseImg;
+    const raw           = (N * perVMWritable) + replicas;
+    const total         = raw * vsanFactor * growth;
+
+    setText("vsan_total_gb", Math.ceil(total).toLocaleString());
   }
-  document.getElementById('include_test_dev')?.addEventListener('change', toggleTestDev);
-  document.getElementById('storage_type')?.addEventListener('change', toggleStorage);
-  document.getElementById('idp_integrate')?.addEventListener('change', toggleIdP);
-  toggleTestDev(); toggleStorage(); toggleIdP();
+
+  function computeDensity(){
+    const cores   = num("host_cpu_cores");
+    const hostMem = num("host_ram_gb");
+    const vmvCPU  = num("vm_vcpu", 2);
+    const vmMem   = num("vm_ram_gb", 8);
+
+    const ratio     = num("vcpu_to_pcpu", DEFAULTS.vcpu_to_pcpu);
+    const headroom  = num("mem_headroom_pct", DEFAULTS.mem_headroom_pct);
+    const esxiOH    = num("esxi_overhead_gb", DEFAULTS.esxi_overhead_gb);
+    const gpuCap    = num("gpu_sessions_cap", 0);
+
+    const cpuCap  = Math.floor((cores * ratio) / vmvCPU);
+    const usable  = (hostMem * (1 - headroom)) - esxiOH;
+    const memCap  = Math.floor(usable / vmMem);
+
+    let d = Math.min(cpuCap, memCap);
+    if (gpuCap > 0) d = Math.min(d, gpuCap);
+    setText("per_host_density", (isFinite(d) && d>=0) ? String(d) : "—");
+  }
+
+  const watched = [
+    "storage_type","virtual_apps","concurrent_users","num_images","vm_ram_gb",
+    "base_image_gb","vsan_policy_factor","delta_gb","per_vm_overhead_gb","growth_factor",
+    "host_cpu_cores","host_ram_gb","vm_vcpu","vcpu_to_pcpu","mem_headroom_pct","esxi_overhead_gb","gpu_sessions_cap"
+  ];
+
+  function recalc(){ toggleVsanGroups(); toggleRequiredApps(); computeVSAN(); computeDensity(); }
+
+  function attach(){
+    watched.forEach(id => { const e=el(id); if(e) e.addEventListener("input", recalc); });
+    recalc();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach); else attach();
+})();
 </script>
+
 {% endblock %}
