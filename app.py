@@ -5,7 +5,6 @@ import io
 import json
 import math
 import os
-import textwrap
 import uuid
 import zipfile
 from datetime import datetime
@@ -113,8 +112,7 @@ def get_entry(entry_id: str) -> Optional[Dict[str, Any]]:
 def index():
     # PDG link removed; Predeploy renamed in UI; History added
     return render_template_string(
-        """
-<!doctype html>
+        """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -130,11 +128,10 @@ def index():
       <a class="list-group-item list-group-item-action" href="{{ url_for('predeploy') }}">Pre-Deployment Guide</a>
       <a class="list-group-item list-group-item-action" href="{{ url_for('history') }}">History (Past Submissions)</a>
     </div>
-    <div class="text-muted mt-4">Home v2.2 — Storage: <code>{{ storage_dir }}</code></div>
+    <div class="text-muted mt-4">Home v2.3 — Storage: <code>{{ storage_dir }}</code></div>
   </div>
 </body>
-</html>
-        """,
+</html>""",
         storage_dir=STORAGE_DIR,
     )
 
@@ -155,8 +152,7 @@ def presales():
         except Exception:
             # Minimal fallback form
             return render_template_string(
-                """
-<!doctype html>
+                """<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><title>Presales (Fallback)</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -187,8 +183,7 @@ def presales():
     </div>
     <button class="btn btn-primary" type="submit">Submit</button>
   </form>
-</div></body></html>
-                """
+</div></body></html>"""
             )
 
     if request.method == "GET":
@@ -449,8 +444,7 @@ def presales():
         return render_template("presales_submitted.html", data=data)
     except Exception:
         return render_template_string(
-            """
-<!doctype html>
+            """<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><title>Submission Saved</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -461,4 +455,284 @@ def presales():
     <div class="btn-group">
       <a class="btn btn-outline-secondary" href="{{ url_for('entry_payload', entry_id=data.entry_id) }}">Payload JSON</a>
       <a class="btn btn-success" href="{{ url_for('entry_package', entry_id=data.entry_id) }}">Build Package</a>
-      <a class="btn btn-outline-primary" href="{{ url_for('history') }}">Bac_
+      <a class="btn btn-outline-primary" href="{{ url_for('history') }}">Back to History</a>
+      <a class="btn btn-primary" href="{{ url_for('index') }}">Home</a>
+    </div>
+  </div>
+  <div class="alert alert-success">Saved as Entry ID: <strong>{{ data.entry_id }}</strong></div>
+  <pre class="p-3 bg-light border rounded" style="white-space:pre-wrap">{{ data | tojson(indent=2) }}</pre>
+</div></body></html>""",
+            data=data,
+        )
+
+
+# --------------------------------------------------------------------------------------
+# Submitted-style view for saved entries
+# --------------------------------------------------------------------------------------
+@app.route("/submitted/<entry_id>")
+def submitted(entry_id: str):
+    """Render the same 'submitted' view for a previously saved entry."""
+    e = get_entry(entry_id)
+    if not e:
+        abort(404)
+    e = dict(e)
+    e["entry_id"] = entry_id
+    e["history_url"] = url_for("history")
+    e["entry_url"] = url_for("submitted", entry_id=entry_id)
+    try:
+        return render_template("presales_submitted.html", data=e)
+    except Exception:
+        return render_template_string(
+            """<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Submission ({{ data.entry_id }})</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head><body class="p-4">
+<div class="container" style="max-width: 960px;">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="mb-0">Submission</h1>
+    <div class="btn-group">
+      <a class="btn btn-outline-secondary" href="{{ url_for('entry_payload', entry_id=data.entry_id) }}">Payload JSON</a>
+      <a class="btn btn-success" href="{{ url_for('entry_package', entry_id=data.entry_id) }}">Build Package</a>
+      <a class="btn btn-outline-primary" href="{{ url_for('history') }}">Back to History</a>
+      <a class="btn btn-primary" href="{{ url_for('index') }}">Home</a>
+    </div>
+  </div>
+  <div class="alert alert-info">Viewing previously saved submission <strong>{{ data.entry_id }}</strong>.</div>
+  <pre class="p-3 bg-light border rounded" style="white-space:pre-wrap">{{ data | tojson(indent=2) }}</pre>
+</div></body></html>""",
+            data=e,
+        )
+
+
+# --------------------------------------------------------------------------------------
+# ZIP package generation (for current page POST back)
+# --------------------------------------------------------------------------------------
+@app.route("/presales/package", methods=["POST"])
+def presales_package():
+    """
+    Build a ZIP of requested docs based on a hidden JSON payload posted
+    from the submitted page.
+    """
+    payload = request.form.get("payload", "")
+    if not payload:
+        flash("Missing payload for package generation.", "error")
+        return redirect(url_for("presales"))
+
+    try:
+        data = json.loads(payload)
+    except Exception:
+        flash("Invalid payload for package generation.", "error")
+        return redirect(url_for("presales"))
+
+    mem, dl_name = _build_doc_package(data)
+    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name=dl_name)
+
+
+# --------------------------------------------------------------------------------------
+# History (Open -> submitted view) & Entry detail utilities
+# --------------------------------------------------------------------------------------
+@app.route("/history")
+def history():
+    entries = read_all_entries()
+    return render_template_string(
+        """<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>History</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head><body class="p-4">
+<div class="container" style="max-width: 1100px;">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="mb-0">History</h1>
+    <div class="btn-group">
+      <a class="btn btn-outline-primary" href="{{ url_for('index') }}">Home</a>
+      <a class="btn btn-primary" href="{{ url_for('presales') }}">New Submission</a>
+    </div>
+  </div>
+  {% if not entries %}
+    <div class="alert alert-info">No entries yet.</div>
+  {% else %}
+    <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th>When (UTC)</th><th>Company</th><th>Opp</th><th>IR</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+          <tr>
+            <td><code>{{ e.submitted_utc }}</code></td>
+            <td>{{ e.company_name or '—' }}</td>
+            <td>{{ e.sf_opportunity_name or '—' }}</td>
+            <td>{{ e.ir_number or '—' }}</td>
+            <td class="d-flex gap-2">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('submitted', entry_id=e.entry_id) }}">Open</a>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('entry_payload', entry_id=e.entry_id) }}">Payload JSON</a>
+              <a class="btn btn-sm btn-outline-success" href="{{ url_for('entry_package', entry_id=e.entry_id) }}">Build Package</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  {% endif %}
+  <div class="text-muted mt-4">Storage dir: <code>{{ storage_dir }}</code> · File: <code>{{ entries_path }}</code></div>
+</div></body></html>""",
+        entries=entries,
+        storage_dir=STORAGE_DIR,
+        entries_path=ENTRIES_PATH,
+    )
+
+
+@app.route("/entry/<entry_id>/payload.json")
+def entry_payload(entry_id: str):
+    e = get_entry(entry_id)
+    if not e:
+        abort(404)
+    mem = io.BytesIO(json.dumps(e, indent=2).encode("utf-8"))
+    mem.seek(0)
+    fname = f"presales_payload_{entry_id}.json"
+    return send_file(mem, mimetype="application/json", as_attachment=True, download_name=fname)
+
+
+@app.route("/entry/<entry_id>/package")
+def entry_package(entry_id: str):
+    e = get_entry(entry_id)
+    if not e:
+        abort(404)
+    mem, dl_name = _build_doc_package(e)
+    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name=dl_name)
+
+
+# --------------------------------------------------------------------------------------
+# Pre-Deployment placeholder
+# --------------------------------------------------------------------------------------
+@app.route("/predeploy")
+def predeploy():
+    return render_template_string(
+        """<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Pre-Deployment Guide</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head><body class="p-4">
+<div class="container" style="max-width: 960px;">
+  <h1>Pre-Deployment Guide</h1>
+  <p class="text-muted">Placeholder page. Add your checklist/template when ready.</p>
+  <div class="btn-group">
+    <a class="btn btn-outline-primary" href="{{ url_for('index') }}">Home</a>
+    <a class="btn btn-primary" href="{{ url_for('presales') }}">Go to Presales Form</a>
+  </div>
+</div></body></html>"""
+    )
+
+
+# --------------------------------------------------------------------------------------
+# Shared: package builder (writes both .md and .docx when python-docx is available)
+# --------------------------------------------------------------------------------------
+def _build_docx_bytes(title: str, company: str, opp: str, ir: str, opp_url: str, now_str: str) -> bytes:
+    if Document is None:
+        return b""
+    doc = Document()
+    doc.add_heading(title, level=1)
+    doc.add_paragraph(f"Company: {company}")
+    doc.add_paragraph(f"Opportunity: {opp}")
+    doc.add_paragraph(f"IR: {ir}")
+    doc.add_paragraph(f"Opportunity URL: {opp_url or '(n/a)'}")
+    doc.add_paragraph(f"Generated: {now_str}")
+    doc.add_paragraph("")  # spacer
+    doc.add_paragraph("This is a generated scaffold based on the presales discovery submission.")
+    bio = io.BytesIO()
+    doc.save(bio)
+    bio.seek(0)
+    return bio.read()
+
+
+def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
+    """Create the in-memory ZIP using the current/archived payload. Writes both .md and .docx."""
+    requested = data.get("docs_requested") or []
+    if isinstance(requested, str):
+        requested = [requested]
+
+    def safe_name(label: str) -> str:
+        base = (
+            (label or "").replace("/", "_")
+            .replace("\\", "_")
+            .replace(" ", "_")
+            .replace("(", "")
+            .replace(")", "")
+        )
+        return base.upper() or "DOCUMENT"
+
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    company = (data.get("company_name") or "Customer").strip() or "Customer"
+    opp = data.get("sf_opportunity_name", "")
+    ir = data.get("ir_number", "")
+    opp_url = data.get("sf_opportunity_url", "")
+
+    def doc_body(title: str) -> str:
+        header = f"{title}\n{'=' * len(title)}\n"
+        meta = (
+            f"Company: {company}\n"
+            f"Opportunity: {opp}\n"
+            f"IR: {ir}\n"
+            f"Opportunity URL: {opp_url or '(n/a)'}\n"
+            f"Generated: {now}\n\n"
+        )
+        summary = "This is a generated scaffold based on the presales discovery submission.\n\n"
+        return header + meta + summary
+
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        # README
+        zf.writestr(
+            "README.txt",
+            "Document Package\n=================\n"
+            f"Generated: {now}\n\n"
+            f"Included documents: {', '.join(requested) if requested else '(none specified)'}\n"
+            f"Formats: Markdown (.md){' and Word (.docx)' if Document else ''}\n"
+            f"{'' if Document else 'Note: python-docx not installed; only .md files were generated.'}\n"
+        )
+        # JSON context
+        zf.writestr("context/presales_payload.json", json.dumps(data, indent=2))
+
+        # Each requested label -> write .md and (if available) .docx
+        for label in requested:
+            fname = safe_name(label)
+            title = (label or "DOCUMENT").upper()
+
+            # Markdown
+            zf.writestr(f"docs/{fname}.md", doc_body(title))
+
+            # DOCX (if python-docx is available)
+            docx_bytes = _build_docx_bytes(title, company, opp, ir, opp_url, now)
+            if docx_bytes:
+                zf.writestr(f"docs/{fname}.docx", docx_bytes)
+
+        # Optional ROM convenience if requested
+        if any((x or "").upper() in ("ROM", "ROM ESTIMATE") for x in requested):
+            zf.writestr("docs/ROM_ESTIMATE.md", doc_body("ROM ESTIMATE"))
+            docx_bytes = _build_docx_bytes("ROM ESTIMATE", company, opp, ir, opp_url, now)
+            if docx_bytes:
+                zf.writestr("docs/ROM_ESTIMATE.docx", docx_bytes)
+
+    mem.seek(0)
+    dl_name = f"WWT_VDI_Doc_Package_{company.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.zip"
+    return mem, dl_name
+
+
+# --------------------------------------------------------------------------------------
+# Health (useful for Render)
+# --------------------------------------------------------------------------------------
+@app.route("/healthz")
+def healthz():
+    return {
+        "ok": True,
+        "ts": datetime.utcnow().isoformat(),
+        "storage_dir": STORAGE_DIR,
+        "entries_path": ENTRIES_PATH,
+    }
+
+
+# --------------------------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------------------------
+if __name__ == "__main__":
+    # For local runs only; Render will use gunicorn
+    app.run(host="0.0.0.0", port=5000, debug=True)
