@@ -117,4 +117,30 @@ def presales_download_all():
     return send_file(zip_buf, mimetype="application/zip", as_attachment=True, download_name=zip_name)
 
 if __name__ == "__main__":
+
+    # ---------------- PDG ROUTES (restore)
+@app.route("/predeploy", methods=["GET"])
+def predeploy_redirect():
+    return redirect(url_for("pdg_scope"))
+
+@app.route("/pdg", methods=["GET"])
+def pdg_scope():
+    return render_template("pdg_scope.html", app_version=APP_VERSION)
+
+@app.route("/pdg/form", methods=["POST"])
+def pdg_form():
+    scope = request.form.get("pod_scope", "single")
+    is_multi = (scope == "multi")
+    # You can keep this simple; we just pass scope and app_version for now
+    return render_template("pdg_form.html", is_multi=is_multi, app_version=APP_VERSION)
+
+@app.route("/pdg/submit", methods=["POST"])
+def pdg_submit():
+    data = {k: request.form.get(k, "") for k in request.form.keys()}
+    is_multi = (data.get("pod_scope") == "multi")
+    submitted_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    return render_template("pdg_results.html", data=data, is_multi=is_multi,
+                           submitted_at=submitted_at, app_version=APP_VERSION)
+
+
     app.run(host="0.0.0.0", port=5000, debug=True)
