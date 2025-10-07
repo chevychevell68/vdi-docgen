@@ -1,23 +1,10 @@
-
 {% extends "base.html" %}
+{% block title %}Pre-Deployment Guide{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Pre-Deployment Checklist Builder</h1>
-<p class="text-muted">Use this page to generate a checklist even if you haven't submitted the presales form. Choose the scope below.</p>
-
-<form method="POST" action="/predeploy/build" class="mb-4">
-  <div class="mb-3">
-    <label class="form-label">Deployment Scope</label>
-    <select class="form-select" name="pod_scope">
-      <option value="single">Single pod</option>
-      <option value="multi">Multi-pod</option>
-    </select>
+  <h1>Pre-Deployment Guide</h1>
+  <p class="text-muted">Placeholder page. Add your checklist/template when ready.</p>
+  <div class="btn-group">
+    <a class="btn btn-outline-primary" href="{{ url_for('index') }}">Home</a>
+    <a class="btn btn-primary" href="{{ url_for('presales') }}">Go to Presales Form</a>
   </div>
-  <div class="d-flex gap-2">
-    <button class="btn btn-primary" type="submit">Build Checklist</button>
-    <a class="btn btn-outline-secondary" href="/manage-fields">Manage Fields</a>
-  </div>
-</form>
-
-<hr class="my-4">
-<p class="help-text">Tip: If you fill out the presales questionnaire first and then click "Generate Pre-Deployment Checklist" on the review page, your answers will flow into the export.</p>
 {% endblock %}
