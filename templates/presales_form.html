@@ -39,7 +39,7 @@
           <label class="form-check-label" for="existing_vdi_yes">Yes</label>
         </div>
       </div>
-      <div class="col-12" id="existing_vdi_pain_group" style="display:none;">
+      <div class="col-12" id="existing_vdi_pain_group" style="display:{% if form and form.existing_vdi=='Yes' %}block{% else %}none{% endif %};">
         <label class="form-label">If yes, top pain points</label>
         <textarea class="form-control" name="existing_vdi_pain" rows="2">{{ (form.existing_vdi_pain if form else '') }}</textarea>
       </div>
@@ -71,14 +71,16 @@
         <label class="form-label">Datacenters/regions (where)</label>
         <input class="form-control" name="datacenters_detail" value="{{ (form.datacenters_detail if form else '') }}" placeholder="City/region list">
       </div>
+
+      <!-- Deployment type moved up here -->
       <div class="col-md-4">
         <label class="form-label">Deployment type</label>
-          <select class="form-select" name="deployment_type">
-            <option value="" {{ 'selected' if (form and form.deployment_type=='') else '' }}>Select…</option>
-            <option {{ 'selected' if (form and form.deployment_type=='On-prem') else '' }}>On-prem</option>
-            <option {{ 'selected' if (form and form.deployment_type=='Cloud') else '' }}>Cloud</option>
-            <option {{ 'selected' if (form and form.deployment_type=='Hybrid') else '' }}>Hybrid</option>
-          </select>
+        <select class="form-select" name="deployment_type">
+          <option value="" {{ 'selected' if (form and form.deployment_type=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.deployment_type=='On-prem') else '' }}>On-prem</option>
+          <option {{ 'selected' if (form and form.deployment_type=='Cloud') else '' }}>Cloud</option>
+          <option {{ 'selected' if (form and form.deployment_type=='Hybrid') else '' }}>Hybrid</option>
+        </select>
       </div>
 
       <!-- Region checklist with % -->
@@ -135,52 +137,50 @@
       <div class="col-12" id="use_case_fields">
         <label class="form-label">Use case details</label>
         <div class="mb-2">
-          <input class="form-control" name="main_use_cases" id="main_use_cases" placeholder="Main use case">
+          <input class="form-control" name="main_use_cases" id="main_use_cases" placeholder="Main use case" value="{{ (form.main_use_cases if form else '') }}">
         </div>
-        <!-- Secondary fields will be injected here by JS -->
+        <!-- Secondary fields injected by JS -->
         <div id="secondary_use_cases_container"></div>
       </div>
     </div>
   </fieldset>
 
- <!-- 2) Graphics / GPU -->
-<fieldset class="border p-3 mb-4">
-  <legend>Graphics / GPU</legend>
-  <div class="row g-3">
-    <div class="col-md-4">
-      <label class="form-label d-block">GPU required?</label>
+  <!-- 2) Graphics / GPU -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Graphics / GPU</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label d-block">GPU required?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_no" value="No" {% if form and form.gpu_required=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="gpu_required_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_yes" value="Yes" {% if form and form.gpu_required=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="gpu_required_yes">Yes</label>
+        </div>
+      </div>
 
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_no" value="No" {% if form and form.gpu_required=='No' %}checked{% endif %}>
-        <label class="form-check-label" for="gpu_required_no">No</label>
+      <!-- GPU detail fields: hidden unless GPU required = Yes -->
+      <div id="gpu_details" style="{% if form and form.gpu_required=='Yes' %}display:block{% else %}display:none{% endif %};">
+        <div class="row g-3 mt-1">
+          <div class="col-md-4">
+            <label class="form-label">GPU users (estimate)</label>
+            <input type="number" class="form-control" name="gpu_users" min="0" value="{{ (form.gpu_users if form else '') }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Target GPU profile / VRAM per user (GB)</label>
+            <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5" value="{{ (form.gpu_vram_per_user if form else '') }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label">GPU use case</label>
+            <input class="form-control" name="gpu_use_case" value="{{ (form.gpu_use_case if form else '') }}" placeholder="3D/CAD, imaging, video editing, ML inferencing…">
+          </div>
+        </div>
       </div>
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_yes" value="Yes" {% if form and form.gpu_required=='Yes' %}checked{% endif %}>
-        <label class="form-check-label" for="gpu_required_yes">Yes</label>
-      </div>
+      <!-- /#gpu_details -->
     </div>
-
-    <!-- GPU detail fields: hidden unless GPU required = Yes -->
-    <div id="gpu_details" style="{% if form and form.gpu_required=='Yes' %}display:block{% else %}display:none{% endif %};">
-      <div class="row g-3 mt-1">
-        <div class="col-md-4">
-          <label class="form-label">GPU users (estimate)</label>
-          <input type="number" class="form-control" name="gpu_users" min="0" value="{{ (form.gpu_users if form else '') }}">
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Target GPU profile / VRAM per user (GB)</label>
-          <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5" value="{{ (form.gpu_vram_per_user if form else '') }}">
-        </div>
-        <div class="col-12">
-          <label class="form-label">GPU use case</label>
-          <input class="form-control" name="gpu_use_case" value="{{ (form.gpu_use_case if form else '') }}" placeholder="3D/CAD, imaging, video editing, ML inferencing…">
-        </div>
-      </div>
-    </div>
-    <!-- /#gpu_details -->
-  </div>
-</fieldset>
-
+  </fieldset>
 
   <!-- 3) Image & Applications -->
   <fieldset class="border p-3 mb-4">
@@ -204,7 +204,7 @@
         </div>
       </div>
 
-      <!-- Profile mgmt checkboxes (no 'Both'/'None') -->
+      <!-- Profile mgmt checkboxes -->
       <div class="col-md-4">
         <label class="form-label d-block">Profile management</label>
         <div class="form-check">
@@ -230,7 +230,7 @@
         </div>
       </div>
 
-      <div class="col-12" id="required_apps_group" style="display:none;">
+      <div class="col-12" id="required_apps_group" style="display:{% if form and 'App Volumes' in form.get('virtual_apps', []) %}block{% else %}none{% endif %};">
         <label class="form-label">Required applications</label>
         <textarea class="form-control" name="required_apps" rows="3" placeholder="List app names/versions/licensing nuances…">{{ (form.required_apps if form else '') }}</textarea>
       </div>
@@ -277,7 +277,7 @@
         </div>
       </div>
 
-      <div class="col-md-4" id="mfa_solution_group" style="display:none;">
+      <div class="col-md-4" id="mfa_solution_group" style="display:{% if form and form.mfa_required=='Yes' %}block{% else %}none{% endif %};">
         <label class="form-label">Existing MFA solution</label>
         <input class="form-control" name="mfa_solution" value="{{ (form.mfa_solution if form else '') }}" placeholder="Duo, Okta, Azure, etc.">
       </div>
@@ -347,9 +347,8 @@
         <input type="number" class="form-control" name="num_domains" min="1" value="{{ (form.num_domains if form else '') }}">
       </div>
 
-      <!-- DNS/DHCP/KMS question intentionally removed -->
-      <!-- TODO (docs): Ensure requirements section covers DNS, DHCP, KMS ownership, GC, external DNS, etc. -->
-      
+      <!-- DNS/DHCP/KMS question intentionally removed (we'll capture in docs requirements) -->
+
       <div class="col-md-6">
         <label class="form-label">Domain name for virtual desktops</label>
         <input class="form-control" name="vd_domain_name" value="{{ (form.vd_domain_name if form else '') }}" placeholder="e.g., corp.example.com">
@@ -435,11 +434,11 @@
       </div>
 
       <!-- vSAN calc inputs -->
-      <div class="col-md-3 vsan-only" style="display:none;">
+      <div class="col-md-3 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">Base image size (GB)</label>
         <input type="number" class="form-control" id="base_image_gb" name="base_image_gb" value="{{ (form.base_image_gb if form else '40') }}" min="1">
       </div>
-      <div class="col-md-3 vsan-only" style="display:none;">
+      <div class="col-md-3 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">vSAN policy factor</label>
         <select class="form-select" id="vsan_policy_factor" name="vsan_policy_factor">
           <option value="2.0"  {{ 'selected' if (not form or form.vsan_policy_factor=='2.0') else '' }}>FTT1 RAID1 (≈2.0x)</option>
@@ -449,7 +448,7 @@
       </div>
 
       <!-- Advanced tunables -->
-      <div class="col-12 vsan-only" style="display:none;">
+      <div class="col-12 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
         <details>
           <summary>Advanced vSAN & density tunables</summary>
           <div class="row g-3 mt-2">
@@ -482,7 +481,7 @@
       </div>
 
       <!-- Read-only results -->
-      <div class="col-md-4 vsan-only" style="display:none;">
+      <div class="col-md-4 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">vSAN capacity for Instant Clones (GB)</label>
         <div class="form-control-plaintext fw-bold" id="vsan_total_gb">—</div>
       </div>
@@ -492,15 +491,15 @@
       </div>
 
       <!-- External array fields -->
-      <div class="col-md-4 non-vsan-only" style="display:none;">
+      <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">Storage vendor/model</label>
         <input class="form-control" name="storage_vendor_model" value="{{ (form.storage_vendor_model if form else '') }}" placeholder="e.g., Pure X50R3">
       </div>
-      <div class="col-md-4 non-vsan-only" style="display:none;">
+      <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">Protocol</label>
         <input class="form-control" name="storage_protocol" value="{{ (form.storage_protocol if form else '') }}" placeholder="NFS / iSCSI / FC">
       </div>
-      <div class="col-md-4 non-vsan-only" style="display:none;">
+      <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">Usable capacity (GB)</label>
         <input type="number" class="form-control" name="storage_usable_gb" min="1" value="{{ (form.storage_usable_gb if form else '') }}">
       </div>
@@ -510,17 +509,17 @@
         <label class="form-label">Load balancer</label>
         <select class="form-select" name="load_balancer" id="load_balancer">
           <option value="">Select…</option>
-          <option>F5 BIG-IP</option>
-          <option>NSX Advanced Load Balancer (Avi)</option>
-          <option>Citrix ADC (NetScaler)</option>
-          <option>NGINX</option>
-          <option>HAProxy</option>
-          <option>A10 Thunder</option>
-          <option>Kemp LoadMaster</option>
-          <option>AWS ALB / NLB</option>
-          <option>Azure Load Balancer / Front Door</option>
-          <option>GCP Load Balancer</option>
-          <option>Other</option>
+          <option {% if form and form.load_balancer=='F5 BIG-IP' %}selected{% endif %}>F5 BIG-IP</option>
+          <option {% if form and form.load_balancer=='NSX Advanced Load Balancer (Avi)' %}selected{% endif %}>NSX Advanced Load Balancer (Avi)</option>
+          <option {% if form and form.load_balancer=='Citrix ADC (NetScaler)' %}selected{% endif %}>Citrix ADC (NetScaler)</option>
+          <option {% if form and form.load_balancer=='NGINX' %}selected{% endif %}>NGINX</option>
+          <option {% if form and form.load_balancer=='HAProxy' %}selected{% endif %}>HAProxy</option>
+          <option {% if form and form.load_balancer=='A10 Thunder' %}selected{% endif %}>A10 Thunder</option>
+          <option {% if form and form.load_balancer=='Kemp LoadMaster' %}selected{% endif %}>Kemp LoadMaster</option>
+          <option {% if form and form.load_balancer=='AWS ALB / NLB' %}selected{% endif %}>AWS ALB / NLB</option>
+          <option {% if form and form.load_balancer=='Azure Load Balancer / Front Door' %}selected{% endif %}>Azure Load Balancer / Front Door</option>
+          <option {% if form and form.load_balancer=='GCP Load Balancer' %}selected{% endif %}>GCP Load Balancer</option>
+          <option {% if form and form.load_balancer=='Other' %}selected{% endif %}>Other</option>
         </select>
       </div>
     </div>
@@ -639,7 +638,7 @@
   <!-- 9) Logistics & Delivery Model -->
   <fieldset class="border p-3 mb-4">
     <legend>Logistics & Delivery Model</legend>
-
+    <div class="row g-3">
       <div class="col-md-8">
         <label class="form-label">Delivery model</label>
         <select class="form-select" name="delivery_model">
@@ -708,7 +707,7 @@
 
 <!-- Version badge -->
 <div style="position: fixed; right: 10px; bottom: 8px; font-size: 12px; color: #6c757d;">
-  Form v1.5.0
+  Form v1.5.1
 </div>
 
 <!-- Conditional UI & Auto-calcs -->
@@ -927,3 +926,6 @@
   }
 })();
 </script>
+
+{% endblock %}
+

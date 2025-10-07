@@ -4,19 +4,26 @@ import base64
 import datetime as dt
 from pathlib import Path
 from flask import Flask, request, render_template, redirect, url_for, flash
+
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
-# --------- GitHub settings (set in Render env) ----------
+# --------- GitHub settings (set these in Render env) ----------
 GITHUB_TOKEN  = os.getenv("GITHUB_TOKEN", "").strip()
 REPO_OWNER    = os.getenv("REPO_OWNER", "").strip()
 REPO_NAME     = os.getenv("REPO_NAME", "").strip()
 REPO_BRANCH   = os.getenv("REPO_BRANCH", "main").strip()
 
 def github_upsert_file(repo_owner: str, repo_name: str, branch: str, path: str, content_bytes: bytes, commit_msg: str) -> bool:
+    """
+    Create or update a file via GitHub REST API.
+    We intentionally call PUT without sha; for new paths, this creates;
+    for updates, GitHub also accepts without sha if path is new. (If you
+    want true update-with-history, you can GET the sha first.)
+    """
     if not (GITHUB_TOKEN and repo_owner and repo_name and branch and path):
         return False
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{path}"
@@ -36,7 +43,12 @@ def github_upsert_file(repo_owner: str, repo_name: str, branch: str, path: str, 
         with urlopen(req) as resp:
             return 200 <= resp.status < 300
     except HTTPError as e:
-        print("GitHub HTTPError:", e.code, e.read().decode("utf-8", errors="ignore"))
+        # Log server output to help debugging
+        try:
+            err_txt = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            err_txt = ""
+        print("GitHub HTTPError:", e.code, err_txt)
         return False
     except URLError as e:
         print("GitHub URLError:", e.reason)
@@ -70,20 +82,29 @@ def persist_submission(payload: dict) -> str:
         return f"Saved locally at: {local_path}"
     return "Failed to persist (GitHub not configured and local write failed)."
 
+# -------------------- Routes --------------------
+
 @app.route("/")
 def index():
-    try:
-        app.jinja_env.get_or_select_template("index.html")
-        return render_template("index.html")
-    except Exception:
-        return (
-            '<!doctype html><html><head><meta charset="utf-8"><title>VDI DocGen</title>'
-            '<meta name="viewport" content="width=device-width, initial-scale=1"></head>'
-            '<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:2rem">'
-            "<h1>VDI DocGen</h1>"
-            '<p><a href="/presales">Open Horizon Presales Discovery form</a></p>'
-            "</body></html>"
-        )
+    """
+    Show a simple landing page with links to the main flows.
+    We deliberately return inline HTML to avoid rendering any legacy index.html.
+    """
+    return (
+        '<!doctype html><html><head><meta charset="utf-8"><title>VDI Tools</title>'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">'
+        '</head><body class="p-4" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial">'
+        '<div class="container" style="max-width:920px">'
+        '<h1 class="mb-3">VDI Discovery & Docs</h1>'
+        '<p class="text-muted">Choose a workflow:</p>'
+        '<div class="list-group">'
+        f'<a class="list-group-item list-group-item-action" href="{url_for("presales")}">Horizon Presales Discovery</a>'
+        f'<a class="list-group-item list-group-item-action" href="{url_for("pdg")}">Project Definition Guide (PDG)</a>'
+        f'<a class="list-group-item list-group-item-action" href="{url_for("predeploy")}">Pre-deploy</a>'
+        '</div>'
+        '</div></body></html>'
+    )
 
 @app.route("/presales", methods=["GET", "POST"])
 def presales():
@@ -98,17 +119,15 @@ def presales():
 
         # Dynamic use case fields: collect main + secondary
         use_cases = []
-        main_uc = data.get("main_use_cases", "").strip()
+        main_uc = (data.get("main_use_cases") or "").strip()
         if main_uc:
             use_cases.append({"label": "Main", "text": main_uc})
-        # Secondary fields are named secondary_use_case_2, _3, ...
         for k, v in request.form.items():
             if k.startswith("secondary_use_case_"):
                 txt = (v or "").strip()
                 if txt:
-                    # label number from key suffix
                     try:
-                        n = int(k.rsplit("_",1)[-1])
+                        n = int(k.rsplit("_", 1)[-1])
                     except ValueError:
                         n = None
                     label = f"Secondary {n}" if n else "Secondary"
@@ -130,7 +149,7 @@ def presales():
         total_pct = 0
         for key, _label in REGIONS:
             checked = request.form.get(f"region_ck_{key}")
-            pct_raw = request.form.get(f"region_pct_{key}", "").strip()
+            pct_raw = (request.form.get(f"region_pct_{key}", "") or "").strip()
             if checked and pct_raw:
                 try:
                     pct = int(round(float(pct_raw)))
@@ -145,7 +164,7 @@ def presales():
 
         data["location_mix"] = location_mix
 
-        # Minimal required fields
+        # Minimal required fields to save
         required = [
             "company_name", "customer_name",
             "concurrent_users",
@@ -165,21 +184,66 @@ def presales():
             flash(f"Presales discovery saved. {where}", "success")
         return redirect(url_for("presales"))
 
+    # GET
     return render_template("presales_form.html")
+
+@app.route("/predeploy", methods=["GET"])
+def predeploy():
+    """
+    If you have templates/predeploy.html, it will render.
+    Otherwise we redirect to /presales to avoid 404s.
+    """
+    try:
+        return render_template("predeploy.html")
+    except Exception:
+        return redirect(url_for("presales"))
+
+@app.route("/pdg", methods=["GET"])
+def pdg():
+    """
+    If you have templates/pdg.html, it will render.
+    Otherwise, return a small placeholder page (no 404).
+    """
+    try:
+        return render_template("pdg.html")
+    except Exception:
+        return (
+            '<!doctype html><html><head><meta charset="utf-8"><title>PDG</title>'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">'
+            '</head><body class="p-4" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial">'
+            '<div class="container" style="max-width:920px">'
+            '<h1 class="mb-3">Project Definition Guide (PDG)</h1>'
+            '<p class="mb-3">This is a placeholder. Wire this route to your PDG generator/export.</p>'
+            f'<a class="btn btn-primary" href="{url_for("presales")}">Open Presales Form</a>'
+            '</div></body></html>'
+        )
+
+# ---------------- Error handlers ----------------
 
 @app.errorhandler(404)
 def not_found(e):
-    try:
-        return render_template("404.html"), 404
-    except Exception:
-        return "Not Found", 404
+    return (
+        '<!doctype html><html><head><meta charset="utf-8"><title>Not Found</title>'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"></head>'
+        '<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:2rem">'
+        "<h1>404 — Not Found</h1>"
+        f'<p><a href="{url_for("index")}">Go to Home</a></p>'
+        "</body></html>"
+    ), 404
 
 @app.errorhandler(500)
 def server_error(e):
-    try:
-        return render_template("500.html"), 500
-    except Exception:
-        return "Internal Server Error", 500
+    return (
+        '<!doctype html><html><head><meta charset="utf-8"><title>Server Error</title>'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"></head>'
+        '<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:2rem">'
+        "<h1>500 — Internal Server Error</h1>"
+        f'<p><a href="{url_for("index")}">Go to Home</a></p>'
+        "</body></html>"
+    ), 500
+
+# ---------------- Main ----------------
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
