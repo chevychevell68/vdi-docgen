@@ -19,6 +19,17 @@
         <input class="form-control" name="customer_name" value="{{ (form.customer_name if form else '') }}" required>
       </div>
 
+      <div class="col-md-6">
+        <label class="form-label">Salesforce Opportunity name</label>
+         <input class="form-control" name="sf_opportunity_name"
+         value="{{ (form.sf_opportunity_name if form else '') }}">
+        </div>
+      <div class="col-md-6">
+        <label class="form-label">IR number</label>
+        <input class="form-control" name="ir_number"
+         value="{{ (form.ir_number if form else '') }}" placeholder="e.g., IR-123456">
+        </div>
+
       <div class="col-md-4">
         <label class="form-label">Existing VDI in environment?</label>
         <select class="form-select" name="existing_vdi" id="existing_vdi">
