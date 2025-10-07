@@ -1,14 +1,14 @@
+# VDI DocGen — Clean Replacement
 
-# VDI DocGen (Presales + PDG)
-
-Clean build with consistent UI, no CSV uploads, and PDG Word export.
+Minimal Flask app with Presales and PDG.
 
 ## Routes
-- `/` or `/presales` — Presales questionnaire → review → **Download Markdown**
-- `/predeploy` — redirects to `/pdg`
-- `/pdg` — select Single/Multi → PDG form → review → **Download .docx**
+- `/` or `/presales` — Presales questionnaire → review → Download Markdown
+- `/pdg`           — Choose Single/Multi → PDG form → review → Download .docx
+- `/predeploy`     — Redirects to `/pdg`
+- `/__version` and `/__health` — deployment canaries
 
-## Render settings
-- **Root Directory**: (repo root)
-- **Build Command**: `pip install -r requirements.txt`
-- **Start Command**: `gunicorn app:app`
+## Render
+- Build Command: pip install -r requirements.txt
+- Start Command: gunicorn app:app
+- Root Directory: repo root
