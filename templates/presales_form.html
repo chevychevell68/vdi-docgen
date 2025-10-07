@@ -28,6 +28,13 @@
         <input class="form-control" name="ir_number" value="{{ (form.ir_number if form else '') }}" placeholder="e.g., IR-123456">
       </div>
 
+      <div class="col-md-12">
+        <label class="form-label">Salesforce Opportunity URL</label>
+        <input type="url" class="form-control" name="sf_opportunity_url"
+               placeholder="https://your-instance.lightning.force.com/lightning/r/Opportunity/..."
+               value="{{ (form.sf_opportunity_url if form else '') }}">
+      </div>
+
       <div class="col-md-4">
         <label class="form-label d-block">Existing VDI in environment?</label>
         <div class="form-check form-check-inline">
@@ -72,7 +79,7 @@
         <input class="form-control" name="datacenters_detail" value="{{ (form.datacenters_detail if form else '') }}" placeholder="City/region list">
       </div>
 
-      <!-- Deployment type moved up here -->
+      <!-- Deployment type near datacenter questions -->
       <div class="col-md-4">
         <label class="form-label">Deployment type</label>
         <select class="form-select" name="deployment_type">
@@ -83,13 +90,15 @@
         </select>
       </div>
 
-      <!-- Region checklist with % -->
+      <!-- Region checklist with % (includes US_HI, US_AK) -->
       <div class="col-12">
         <label class="form-label d-block">User locations (regional mix)</label>
 
         <div class="row g-2 align-items-center">
           {% set regions = [
             ('US', 'Continental US'),
+            ('US_HI', 'US – HI'),
+            ('US_AK', 'US – AK'),
             ('CAN', 'Canada'),
             ('LATAM', 'LATAM'),
             ('EMEA', 'EMEA'),
@@ -347,8 +356,6 @@
         <input type="number" class="form-control" name="num_domains" min="1" value="{{ (form.num_domains if form else '') }}">
       </div>
 
-      <!-- DNS/DHCP/KMS question intentionally removed (we'll capture in docs requirements) -->
-
       <div class="col-md-6">
         <label class="form-label">Domain name for virtual desktops</label>
         <input class="form-control" name="vd_domain_name" value="{{ (form.vd_domain_name if form else '') }}" placeholder="e.g., corp.example.com">
@@ -556,29 +563,6 @@
         </select>
       </div>
 
-      <div class="col-md-4">
-        <label class="form-label d-block">Local printing?</label>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="local_printing" id="lp_no" value="No" {% if form and form.local_printing=='No' %}checked{% endif %}>
-          <label class="form-check-label" for="lp_no">No</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="local_printing" id="lp_yes" value="Yes" {% if form and form.local_printing=='Yes' %}checked{% endif %}>
-          <label class="form-check-label" for="lp_yes">Yes</label>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label d-block">USB / mass-storage redirection?</label>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="usb_redirection" id="usb_no" value="No" {% if form and form.usb_redirection=='No' %}checked{% endif %}>
-          <label class="form-check-label" for="usb_no">No</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="usb_redirection" id="usb_yes" value="Yes" {% if form and form.usb_redirection=='Yes' %}checked{% endif %}>
-          <label class="form-check-label" for="usb_yes">Yes</label>
-        </div>
-      </div>
-
       <div class="col-md-12">
         <label class="form-label d-block">Training required</label>
         <div class="form-check form-check-inline">
@@ -595,10 +579,26 @@
         </div>
       </div>
 
+      <!-- NEW: Typical onboarding time (per user) -->
+      <div class="col-md-6">
+        <label class="form-label">Typical onboarding time (per user)</label>
+        <div class="input-group">
+          <input type="number" class="form-control" name="onboarding_time_value" min="0"
+                 value="{{ (form.onboarding_time_value if form else '') }}" placeholder="e.g., 2">
+          <select class="form-select" name="onboarding_time_unit" style="max-width: 10rem;">
+            <option value="" {{ 'selected' if (form and form.onboarding_time_unit=='') else '' }}>Select unit…</option>
+            <option {{ 'selected' if (form and form.onboarding_time_unit=='hours') else '' }}>hours</option>
+            <option {{ 'selected' if (form and form.onboarding_time_unit=='days') else '' }}>days</option>
+          </select>
+        </div>
+        <div class="form-text">Estimate the hands-on time to fully onboard one user.</div>
+      </div>
+
       <div class="col-md-12">
         <label class="form-label">Knowledge Transfer (KT) expectations</label>
         <textarea class="form-control" name="kt_expectations" rows="2">{{ (form.kt_expectations if form else '') }}</textarea>
       </div>
+
       <div class="col-md-4">
         <label class="form-label d-block">Runbook required?</label>
         <div class="form-check form-check-inline">
@@ -610,6 +610,7 @@
           <label class="form-check-label" for="rb_yes">Yes</label>
         </div>
       </div>
+
       <div class="col-md-4">
         <label class="form-label d-block">Adoption Services needed?</label>
         <div class="form-check form-check-inline">
@@ -621,6 +622,7 @@
           <label class="form-check-label" for="adopt_yes">Yes</label>
         </div>
       </div>
+
       <div class="col-md-4">
         <label class="form-label d-block">HA/DR in-scope?</label>
         <div class="form-check form-check-inline">
@@ -707,7 +709,7 @@
 
 <!-- Version badge -->
 <div style="position: fixed; right: 10px; bottom: 8px; font-size: 12px; color: #6c757d;">
-  Form v1.5.1
+  Form v1.7.0
 </div>
 
 <!-- Conditional UI & Auto-calcs -->
@@ -729,7 +731,6 @@
     input.value = `${yyyy}-${mm}-${dd}`;
   })();
 
-  // ----- Existing VDI pain toggle (radio) -----
   function toggleExistingVDI(){
     const r = document.querySelector('input[name="existing_vdi"]:checked');
     const show = r && r.value === "Yes";
@@ -737,7 +738,6 @@
     if (grp) grp.style.display = show ? "" : "none";
   }
 
-  // ----- App Volumes required apps toggle (checkboxes) -----
   function toggleRequiredApps(){
     const appvol = document.getElementById("va_appvol");
     const show = !!(appvol && appvol.checked);
@@ -745,14 +745,12 @@
     if (grp) grp.style.display = show ? "" : "none";
   }
 
-  // ----- vSAN vs non-vSAN fields -----
   function toggleStorageGroups(){
     const t = el("storage_type")?.value || "";
     document.querySelectorAll(".vsan-only").forEach(x => x.style.display = (t === "vSAN" ? "" : "none"));
     document.querySelectorAll(".non-vsan-only").forEach(x => x.style.display = (t && t !== "vSAN" ? "" : "none"));
   }
 
-  // ----- MFA solution visibility (radio) -----
   function toggleMFA(){
     const r = document.querySelector('input[name="mfa_required"]:checked');
     const show = r && r.value === "Yes";
@@ -760,7 +758,6 @@
     if (grp) grp.style.display = show ? "" : "none";
   }
 
-  // --- GPU show/hide based on radio ---
   function toggleGPU(){
     const r = document.querySelector('input[name="gpu_required"]:checked');
     const show = r && r.value === "Yes";
@@ -780,7 +777,7 @@
     const overhead   = num("per_vm_overhead_gb", 1);
     const growth     = num("growth_factor", 1.10);
 
-    const perVMWritable = delta + vmMem + overhead;   // delta + vswap + misc
+    const perVMWritable = delta + vmMem + overhead;
     const replicas      = images * baseImg;
     const raw           = (N * perVMWritable) + replicas;
     const total         = raw * vsanFactor * growth;
@@ -809,7 +806,7 @@
     setText("per_host_density", (isFinite(d) && d>=0) ? String(d) : "—");
   }
 
-  // ----- Region mix (checkbox enables input; sum must be 100) -----
+  // Region % enable/disable and sum to 100
   function regionToggleEnable(e) {
     const key = e.target.id.replace("reg_", "");
     const pct = document.getElementById(`reg_${key}_pct`);
@@ -843,7 +840,7 @@
     sumRegions();
   }
 
-  // ----- Dynamic use case fields -----
+  // Dynamic use case fields
   function renderUseCaseFields() {
     const n = parseInt(document.getElementById("num_personas")?.value || "0", 10);
     const container = document.getElementById("secondary_use_cases_container");
@@ -872,7 +869,6 @@
     });
   }
 
-  // ---- Recalc / attach wiring ----
   const watched = [
     "storage_type",
     "concurrent_users","num_images","vm_ram_gb","base_image_gb","vsan_policy_factor",
@@ -893,7 +889,6 @@
   function attach(){
     watched.forEach(id => { const e = el(id); if (e) e.addEventListener("input", recalc); });
 
-    // radio/checkbox listeners for toggles
     document.querySelectorAll('input[name="existing_vdi"]').forEach(r => r.addEventListener("change", toggleExistingVDI));
     document.querySelectorAll('input[name="mfa_required"]').forEach(r => r.addEventListener("change", toggleMFA));
     document.querySelectorAll('input[name="gpu_required"]').forEach(r => r.addEventListener("change", toggleGPU));
@@ -903,12 +898,11 @@
     attachRegionHandlers();
     guardSubmitForRegions();
 
-    // Initial renders
     renderUseCaseFields();
     recalc();
   }
 
-  // Safety defaults if advanced tunables are absent in DOM
+  // Safety defaults if tunables are absent
   if (!el("mem_headroom_pct")) {
     const hidden = document.createElement("div");
     hidden.innerHTML = `
@@ -928,4 +922,3 @@
 </script>
 
 {% endblock %}
-

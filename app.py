@@ -275,8 +275,19 @@ def presales():
         data["use_cases_list"] = use_cases
 
         # Region mix: build structured map + validate 100%
-        REGIONS = [("US","Continental US"),("CAN","Canada"),("LATAM","LATAM"),("EMEA","EMEA"),
-                   ("APAC","APAC"),("INDIA","India"),("ANZ","ANZ"),("OTHER","Other")]
+REGIONS = [
+    ("US","Continental US"),
+    ("US_HI","US – HI"),
+    ("US_AK","US – AK"),
+    ("CAN","Canada"),
+    ("LATAM","LATAM"),
+    ("EMEA","EMEA"),
+    ("APAC","APAC"),
+    ("INDIA","India"),
+    ("ANZ","ANZ"),
+    ("OTHER","Other"),
+]
+
         location_mix = {}
         total_pct = 0
         for key, _ in REGIONS:
