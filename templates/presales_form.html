@@ -21,22 +21,23 @@
 
       <div class="col-md-6">
         <label class="form-label">Salesforce Opportunity name</label>
-         <input class="form-control" name="sf_opportunity_name"
-         value="{{ (form.sf_opportunity_name if form else '') }}">
-        </div>
+        <input class="form-control" name="sf_opportunity_name" value="{{ (form.sf_opportunity_name if form else '') }}">
+      </div>
       <div class="col-md-6">
         <label class="form-label">IR number</label>
-        <input class="form-control" name="ir_number"
-         value="{{ (form.ir_number if form else '') }}" placeholder="e.g., IR-123456">
-        </div>
+        <input class="form-control" name="ir_number" value="{{ (form.ir_number if form else '') }}" placeholder="e.g., IR-123456">
+      </div>
 
       <div class="col-md-4">
-        <label class="form-label">Existing VDI in environment?</label>
-        <select class="form-select" name="existing_vdi" id="existing_vdi">
-          <option value="" {{ 'selected' if (form and form.existing_vdi=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.existing_vdi=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.existing_vdi=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">Existing VDI in environment?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="existing_vdi" id="existing_vdi_no" value="No" {% if form and form.existing_vdi=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="existing_vdi_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="existing_vdi" id="existing_vdi_yes" value="Yes" {% if form and form.existing_vdi=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="existing_vdi_yes">Yes</label>
+        </div>
       </div>
       <div class="col-12" id="existing_vdi_pain_group" style="display:none;">
         <label class="form-label">If yes, top pain points</label>
@@ -71,59 +72,64 @@
         <input class="form-control" name="datacenters_detail" value="{{ (form.datacenters_detail if form else '') }}" placeholder="City/region list">
       </div>
 
-     <div class="col-12">
-  <label class="form-label d-block">User locations (regional mix)</label>
+      <!-- Region checklist with % -->
+      <div class="col-12">
+        <label class="form-label d-block">User locations (regional mix)</label>
 
-  <div class="row g-2 align-items-center">
-    <!-- Region checklist + % inputs -->
-    {% set regions = [
-      ('US', 'Continental US'),
-      ('CAN', 'Canada'),
-      ('LATAM', 'LATAM'),
-      ('EMEA', 'EMEA'),
-      ('APAC', 'APAC'),
-      ('INDIA', 'India'),
-      ('ANZ', 'ANZ'),
-      ('OTHER', 'Other')
-    ] %}
+        <div class="row g-2 align-items-center">
+          {% set regions = [
+            ('US', 'Continental US'),
+            ('CAN', 'Canada'),
+            ('LATAM', 'LATAM'),
+            ('EMEA', 'EMEA'),
+            ('APAC', 'APAC'),
+            ('INDIA', 'India'),
+            ('ANZ', 'ANZ'),
+            ('OTHER', 'Other')
+          ] %}
 
-    {% for key, label in regions %}
-      <div class="col-md-3">
-        <div class="form-check">
-          <input class="form-check-input region-check" type="checkbox"
-                 id="reg_{{key}}" name="region_ck_{{key}}"
-                 {% if form and form['region_ck_' ~ key] %}checked{% endif %}>
-          <label class="form-check-label" for="reg_{{key}}">{{ label }}</label>
+          {% for key, label in regions %}
+            <div class="col-md-3">
+              <div class="form-check">
+                <input class="form-check-input region-check" type="checkbox"
+                       id="reg_{{key}}" name="region_ck_{{key}}"
+                       {% if form and form['region_ck_' ~ key] %}checked{% endif %}>
+                <label class="form-check-label" for="reg_{{key}}">{{ label }}</label>
+              </div>
+              <div class="input-group input-group-sm mt-1">
+                <input type="number" min="0" max="100" step="1"
+                       class="form-control region-pct"
+                       id="reg_{{key}}_pct" name="region_pct_{{key}}"
+                       value="{{ (form['region_pct_' ~ key] if form and form['region_pct_' ~ key] else '') }}"
+                       placeholder="%" {% if not (form and form['region_ck_' ~ key]) %}disabled{% endif %}>
+                <span class="input-group-text">%</span>
+              </div>
+            </div>
+          {% endfor %}
         </div>
-        <div class="input-group input-group-sm mt-1">
-          <input type="number" min="0" max="100" step="1"
-                 class="form-control region-pct"
-                 id="reg_{{key}}_pct" name="region_pct_{{key}}"
-                 value="{{ (form['region_pct_' ~ key] if form and form['region_pct_' ~ key] else '') }}"
-                 placeholder="%" {% if not (form and form['region_ck_' ~ key]) %}disabled{% endif %}>
-          <span class="input-group-text">%</span>
+
+        <div class="mt-2">
+          <span class="badge text-bg-secondary">Total: <span id="region_total">0</span>%</span>
+          <small class="text-muted ms-2">Must equal 100%.</small>
+          <div id="region_error" class="text-danger small mt-1" style="display:none;">
+            Regional mix must total 100%.
+          </div>
         </div>
       </div>
-    {% endfor %}
-  </div>
-
-  <div class="mt-2">
-    <span class="badge text-bg-secondary">Total: <span id="region_total">0</span>%</span>
-    <small class="text-muted ms-2">Must equal 100%.</small>
-    <div id="region_error" class="text-danger small mt-1" style="display:none;">
-      Regional mix must total 100%.
-    </div>
-  </div>
-</div>
-
 
       <div class="col-md-4">
         <label class="form-label"># of distinct personas/use cases</label>
         <input type="number" class="form-control" id="num_personas" name="num_personas" min="1" value="{{ (form.num_personas if form else '') }}">
       </div>
-      <div class="col-12">
-        <label class="form-label">Main use case(s)</label>
-        <textarea class="form-control" name="main_use_cases" rows="3" placeholder="e.g., knowledge workers, clinical, CAD, contact center…">{{ (form.main_use_cases if form else '') }}</textarea>
+
+      <!-- Dynamic use case inputs -->
+      <div class="col-12" id="use_case_fields">
+        <label class="form-label">Use case details</label>
+        <div class="mb-2">
+          <input class="form-control" name="main_use_cases" id="main_use_cases" placeholder="Main use case">
+        </div>
+        <!-- Secondary fields will be injected here by JS -->
+        <div id="secondary_use_cases_container"></div>
       </div>
     </div>
   </fieldset>
@@ -133,12 +139,15 @@
     <legend>Graphics / GPU</legend>
     <div class="row g-3">
       <div class="col-md-4">
-        <label class="form-label">GPU required?</label>
-        <select class="form-select" name="gpu_required" id="gpu_required">
-          <option value="" {{ 'selected' if (form and form.gpu_required=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.gpu_required=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.gpu_required=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">GPU required?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_no" value="No" {% if form and form.gpu_required=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="gpu_required_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_yes" value="Yes" {% if form and form.gpu_required=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="gpu_required_yes">Yes</label>
+        </div>
       </div>
       <div class="col-md-4">
         <label class="form-label">GPU users (estimate)</label>
@@ -165,45 +174,59 @@
       </div>
       <div class="col-md-4">
         <label class="form-label">Gold image provided by customer?</label>
-        <select class="form-select" name="gold_image_source">
-          <option {{ 'selected' if (form and form.gold_image_source=='WWT builds') else '' }}>WWT builds</option>
-          <option {{ 'selected' if (form and form.gold_image_source=='Customer provides') else '' }}>Customer provides</option>
-        </select>
+        <div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="gold_image_source" id="gis_wwt" value="WWT builds" {% if not form or form.gold_image_source=='WWT builds' %}checked{% endif %}>
+            <label class="form-check-label" for="gis_wwt">WWT builds</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="gold_image_source" id="gis_cust" value="Customer provides" {% if form and form.gold_image_source=='Customer provides' %}checked{% endif %}>
+            <label class="form-check-label" for="gis_cust">Customer provides</label>
+          </div>
+        </div>
       </div>
 
+      <!-- Profile mgmt checkboxes (no 'Both'/'None') -->
       <div class="col-md-4">
-        <label class="form-label">Profile management</label>
-        <select class="form-select" name="profile_mgmt" id="profile_mgmt">
-          <option value="" {{ 'selected' if (form and form.profile_mgmt=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.profile_mgmt=='DEM') else '' }}>DEM</option>
-          <option {{ 'selected' if (form and form.profile_mgmt=='FSLogix') else '' }}>FSLogix</option>
-          <option {{ 'selected' if (form and form.profile_mgmt=='Both') else '' }}>Both</option>
-          <option {{ 'selected' if (form and form.profile_mgmt=='None') else '' }}>None</option>
-        </select>
+        <label class="form-label d-block">Profile management</label>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="pm_dem" name="profile_mgmt" value="DEM" {% if form and 'DEM' in form.get('profile_mgmt', []) %}checked{% endif %}>
+          <label class="form-check-label" for="pm_dem">DEM</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="pm_fslogix" name="profile_mgmt" value="FSLogix" {% if form and 'FSLogix' in form.get('profile_mgmt', []) %}checked{% endif %}>
+          <label class="form-check-label" for="pm_fslogix">FSLogix</label>
+        </div>
       </div>
 
+      <!-- Virtual apps checkboxes -->
       <div class="col-md-4">
-        <label class="form-label">Virtual apps?</label>
-        <select class="form-select" name="virtual_apps" id="virtual_apps">
-          <option value="" {{ 'selected' if (form and form.virtual_apps=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.virtual_apps=='App Volumes') else '' }}>App Volumes</option>
-          <option {{ 'selected' if (form and form.virtual_apps=='RDSH') else '' }}>RDSH</option>
-          <option {{ 'selected' if (form and form.virtual_apps=='Both') else '' }}>Both</option>
-          <option {{ 'selected' if (form and form.virtual_apps=='None') else '' }}>None</option>
-        </select>
+        <label class="form-label d-block">Virtual apps?</label>
+        <div class="form-check">
+          <input class="form-check-input va-check" type="checkbox" id="va_appvol" name="virtual_apps" value="App Volumes" {% if form and 'App Volumes' in form.get('virtual_apps', []) %}checked{% endif %}>
+          <label class="form-check-label" for="va_appvol">App Volumes</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input va-check" type="checkbox" id="va_rdsh" name="virtual_apps" value="RDSH" {% if form and 'RDSH' in form.get('virtual_apps', []) %}checked{% endif %}>
+          <label class="form-check-label" for="va_rdsh">RDSH</label>
+        </div>
       </div>
+
       <div class="col-12" id="required_apps_group" style="display:none;">
         <label class="form-label">Required applications</label>
         <textarea class="form-control" name="required_apps" rows="3" placeholder="List app names/versions/licensing nuances…">{{ (form.required_apps if form else '') }}</textarea>
       </div>
 
       <div class="col-md-4">
-        <label class="form-label">WWT responsible for app packaging?</label>
-        <select class="form-select" name="wwt_app_packaging">
-          <option value="" {{ 'selected' if (form and form.wwt_app_packaging=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.wwt_app_packaging=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.wwt_app_packaging=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">WWT responsible for app packaging?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="wwt_app_packaging" id="pkg_no" value="No" {% if form and form.wwt_app_packaging=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="pkg_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="wwt_app_packaging" id="pkg_yes" value="Yes" {% if form and form.wwt_app_packaging=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="pkg_yes">Yes</label>
+        </div>
       </div>
     </div>
   </fieldset>
@@ -213,34 +236,44 @@
     <legend>Access & Identity</legend>
     <div class="row g-3">
       <div class="col-md-4">
-        <label class="form-label">Remote access required?</label>
-        <select class="form-select" name="remote_access" id="remote_access">
-          <option value="" {{ 'selected' if (form and form.remote_access=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.remote_access=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.remote_access=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">Remote access required?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="remote_access" id="ra_no" value="No" {% if form and form.remote_access=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="ra_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="remote_access" id="ra_yes" value="Yes" {% if form and form.remote_access=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="ra_yes">Yes</label>
+        </div>
       </div>
 
       <div class="col-md-4">
-        <label class="form-label">MFA required?</label>
-        <select class="form-select" name="mfa_required" id="mfa_required">
-          <option value="" {{ 'selected' if (form and form.mfa_required=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.mfa_required=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.mfa_required=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">MFA required?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="mfa_required" id="mfa_no" value="No" {% if form and form.mfa_required=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="mfa_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="mfa_required" id="mfa_yes" value="Yes" {% if form and form.mfa_required=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="mfa_yes">Yes</label>
+        </div>
       </div>
+
       <div class="col-md-4" id="mfa_solution_group" style="display:none;">
         <label class="form-label">Existing MFA solution</label>
         <input class="form-control" name="mfa_solution" value="{{ (form.mfa_solution if form else '') }}" placeholder="Duo, Okta, Azure, etc.">
       </div>
 
       <div class="col-md-4">
-        <label class="form-label">Smart card authentication?</label>
-        <select class="form-select" name="smartcard">
-          <option value="" {{ 'selected' if (form and form.smartcard=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.smartcard=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.smartcard=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">Smart card authentication?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="smartcard" id="sc_no" value="No" {% if form and form.smartcard=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="sc_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="smartcard" id="sc_yes" value="Yes" {% if form and form.smartcard=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="sc_yes">Yes</label>
+        </div>
       </div>
 
       <div class="col-md-8">
@@ -255,12 +288,15 @@
     <legend>Endpoints</legend>
     <div class="row g-3">
       <div class="col-md-4">
-        <label class="form-label">Provision/configure endpoints?</label>
-        <select class="form-select" name="endpoint_provisioning">
-          <option value="" {{ 'selected' if (form and form.endpoint_provisioning=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.endpoint_provisioning=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.endpoint_provisioning=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">Provision/configure endpoints?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="endpoint_provisioning" id="ep_no" value="No" {% if form and form.endpoint_provisioning=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="ep_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="endpoint_provisioning" id="ep_yes" value="Yes" {% if form and form.endpoint_provisioning=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="ep_yes">Yes</label>
+        </div>
       </div>
       <div class="col-md-8">
         <label class="form-label">Endpoint types</label>
@@ -278,22 +314,24 @@
     <legend>Directory & Core Services</legend>
     <div class="row g-3">
       <div class="col-md-4">
-        <label class="form-label">Existing AD forest/domains?</label>
-        <select class="form-select" name="ad_exists">
-          <option value="" {{ 'selected' if (form and form.ad_exists=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.ad_exists=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.ad_exists=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">Existing AD forest/domains?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="ad_exists" id="ad_no" value="No" {% if form and form.ad_exists=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="ad_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="ad_exists" id="ad_yes" value="Yes" {% if form and form.ad_exists=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="ad_yes">Yes</label>
+        </div>
       </div>
       <div class="col-md-4">
         <label class="form-label"># of domains / trusts</label>
         <input type="number" class="form-control" name="num_domains" min="1" value="{{ (form.num_domains if form else '') }}">
       </div>
-      <div class="col-md-4">
-        <label class="form-label">DNS / DHCP / KMS ownership</label>
-        <input class="form-control" name="core_services_owner" value="{{ (form.core_services_owner if form else '') }}" placeholder="Customer / WWT">
-      </div>
 
+      <!-- DNS/DHCP/KMS question intentionally removed -->
+      <!-- TODO (docs): Ensure requirements section covers DNS, DHCP, KMS ownership, GC, external DNS, etc. -->
+      
       <div class="col-md-6">
         <label class="form-label">Domain name for virtual desktops</label>
         <input class="form-control" name="vd_domain_name" value="{{ (form.vd_domain_name if form else '') }}" placeholder="e.g., corp.example.com">
@@ -322,15 +360,18 @@
       </div>
 
       <div class="col-md-4">
-        <label class="form-label">General compute cluster available for core components?</label>
-        <select class="form-select" name="general_compute_cluster">
-          <option value="" {{ 'selected' if (form and form.general_compute_cluster=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.general_compute_cluster=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.general_compute_cluster=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">General compute cluster available for core components?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="general_compute_cluster" id="gcc_no" value="No" {% if form and form.general_compute_cluster=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="gcc_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="general_compute_cluster" id="gcc_yes" value="Yes" {% if form and form.general_compute_cluster=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="gcc_yes">Yes</label>
+        </div>
       </div>
 
-      <!-- Host sizing (for density calc) -->
+      <!-- Host sizing -->
       <div class="col-md-3">
         <label class="form-label">Host CPU cores</label>
         <input type="number" class="form-control" id="host_cpu_cores" name="host_cpu_cores" min="1" required value="{{ (form.host_cpu_cores if form else '') }}">
@@ -354,7 +395,7 @@
         <input type="number" class="form-control" id="vm_ram_gb" name="vm_ram_gb" min="1" value="{{ (form.vm_ram_gb if form else '8') }}" required>
       </div>
 
-      <!-- vCPU:pCPU ratio selection -->
+      <!-- vCPU:pCPU ratio -->
       <div class="col-md-3">
         <label class="form-label">vCPU : pCPU ratio</label>
         <select class="form-select" id="vcpu_to_pcpu" name="vcpu_to_pcpu">
@@ -375,7 +416,7 @@
         </select>
       </div>
 
-      <!-- vSAN calc inputs (shown when vSAN selected) -->
+      <!-- vSAN calc inputs -->
       <div class="col-md-3 vsan-only" style="display:none;">
         <label class="form-label">Base image size (GB)</label>
         <input type="number" class="form-control" id="base_image_gb" name="base_image_gb" value="{{ (form.base_image_gb if form else '40') }}" min="1">
@@ -389,7 +430,7 @@
         </select>
       </div>
 
-      <!-- Advanced (collapsible) -->
+      <!-- Advanced tunables -->
       <div class="col-12 vsan-only" style="display:none;">
         <details>
           <summary>Advanced vSAN & density tunables</summary>
@@ -449,7 +490,20 @@
       <!-- Load balancer -->
       <div class="col-md-4">
         <label class="form-label">Load balancer</label>
-        <input class="form-control" name="load_balancer" value="{{ (form.load_balancer if form else '') }}" placeholder="F5, NSX ALB/Avi, etc.">
+        <select class="form-select" name="load_balancer" id="load_balancer">
+          <option value="">Select…</option>
+          <option>F5 BIG-IP</option>
+          <option>NSX Advanced Load Balancer (Avi)</option>
+          <option>Citrix ADC (NetScaler)</option>
+          <option>NGINX</option>
+          <option>HAProxy</option>
+          <option>A10 Thunder</option>
+          <option>Kemp LoadMaster</option>
+          <option>AWS ALB / NLB</option>
+          <option>Azure Load Balancer / Front Door</option>
+          <option>GCP Load Balancer</option>
+          <option>Other</option>
+        </select>
       </div>
     </div>
   </fieldset>
@@ -486,20 +540,26 @@
       </div>
 
       <div class="col-md-4">
-        <label class="form-label">Local printing?</label>
-        <select class="form-select" name="local_printing">
-          <option value="" {{ 'selected' if (form and form.local_printing=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.local_printing=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.local_printing=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">Local printing?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="local_printing" id="lp_no" value="No" {% if form and form.local_printing=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="lp_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="local_printing" id="lp_yes" value="Yes" {% if form and form.local_printing=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="lp_yes">Yes</label>
+        </div>
       </div>
       <div class="col-md-4">
-        <label class="form-label">USB / mass-storage redirection?</label>
-        <select class="form-select" name="usb_redirection">
-          <option value="" {{ 'selected' if (form and form.usb_redirection=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.usb_redirection=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.usb_redirection=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">USB / mass-storage redirection?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="usb_redirection" id="usb_no" value="No" {% if form and form.usb_redirection=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="usb_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="usb_redirection" id="usb_yes" value="Yes" {% if form and form.usb_redirection=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="usb_yes">Yes</label>
+        </div>
       </div>
 
       <div class="col-md-12">
@@ -523,28 +583,37 @@
         <textarea class="form-control" name="kt_expectations" rows="2">{{ (form.kt_expectations if form else '') }}</textarea>
       </div>
       <div class="col-md-4">
-        <label class="form-label">Runbook required?</label>
-        <select class="form-select" name="runbook_required">
-          <option value="" {{ 'selected' if (form and form.runbook_required=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.runbook_required=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.runbook_required=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">Runbook required?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="runbook_required" id="rb_no" value="No" {% if form and form.runbook_required=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="rb_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="runbook_required" id="rb_yes" value="Yes" {% if form and form.runbook_required=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="rb_yes">Yes</label>
+        </div>
       </div>
       <div class="col-md-4">
-        <label class="form-label">Adoption Services needed?</label>
-        <select class="form-select" name="adoption_services">
-          <option value="" {{ 'selected' if (form and form.adoption_services=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.adoption_services=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.adoption_services=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">Adoption Services needed?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="adoption_services" id="adopt_no" value="No" {% if form and form.adoption_services=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="adopt_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="adoption_services" id="adopt_yes" value="Yes" {% if form and form.adoption_services=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="adopt_yes">Yes</label>
+        </div>
       </div>
       <div class="col-md-4">
-        <label class="form-label">HA/DR in-scope?</label>
-        <select class="form-select" name="ha_dr">
-          <option value="" {{ 'selected' if (form and form.ha_dr=='') else '' }}>Select…</option>
-          <option {{ 'selected' if (form and form.ha_dr=='No') else '' }}>No</option>
-          <option {{ 'selected' if (form and form.ha_dr=='Yes') else '' }}>Yes</option>
-        </select>
+        <label class="form-label d-block">HA/DR in-scope?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="ha_dr" id="ha_no" value="No" {% if form and form.ha_dr=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="ha_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="ha_dr" id="ha_yes" value="Yes" {% if form and form.ha_dr=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="ha_yes">Yes</label>
+        </div>
       </div>
     </div>
   </fieldset>
@@ -629,6 +698,11 @@
   <button class="btn btn-primary">Save</button>
 </form>
 
+<!-- Version badge -->
+<div style="position: fixed; right: 10px; bottom: 8px; font-size: 12px; color: #6c757d;">
+  Form v1.5.0
+</div>
+
 <!-- Conditional UI & Auto-calcs -->
 <script>
 (function () {
@@ -648,30 +722,32 @@
     input.value = `${yyyy}-${mm}-${dd}`;
   })();
 
-  // Show/Hide: existing VDI pain when "Yes"
+  // ----- Existing VDI pain toggle (radio) -----
   function toggleExistingVDI(){
-    const v = el("existing_vdi")?.value || "";
-    document.getElementById("existing_vdi_pain_group").style.display = (v === "Yes" ? "" : "none");
+    const r = document.querySelector('input[name="existing_vdi"]:checked');
+    const show = r && r.value === "Yes";
+    document.getElementById("existing_vdi_pain_group").style.display = show ? "" : "none";
   }
 
-  // Show/Hide: App Volumes applications list when Virtual apps includes App Volumes (App Volumes or Both)
+  // ----- App Volumes required apps toggle (checkboxes) -----
   function toggleRequiredApps(){
-    const v = el("virtual_apps")?.value || "";
-    const show = (v === "App Volumes" || v === "Both");
+    const appvol = document.getElementById("va_appvol");
+    const show = !!(appvol && appvol.checked);
     document.getElementById("required_apps_group").style.display = show ? "" : "none";
   }
 
-  // Show/Hide: vSAN vs non-vSAN fields
+  // ----- vSAN vs non-vSAN fields -----
   function toggleStorageGroups(){
     const t = el("storage_type")?.value || "";
     document.querySelectorAll(".vsan-only").forEach(x => x.style.display = (t === "vSAN" ? "" : "none"));
     document.querySelectorAll(".non-vsan-only").forEach(x => x.style.display = (t && t !== "vSAN" ? "" : "none"));
   }
 
-  // Show/Hide: MFA solution if MFA required = Yes
+  // ----- MFA solution visibility (radio) -----
   function toggleMFA(){
-    const v = el("mfa_required")?.value || "";
-    document.getElementById("mfa_solution_group").style.display = (v === "Yes" ? "" : "none");
+    const r = document.querySelector('input[name="mfa_required"]:checked');
+    const show = r && r.value === "Yes";
+    document.getElementById("mfa_solution_group").style.display = show ? "" : "none";
   }
 
   // vSAN capacity for Instant Clones (GB)
@@ -686,7 +762,7 @@
     const overhead   = num("per_vm_overhead_gb", 1);
     const growth     = num("growth_factor", 1.10);
 
-    const perVMWritable = delta + vmMem + overhead;   // ~delta + vswap + misc
+    const perVMWritable = delta + vmMem + overhead;   // delta + vswap + misc
     const replicas      = images * baseImg;
     const raw           = (N * perVMWritable) + replicas;
     const total         = raw * vsanFactor * growth;
@@ -694,17 +770,17 @@
     setText("vsan_total_gb", Math.ceil(total).toLocaleString());
   }
 
-  // Users per host (density) using vCPU:pCPU from dropdown (1:4 -> value 4, etc.)
+  // Users per host (density)
   function computeDensity(){
     const cores   = num("host_cpu_cores");
     const hostMem = num("host_ram_gb");
     const vmvCPU  = num("vm_vcpu", 2);
     const vmMem   = num("vm_ram_gb", 8);
 
-    const ratio     = num("vcpu_to_pcpu", 4);      // 4 means 1:4
+    const ratio     = num("vcpu_to_pcpu", 4);
     const headroom  = num("mem_headroom_pct", 0.20);
     const esxiOH    = num("esxi_overhead_gb", 8);
-    const gpuCap    = num("gpu_sessions_cap", 0); // optional cap (0 = ignore)
+    const gpuCap    = num("gpu_sessions_cap", 0);
 
     const cpuCap  = Math.floor((cores * ratio) / vmvCPU);
     const usable  = (hostMem * (1 - headroom)) - esxiOH;
@@ -715,41 +791,7 @@
     setText("per_host_density", (isFinite(d) && d>=0) ? String(d) : "—");
   }
 
-  const watched = [
-    "existing_vdi","virtual_apps","storage_type","mfa_required",
-    "concurrent_users","num_images","vm_ram_gb","base_image_gb","vsan_policy_factor",
-    "delta_gb","per_vm_overhead_gb","growth_factor",
-    "host_cpu_cores","host_ram_gb","vm_vcpu","vcpu_to_pcpu","mem_headroom_pct","esxi_overhead_gb","gpu_sessions_cap"
-  ];
-
-  function recalc(){
-    toggleExistingVDI();
-    toggleRequiredApps();
-    toggleStorageGroups();
-    toggleMFA();
-    computeVSAN();
-    computeDensity();
-  }
-
-  function attach(){
-    watched.forEach(id => { const e = el(id); if (e) e.addEventListener("input", recalc); });
-    recalc();
-  }
-
-  // Safety defaults if advanced tunables are absent in DOM
-  if (!el("mem_headroom_pct")) {
-    const hidden = document.createElement("div");
-    hidden.innerHTML = `
-      <input type="hidden" id="mem_headroom_pct" value="0.20">
-      <input type="hidden" id="esxi_overhead_gb" value="8">
-      <input type="hidden" id="gpu_sessions_cap" value="0">
-    `;
-    document.body.appendChild(hidden);
-  }
-
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach); else attach();
-
-// ----- Region mix (checkbox enables input; sum must be 100) -----
+  // ----- Region mix (checkbox enables input; sum must be 100) -----
   function regionToggleEnable(e) {
     const key = e.target.id.replace("reg_", "");
     const pct = document.getElementById(`reg_${key}_pct`);
@@ -780,8 +822,22 @@
     document.querySelectorAll(".region-pct").forEach(inp => {
       inp.addEventListener("input", sumRegions);
     });
-    // Initial calculation (handles pre-filled form)
     sumRegions();
+  }
+
+  // ----- Dynamic use case fields -----
+  function renderUseCaseFields() {
+    const n = parseInt(document.getElementById("num_personas")?.value || "0", 10);
+    const container = document.getElementById("secondary_use_cases_container");
+    if (!container) return;
+    container.innerHTML = "";
+    if (n <= 1) return; // only main
+    for (let i = 2; i <= n; i++) {
+      const div = document.createElement("div");
+      div.className = "mb-2";
+      div.innerHTML = `<input class="form-control" name="secondary_use_case_${i}" placeholder="Secondary use case ${i}">`;
+      container.appendChild(div);
+    }
   }
 
   // Block submit if region total != 100
@@ -793,26 +849,62 @@
       if (total !== 100) {
         e.preventDefault();
         e.stopPropagation();
-        // optional: scroll to the block
         document.getElementById("region_error")?.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     });
   }
 
-  // Hook into your existing attach flow:
+  // ---- Recalc / attach wiring ----
+  const watched = [
+    "storage_type",
+    "concurrent_users","num_images","vm_ram_gb","base_image_gb","vsan_policy_factor",
+    "delta_gb","per_vm_overhead_gb","growth_factor",
+    "host_cpu_cores","host_ram_gb","vm_vcpu","vcpu_to_pcpu","mem_headroom_pct","esxi_overhead_gb","gpu_sessions_cap"
+  ];
+
+  function recalc(){
+    toggleExistingVDI();
+    toggleRequiredApps();
+    toggleStorageGroups();
+    toggleMFA();
+    computeVSAN();
+    computeDensity();
+  }
+
   function attach(){
-    // existing watched/event bindings you already have...
     watched.forEach(id => { const e = el(id); if (e) e.addEventListener("input", recalc); });
-    // NEW:
+
+    // radio/checkbox listeners for toggles
+    document.querySelectorAll('input[name="existing_vdi"]').forEach(r => r.addEventListener("change", toggleExistingVDI));
+    document.querySelectorAll('input[name="mfa_required"]').forEach(r => r.addEventListener("change", toggleMFA));
+    document.querySelectorAll('.va-check').forEach(c => c.addEventListener("change", toggleRequiredApps));
+    document.getElementById("num_personas")?.addEventListener("input", renderUseCaseFields);
+
     attachRegionHandlers();
     guardSubmitForRegions();
+
+    // Initial renders
+    renderUseCaseFields();
     recalc();
   }
 
-  // keep the rest of your IIFE as-is...
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach); else attach();
-})();
+  // Safety defaults if advanced tunables are absent in DOM
+  if (!el("mem_headroom_pct")) {
+    const hidden = document.createElement("div");
+    hidden.innerHTML = `
+      <input type="hidden" id="mem_headroom_pct" value="0.20">
+      <input type="hidden" id="esxi_overhead_gb" value="8">
+      <input type="hidden" id="gpu_sessions_cap" value="0">
+    `;
+    document.body.appendChild(hidden);
+  }
 
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", attach);
+  } else {
+    attach();
+  }
+})();
 </script>
 
 {% endblock %}

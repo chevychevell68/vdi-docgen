@@ -17,12 +17,8 @@ REPO_NAME     = os.getenv("REPO_NAME", "").strip()
 REPO_BRANCH   = os.getenv("REPO_BRANCH", "main").strip()
 
 def github_upsert_file(repo_owner: str, repo_name: str, branch: str, path: str, content_bytes: bytes, commit_msg: str) -> bool:
-    """
-    Create a new file in GitHub via the Contents API (unique filename).
-    """
     if not (GITHUB_TOKEN and repo_owner and repo_name and branch and path):
         return False
-
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{path}"
     body = {
         "message": commit_msg,
@@ -56,24 +52,18 @@ def save_locally(path: Path, content_bytes: bytes) -> bool:
         return False
 
 def persist_submission(payload: dict) -> str:
-    """
-    Persist payload as JSON to GitHub (preferred) or local disk (fallback).
-    """
     timestamp = dt.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
     filename = f"session-{timestamp}.json"
     rel_dir = "presales_sessions"
     rel_path = f"{rel_dir}/{filename}"
-
     content = json.dumps(payload, indent=2).encode("utf-8")
     commit_msg = f"Presales submission {filename}"
 
-    # Try GitHub first
     if GITHUB_TOKEN and REPO_OWNER and REPO_NAME:
         ok = github_upsert_file(REPO_OWNER, REPO_NAME, REPO_BRANCH, rel_path, content, commit_msg)
         if ok:
             return f"Saved to GitHub: {REPO_OWNER}/{REPO_NAME}@{REPO_BRANCH}/{rel_path}"
 
-    # Fallback: local
     local_path = Path("./data") / rel_path
     ok = save_locally(local_path, content)
     if ok:
@@ -82,7 +72,6 @@ def persist_submission(payload: dict) -> str:
 
 @app.route("/")
 def index():
-    # Minimal landing page if you don't have a custom index.html
     try:
         app.jinja_env.get_or_select_template("index.html")
         return render_template("index.html")
@@ -96,21 +85,37 @@ def index():
             "</body></html>"
         )
 
-# ------------------ MAIN FORM ROUTE (no /new) ------------------
 @app.route("/presales", methods=["GET", "POST"])
 def presales():
-    """
-    Architect-led Horizon presales discovery form.
-    Renders templates/presales_form.html.
-    """
     if request.method == "POST":
         data = request.form.to_dict(flat=True)
 
-        # Multi-selects / checkboxes (read lists)
-        data["docs_requested"]    = request.form.getlist("docs_requested")
-        data["training_required"] = request.form.getlist("training_required")
+        # Multi-selects / checkboxes
+        data["docs_requested"]     = request.form.getlist("docs_requested")
+        data["training_required"]  = request.form.getlist("training_required")
+        data["profile_mgmt"]       = request.form.getlist("profile_mgmt")   # DEM, FSLogix (checkboxes)
+        data["virtual_apps"]       = request.form.getlist("virtual_apps")   # App Volumes, RDSH (checkboxes)
 
-        # -------- Region mix: build structured map + validate 100% ----------
+        # Dynamic use case fields: collect main + secondary
+        use_cases = []
+        main_uc = data.get("main_use_cases", "").strip()
+        if main_uc:
+            use_cases.append({"label": "Main", "text": main_uc})
+        # Secondary fields are named secondary_use_case_2, _3, ...
+        for k, v in request.form.items():
+            if k.startswith("secondary_use_case_"):
+                txt = (v or "").strip()
+                if txt:
+                    # label number from key suffix
+                    try:
+                        n = int(k.rsplit("_",1)[-1])
+                    except ValueError:
+                        n = None
+                    label = f"Secondary {n}" if n else "Secondary"
+                    use_cases.append({"label": label, "text": txt})
+        data["use_cases_list"] = use_cases
+
+        # Region mix: build structured map + validate 100%
         REGIONS = [
             ("US", "Continental US"),
             ("CAN", "Canada"),
@@ -134,15 +139,13 @@ def presales():
                 if pct > 0:
                     location_mix[key] = pct
                     total_pct += pct
-
         if total_pct != 100:
             flash(f"Regional mix must total 100% (currently {total_pct}%).", "error")
             return render_template("presales_form.html", form=data)
 
         data["location_mix"] = location_mix
-        # -------------------------------------------------------------------
 
-        # Minimal required fields to avoid empty submissions
+        # Minimal required fields
         required = [
             "company_name", "customer_name",
             "concurrent_users",
@@ -154,7 +157,6 @@ def presales():
             flash(f"Missing required fields: {', '.join(missing)}", "error")
             return render_template("presales_form.html", form=data)
 
-        # Add metadata (UTC timestamp)
         payload = {"submitted_utc": dt.datetime.utcnow().isoformat(timespec="seconds") + "Z", **data}
         where = persist_submission(payload)
         if where.startswith("Failed"):
@@ -163,7 +165,6 @@ def presales():
             flash(f"Presales discovery saved. {where}", "success")
         return redirect(url_for("presales"))
 
-    # GET
     return render_template("presales_form.html")
 
 @app.errorhandler(404)
