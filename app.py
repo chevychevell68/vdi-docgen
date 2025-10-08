@@ -1,10 +1,12 @@
 # app.py
 from __future__ import annotations
 
+import base64
 import io
 import json
 import math
 import os
+import time
 import uuid
 import zipfile
 from datetime import datetime
@@ -21,6 +23,8 @@ from flask import (
     url_for,
 )
 
+import requests
+
 # Optional Word support (pip install python-docx)
 try:
     from docx import Document  # type: ignore
@@ -33,22 +37,100 @@ except Exception:
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
-# Prefer persistent disk on Render; fall back locally
-STORAGE_DIR_CANDIDATES = ["/var/data", "./data"]
-for _d in STORAGE_DIR_CANDIDATES:
+# ---------------- GitHub persistence configuration ----------------
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+GITHUB_REPO = os.getenv("GITHUB_REPO", "")  # "owner/repo"
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
+GITHUB_PATH = os.getenv("GITHUB_PATH", "data/entries.jsonl")  # path within the repo
+GITHUB_API_ROOT = os.getenv("GITHUB_API_ROOT", "https://api.github.com")
+
+if not (GITHUB_TOKEN and GITHUB_REPO):
+    app.logger.warning(
+        "GitHub persistence not fully configured. Set GITHUB_TOKEN and GITHUB_REPO."
+    )
+
+# Keep a tiny cache to reduce API calls during a request storm
+_gh_cache: Dict[str, Any] = {"sha": None, "content_text": None, "fetched_ts": 0.0}
+
+
+def _gh_headers() -> Dict[str, str]:
+    return {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "vdi-tools/1.0",
+    }
+
+
+def _gh_contents_url() -> str:
+    # /repos/{owner}/{repo}/contents/{path}
+    return f"{GITHUB_API_ROOT}/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
+
+
+def gh_read_entries_file(force: bool = False) -> tuple[Optional[str], Optional[str]]:
+    """
+    Returns (content_text, sha). If file doesn't exist yet, returns ("", None).
+    On error, returns (None, None).
+    """
+    now = time.time()
+    # 10s micro-cache
+    if not force and _gh_cache["content_text"] is not None and now - _gh_cache["fetched_ts"] < 10:
+        return _gh_cache["content_text"], _gh_cache["sha"]
+
+    params = {"ref": GITHUB_BRANCH}
     try:
-        os.makedirs(_d, exist_ok=True)
-        STORAGE_DIR = _d
-        break
-    except Exception:
-        continue
-else:
-    STORAGE_DIR = "."
-ENTRIES_PATH = os.path.join(STORAGE_DIR, "entries.jsonl")
+        r = requests.get(_gh_contents_url(), headers=_gh_headers(), params=params, timeout=15)
+        if r.status_code == 404:
+            # File not found: treat as empty contents; no SHA yet
+            _gh_cache.update({"content_text": "", "sha": None, "fetched_ts": now})
+            return "", None
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, dict) or "content" not in data:
+            return None, None
+        content_b64 = data.get("content", "")
+        # GitHub may include line breaks in base64
+        content_decoded = base64.b64decode(content_b64.encode()).decode("utf-8", errors="replace")
+        sha = data.get("sha")
+        _gh_cache.update({"content_text": content_decoded, "sha": sha, "fetched_ts": now})
+        return content_decoded, sha
+    except Exception as e:
+        app.logger.error(f"GitHub read error: {e}")
+        return None, None
+
+
+def gh_write_entries_file(new_text: str, sha: Optional[str]) -> bool:
+    """
+    Writes the given text to the repo path. If sha is None, creates the file.
+    Returns True on success.
+    """
+    content_b64 = base64.b64encode(new_text.encode("utf-8")).decode("utf-8")
+    payload = {
+        "message": f"Update {GITHUB_PATH} via app at {datetime.utcnow().isoformat()}Z",
+        "content": content_b64,
+        "branch": GITHUB_BRANCH,
+    }
+    if sha:
+        payload["sha"] = sha
+
+    try:
+        r = requests.put(_gh_contents_url(), headers=_gh_headers(), json=payload, timeout=20)
+        if r.status_code in (200, 201):
+            data = r.json()
+            new_sha = data.get("content", {}).get("sha")
+            # Update cache
+            _gh_cache.update({"content_text": new_text, "sha": new_sha, "fetched_ts": time.time()})
+            return True
+        else:
+            app.logger.error(f"GitHub write error ({r.status_code}): {r.text}")
+            return False
+    except Exception as e:
+        app.logger.error(f"GitHub write exception: {e}")
+        return False
 
 
 # --------------------------------------------------------------------------------------
-# Persistence helpers (JSONL append-only)
+# Persistence helpers (using GitHub instead of local disk)
 # --------------------------------------------------------------------------------------
 def _now_utc_str() -> str:
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -58,30 +140,36 @@ def _gen_entry_id() -> str:
     return datetime.utcnow().strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:8]
 
 
-def _safe_read_lines(path: str) -> List[str]:
-    if not os.path.exists(path):
-        return []
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read().splitlines()
-
-
-def _write_line(path: str, line: str) -> None:
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
-
-
 def append_entry(payload: Dict[str, Any]) -> str:
-    """Append a submission to entries.jsonl and return an entry_id."""
+    """
+    Appends a JSON line to the GitHub file (entries.jsonl) and returns the new entry_id.
+    """
     entry = dict(payload)  # shallow copy
     entry_id = _gen_entry_id()
     entry["entry_id"] = entry_id
     entry["submitted_utc"] = entry.get("submitted_utc") or _now_utc_str()
-    _write_line(ENTRIES_PATH, json.dumps(entry, ensure_ascii=False))
+
+    content_text, sha = gh_read_entries_file()
+    if content_text is None:
+        # If we can't read from GitHub, we still proceed to try a write as a create
+        content_text = ""
+        sha = None
+
+    new_line = json.dumps(entry, ensure_ascii=False)
+    new_text = (content_text + "\n" if content_text and not content_text.endswith("\n") else content_text) + new_line + "\n"
+    ok = gh_write_entries_file(new_text, sha)
+    if not ok:
+        # If write failed, the submission did not persist — raise to show error
+        raise RuntimeError("Failed to persist entry to GitHub. Check logs and env vars.")
+
     return entry_id
 
 
 def read_all_entries() -> List[Dict[str, Any]]:
-    lines = _safe_read_lines(ENTRIES_PATH)
+    content_text, _sha = gh_read_entries_file()
+    if content_text is None:
+        return []
+    lines = content_text.splitlines()
     out: List[Dict[str, Any]] = []
     for ln in lines:
         ln = ln.strip()
@@ -93,6 +181,7 @@ def read_all_entries() -> List[Dict[str, Any]]:
                 out.append(obj)
         except Exception:
             continue
+    # newest first (by entry_id timestamp prefix)
     return sorted(out, key=lambda x: x.get("entry_id", ""), reverse=True)
 
 
@@ -108,18 +197,16 @@ def get_entry(entry_id: str) -> Optional[Dict[str, Any]]:
 # --------------------------------------------------------------------------------------
 @app.route("/")
 def index():
-    return render_template("index.html", storage_dir=STORAGE_DIR)
+    return render_template("index.html", storage_dir=f"github:{GITHUB_REPO}:{GITHUB_PATH}")
 
 
 @app.route("/presales", methods=["GET", "POST"])
 def presales():
     """
     GET: render form
-    POST: validate + compute + show submitted summary + persist entry
+    POST: validate + compute + show submitted summary + persist entry (to GitHub)
     """
     if request.method == "GET":
-        # If you have your own rich template, it will render here.
-        # A minimal fallback is provided in templates/presales_form.html below.
         return render_template("presales_form.html", form={})
 
     # ----- POST -----
@@ -266,7 +353,7 @@ def presales():
     # GPU
     data.update(
         {
-            "gpu_required": form.get("gpu_required", ""),
+            "gpu_required": bool(form.get("gpu_required")),
             "gpu_users": as_int("gpu_users"),
             "gpu_vram_per_user": as_float("gpu_vram_per_user"),
             "gpu_use_case": form.get("gpu_use_case", ""),
@@ -288,10 +375,10 @@ def presales():
     # Access & Identity
     data.update(
         {
-            "remote_access": form.get("remote_access", ""),
-            "mfa_required": form.get("mfa_required", ""),
+            "remote_access": bool(form.get("remote_access")),
+            "mfa_required": bool(form.get("mfa_required")),
             "mfa_solution": form.get("mfa_solution", ""),
-            "smartcard": form.get("smartcard", ""),
+            "smartcard": bool(form.get("smartcard")),
             "idp_provider": form.get("idp_provider", ""),
         }
     )
@@ -308,7 +395,7 @@ def presales():
     # Directory & Core
     data.update(
         {
-            "ad_exists": form.get("ad_exists", ""),
+            "ad_exists": bool(form.get("ad_exists")),
             "num_domains": as_int("num_domains"),
             "vd_domain_name": form.get("vd_domain_name", ""),
             "core_domain_name": form.get("core_domain_name", ""),
@@ -349,15 +436,15 @@ def presales():
         {
             "ogs_staffing": form.get("ogs_staffing", ""),
             "monitoring_stack": form.get("monitoring_stack", ""),
-            "local_printing": form.get("local_printing", ""),
-            "usb_redirection": form.get("usb_redirection", ""),
+            "local_printing": bool(form.get("local_printing")),
+            "usb_redirection": bool(form.get("usb_redirection")),
             "training_required": training_required,
             "onboarding_time_value": as_int("onboarding_time_value"),
             "onboarding_time_unit": form.get("onboarding_time_unit", ""),
             "kt_expectations": form.get("kt_expectations", ""),
-            "runbook_required": form.get("runbook_required", ""),
-            "adoption_services": form.get("adoption_services", ""),
-            "ha_dr": form.get("ha_dr", ""),
+            "runbook_required": bool(form.get("runbook_required")),
+            "adoption_services": bool(form.get("adoption_services")),
+            "ha_dr": bool(form.get("ha_dr")),
             "delivery_model": form.get("delivery_model", ""),
             "start_date": form.get("start_date", ""),
             "timeline": form.get("timeline", ""),
@@ -366,7 +453,7 @@ def presales():
         }
     )
 
-    # Persist the entry and annotate with id + history links
+    # Persist the entry to GitHub and annotate with id + history links
     entry_id = append_entry(data)
     data["entry_id"] = entry_id
     data["history_url"] = url_for("history")
@@ -391,7 +478,12 @@ def submitted(entry_id: str):
 @app.route("/history")
 def history():
     entries = read_all_entries()
-    return render_template("history.html", entries=entries, storage_dir=STORAGE_DIR, entries_path=ENTRIES_PATH)
+    return render_template(
+        "history.html",
+        entries=entries,
+        storage_dir=f"github:{GITHUB_REPO}",
+        entries_path=GITHUB_PATH,
+    )
 
 
 @app.route("/entry/<entry_id>/payload.json")
@@ -532,50 +624,21 @@ def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
 
 
 # --------------------------------------------------------------------------------------
-# Diagnostics (optional)
+# Diagnostics
 # --------------------------------------------------------------------------------------
 @app.route("/diag")
 def diag():
-    import pathlib, time
-    info = {
-        "storage_dir": STORAGE_DIR,
-        "entries_path": ENTRIES_PATH,
-        "exists_storage_dir": os.path.isdir(STORAGE_DIR),
-        "exists_entries": os.path.exists(ENTRIES_PATH),
-        "entries_size": os.path.getsize(ENTRIES_PATH) if os.path.exists(ENTRIES_PATH) else 0,
-        "dir_listing": sorted(os.listdir(STORAGE_DIR)) if os.path.isdir(STORAGE_DIR) else [],
-        "write_test": None,
-        "last_lines": [],
+    content_text, sha = gh_read_entries_file(force=True)
+    return {
+        "github_repo": GITHUB_REPO,
+        "github_branch": GITHUB_BRANCH,
+        "github_path": GITHUB_PATH,
+        "configured": bool(GITHUB_TOKEN and GITHUB_REPO),
+        "exists_entries": content_text is not None,
+        "entries_len_bytes": len(content_text.encode("utf-8")) if isinstance(content_text, str) else None,
+        "sha": sha,
+        "preview_head": content_text[:500] if isinstance(content_text, str) else None,
     }
-    try:
-        p = pathlib.Path(STORAGE_DIR) / "write_test.txt"
-        with p.open("a", encoding="utf-8") as f:
-            f.write(f"ts={time.time()}\n")
-        info["write_test"] = "ok"
-    except Exception as e:
-        info["write_test"] = f"error: {e!r}"
-    try:
-        if os.path.exists(ENTRIES_PATH):
-            with open(ENTRIES_PATH, "r", encoding="utf-8") as f:
-                lines = f.read().splitlines()
-            info["last_lines"] = lines[-5:]
-    except Exception as e:
-        info["last_lines"] = [f"error: {e!r}"]
-    return info
-
-
-@app.route("/seed")
-def seed():
-    data = {
-        "company_name": "TestCo",
-        "sf_opportunity_name": "Test Opp",
-        "ir_number": "IR-0000",
-        "submitted_utc": _now_utc_str(),
-        "docs_requested": ["Executive Summary", "ROM"],
-        "location_mix": {"US": 100},
-    }
-    eid = append_entry(data)
-    return redirect(url_for("history"))
 
 
 # --------------------------------------------------------------------------------------
@@ -586,8 +649,9 @@ def healthz():
     return {
         "ok": True,
         "ts": datetime.utcnow().isoformat(),
-        "storage_dir": STORAGE_DIR,
-        "entries_path": ENTRIES_PATH,
+        "storage": f"github:{GITHUB_REPO}:{GITHUB_PATH}",
+        "branch": GITHUB_BRANCH,
+        "configured": bool(GITHUB_TOKEN and GITHUB_REPO),
     }
 
 
