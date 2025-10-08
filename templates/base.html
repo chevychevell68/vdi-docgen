@@ -1,61 +1,50 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}WWT Markdown{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <style>
-      body { padding-top: 4.5rem; }
-      .navbar-brand { font-weight: 600; }
-      pre { white-space: pre-wrap; }
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}VDI Tools{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   </head>
-  <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top shadow-sm">
+
+  <body class="bg-light" style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
       <div class="container-fluid">
         <a class="navbar-brand" href="{{ url_for('index') }}">WWT Markdown</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarVDI">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
           <span class="navbar-toggler-icon"></span>
         </button>
-        <div class="collapse navbar-collapse" id="navbarVDI">
-          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
             <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'presales' or request.endpoint == 'presales_edit' %}active{% endif %}" href="{{ url_for('presales') }}">Presales Discovery Form</a>
+              <a class="nav-link {% if request.endpoint == 'presales' %}active{% endif %}" href="{{ url_for('presales') }}">Presales Discovery</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.endpoint == 'pdg' %}active{% endif %}" href="{{ url_for('pdg') }}">Project Definition Guide</a>
             </li>
             <li class="nav-item">
               <a class="nav-link {% if request.endpoint == 'predeploy' %}active{% endif %}" href="{{ url_for('predeploy') }}">Pre-Deployment Guide</a>
             </li>
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">History</a>
-            </li>
           </ul>
-          <span class="navbar-text text-light small">
-            {% block nav_extra %}{% endblock %}
-          </span>
         </div>
       </div>
     </nav>
 
-    <main class="container mt-4">
+    <main class="container">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-          <div class="mb-3">
-            {% for category, message in messages %}
-              <div class="alert alert-{{ 'danger' if category=='error' else category }}">{{ message }}</div>
-            {% endfor %}
-          </div>
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
         {% endif %}
       {% endwith %}
       {% block content %}{% endblock %}
     </main>
 
-    <footer class="text-center text-muted mt-5 py-3 border-top small">
-      WWT Markdown © <span id="year"></span>
-    </footer>
-    <script>
-      document.getElementById('year').textContent = new Date().getFullYear();
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>
