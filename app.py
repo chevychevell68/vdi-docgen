@@ -58,19 +58,16 @@ def _gh_headers() -> Dict[str, str]:
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "vdi-tools/1.0",
+        "User-Agent": "wwt-markdown/1.0",
     }
 
 
 def _gh_contents_url() -> str:
-    # /repos/{owner}/{repo}/contents/{path}
-    # GITHUB_PATH must NOT start with a slash
     p = GITHUB_PATH.lstrip("/")
     return f"{GITHUB_API_ROOT}/repos/{GITHUB_REPO}/contents/{p}"
 
 
 def gh_check_repo_branch() -> Dict[str, Any]:
-    """Quick diagnostics for repo access and branch existence."""
     info: Dict[str, Any] = {
         "repo_ok": False,
         "branch_ok": False,
@@ -110,7 +107,6 @@ def gh_read_entries_file(force: bool = False) -> tuple[Optional[str], Optional[s
     try:
         r = requests.get(_gh_contents_url(), headers=_gh_headers(), params=params, timeout=15)
         if r.status_code == 404:
-            # File not found (or token can't see repo). Treat as empty file if repo/branch ok.
             _gh_cache.update({"content_text": "", "sha": None, "fetched_ts": now})
             return "", None
         r.raise_for_status()
@@ -130,8 +126,6 @@ def gh_read_entries_file(force: bool = False) -> tuple[Optional[str], Optional[s
 def gh_write_entries_file(new_text: str, sha: Optional[str]) -> bool:
     """
     Writes the given text to the repo path. If sha is None, creates the file.
-    Returns True on success.
-    404 here usually means: bad repo/branch, or token lacks access (GitHub hides existence).
     """
     content_b64 = base64.b64encode(new_text.encode("utf-8")).decode("utf-8")
     payload = {
@@ -157,8 +151,20 @@ def gh_write_entries_file(new_text: str, sha: Optional[str]) -> bool:
         return False
 
 
+def gh_save_entries_list(entries: List[Dict[str, Any]]) -> bool:
+    """Overwrite the JSONL file with the provided list (used for edits)."""
+    content_text, sha = gh_read_entries_file()
+    if content_text is None:
+        # treat as create
+        sha = None
+    new_text = ""
+    for e in entries:
+        new_text += json.dumps(e, ensure_ascii=False) + "\n"
+    return gh_write_entries_file(new_text, sha)
+
+
 # --------------------------------------------------------------------------------------
-# Persistence helpers (using GitHub instead of local disk)
+# Persistence helpers
 # --------------------------------------------------------------------------------------
 def _now_utc_str() -> str:
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -169,18 +175,14 @@ def _gen_entry_id() -> str:
 
 
 def append_entry(payload: Dict[str, Any]) -> str:
-    """
-    Appends a JSON line to the GitHub file (entries.jsonl) and returns the new entry_id.
-    Raises RuntimeError if GitHub write fails.
-    """
-    entry = dict(payload)  # shallow copy
+    """Append a JSON line to GitHub file and return new entry_id."""
+    entry = dict(payload)
     entry_id = _gen_entry_id()
     entry["entry_id"] = entry_id
     entry["submitted_utc"] = entry.get("submitted_utc") or _now_utc_str()
 
     content_text, sha = gh_read_entries_file()
     if content_text is None:
-        # If we can't read from GitHub, we still try to create the file
         content_text = ""
         sha = None
 
@@ -188,12 +190,7 @@ def append_entry(payload: Dict[str, Any]) -> str:
     new_text = (content_text + "\n" if content_text and not content_text.endswith("\n") else content_text) + new_line + "\n"
     ok = gh_write_entries_file(new_text, sha)
     if not ok:
-        raise RuntimeError(
-            "Failed to persist entry to GitHub. Check GITHUB_REPO (owner/repo), "
-            "GITHUB_BRANCH exists, token scopes (repo or contents:write), org SSO, "
-            "and that GITHUB_PATH has no leading slash."
-        )
-
+        raise RuntimeError("Failed to persist entry to GitHub. Check /ghcheck.")
     return entry_id
 
 
@@ -201,9 +198,8 @@ def read_all_entries() -> List[Dict[str, Any]]:
     content_text, _sha = gh_read_entries_file()
     if content_text is None:
         return []
-    lines = content_text.splitlines()
     out: List[Dict[str, Any]] = []
-    for ln in lines:
+    for ln in content_text.splitlines():
         ln = ln.strip()
         if not ln:
             continue
@@ -223,6 +219,25 @@ def get_entry(entry_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def replace_entry(entry_id: str, new_obj: Dict[str, Any]) -> bool:
+    """Replace an existing entry (by entry_id) with new_obj."""
+    entries = read_all_entries()
+    replaced = False
+    for i, e in enumerate(entries):
+        if e.get("entry_id") == entry_id:
+            # preserve original submitted_utc unless new_obj overrides
+            if "submitted_utc" not in new_obj:
+                new_obj["submitted_utc"] = e.get("submitted_utc")
+            new_obj["entry_id"] = entry_id
+            new_obj["updated_utc"] = _now_utc_str()
+            entries[i] = new_obj
+            replaced = True
+            break
+    if not replaced:
+        return False
+    return gh_save_entries_list(entries)
+
+
 # --------------------------------------------------------------------------------------
 # Routes
 # --------------------------------------------------------------------------------------
@@ -234,14 +249,15 @@ def index():
 @app.route("/presales", methods=["GET", "POST"])
 def presales():
     """
-    GET: render form
-    POST: validate + compute + show submitted summary + persist entry (to GitHub)
+    GET: render new form
+    POST: create new entry OR update existing (if entry_id present)
     """
     if request.method == "GET":
         return render_template("presales_form.html", form={})
 
     # ----- POST -----
     form = request.form
+    editing_entry_id = (form.get("entry_id") or "").strip() or None
 
     # Multi-select fields (checkbox groups)
     profile_mgmt = request.form.getlist("profile_mgmt")
@@ -307,7 +323,7 @@ def presales():
         except ValueError:
             return default
 
-    # Server-side calcs mirroring potential client JS
+    # Server-side calcs
     concurrent_users = as_int("concurrent_users", 0) or 0
     num_images = as_int("num_images", 1) or 1
     vm_ram_gb = as_float("vm_ram_gb", 8.0) or 8.0
@@ -345,384 +361,11 @@ def presales():
     except Exception:
         per_host_density = None
 
-    # Build payload for summary
+    # Build payload
     data: Dict[str, Any] = {
         # Customer
         "company_name": form.get("company_name", ""),
         "customer_name": form.get("customer_name", ""),
         "sf_opportunity_name": form.get("sf_opportunity_name", ""),
         "sf_opportunity_url": form.get("sf_opportunity_url", ""),
-        "ir_number": form.get("ir_number", ""),
-        "voc": form.get("voc", ""),
-        "submitted_utc": _now_utc_str(),
-
-        # Existing VDI
-        "existing_vdi": form.get("existing_vdi", ""),
-        "existing_vdi_pain": form.get("existing_vdi_pain", ""),
-
-        # Users & Scope
-        "total_users": as_int("total_users"),
-        "concurrent_users": concurrent_users,
-        "num_datacenters": as_int("num_datacenters"),
-        "datacenters_detail": form.get("datacenters_detail", ""),
-        "deployment_type": form.get("deployment_type", ""),
-        "location_mix": location_mix,
-        "num_personas": as_int("num_personas"),
-        "main_use_cases": form.get("main_use_cases", ""),
-        "use_cases_list": [],
-    }
-
-    if data["main_use_cases"]:
-        data["use_cases_list"].append({"label": "Main", "text": data["main_use_cases"]})
-    n_personas = data["num_personas"] or 0
-    for i in range(2, n_personas + 1):
-        v = (form.get(f"secondary_use_case_{i}", "") or "").strip()
-        if v:
-            data["use_cases_list"].append({"label": f"Secondary {i}", "text": v})
-
-    # GPU
-    data.update(
-        {
-            "gpu_required": bool(form.get("gpu_required")),
-            "gpu_users": as_int("gpu_users"),
-            "gpu_vram_per_user": as_float("gpu_vram_per_user"),
-            "gpu_use_case": form.get("gpu_use_case", ""),
-        }
-    )
-
-    # Image & Apps
-    data.update(
-        {
-            "num_images": num_images,
-            "gold_image_source": form.get("gold_image_source", ""),
-            "profile_mgmt": profile_mgmt,
-            "virtual_apps": virtual_apps,
-            "required_apps": form.get("required_apps", ""),
-            "wwt_app_packaging": form.get("wwt_app_packaging", ""),
-        }
-    )
-
-    # Access & Identity
-    data.update(
-        {
-            "remote_access": bool(form.get("remote_access")),
-            "mfa_required": bool(form.get("mfa_required")),
-            "mfa_solution": form.get("mfa_solution", ""),
-            "smartcard": bool(form.get("smartcard")),
-            "idp_provider": form.get("idp_provider", ""),
-        }
-    )
-
-    # Endpoints
-    data.update(
-        {
-            "endpoint_provisioning": form.get("endpoint_provisioning", ""),
-            "endpoint_types": form.get("endpoint_types", ""),
-            "thin_client_mgmt": form.get("thin_client_mgmt", ""),
-        }
-    )
-
-    # Directory & Core
-    data.update(
-        {
-            "ad_exists": bool(form.get("ad_exists")),
-            "num_domains": as_int("num_domains"),
-            "vd_domain_name": form.get("vd_domain_name", ""),
-            "core_domain_name": form.get("core_domain_name", ""),
-        }
-    )
-
-    # Platform & Infra
-    data.update(
-        {
-            "platform": form.get("platform", ""),
-            "general_compute_cluster": form.get("general_compute_cluster", ""),
-            "host_cpu_cores": host_cpu_cores,
-            "host_ram_gb": host_ram_gb,
-            "hosts_count": as_int("hosts_count"),
-            "vm_vcpu": vm_vcpu,
-            "vm_ram_gb": vm_ram_gb,
-            "vcpu_to_pcpu": vcpu_to_pcpu,
-            "storage_type": storage_type,
-            "storage_vendor_model": form.get("storage_vendor_model", ""),
-            "storage_protocol": form.get("storage_protocol", ""),
-            "storage_usable_gb": as_int("storage_usable_gb"),
-            "base_image_gb": base_image_gb,
-            "vsan_policy_factor": vsan_policy_factor,
-            "delta_gb": delta_gb,
-            "per_vm_overhead_gb": per_vm_overhead_gb,
-            "growth_factor": growth_factor,
-            "mem_headroom_pct": mem_headroom_pct,
-            "esxi_overhead_gb": esxi_overhead_gb,
-            "gpu_sessions_cap": gpu_sessions_cap,
-            "vsan_total_gb": vsan_total_gb,
-            "per_host_density": per_host_density,
-            "load_balancer": form.get("load_balancer", ""),
-        }
-    )
-
-    # Ops & Delivery
-    data.update(
-        {
-            "ogs_staffing": form.get("ogs_staffing", ""),
-            "monitoring_stack": form.get("monitoring_stack", ""),
-            "local_printing": bool(form.get("local_printing")),
-            "usb_redirection": bool(form.get("usb_redirection")),
-            "training_required": training_required,
-            "onboarding_time_value": as_int("onboarding_time_value"),
-            "onboarding_time_unit": form.get("onboarding_time_unit", ""),
-            "kt_expectations": form.get("kt_expectations", ""),
-            "runbook_required": bool(form.get("runbook_required")),
-            "adoption_services": bool(form.get("adoption_services")),
-            "ha_dr": bool(form.get("ha_dr")),
-            "delivery_model": form.get("delivery_model", ""),
-            "start_date": form.get("start_date", ""),
-            "timeline": form.get("timeline", ""),
-            "docs_requested": docs_requested,
-            "stakeholders": form.get("stakeholders", ""),
-        }
-    )
-
-    # Persist to GitHub with friendly error handling
-    try:
-        entry_id = append_entry(data)
-    except RuntimeError as e:
-        flash(str(e), "error")
-        # repopulate form with posted values
-        prefill = form.to_dict(flat=True)
-        prefill["profile_mgmt"] = profile_mgmt
-        prefill["virtual_apps"] = virtual_apps
-        prefill["docs_requested"] = docs_requested
-        prefill["training_required"] = training_required
-        for key, _label in REGIONS:
-            if form.get(f"region_ck_{key}"):
-                prefill[f"region_ck_{key}"] = True
-                prefill[f"region_pct_{key}"] = form.get(f"region_pct_{key}", "")
-        # Add a hint pointing to /ghcheck
-        flash("Open /ghcheck to verify repo/branch/token/path.", "warning")
-        return render_template("presales_form.html", form=prefill), 500
-
-    data["entry_id"] = entry_id
-    data["history_url"] = url_for("history")
-    data["entry_url"] = url_for("submitted", entry_id=entry_id)
-
-    return render_template("presales_submitted.html", data=data)
-
-
-@app.route("/submitted/<entry_id>")
-def submitted(entry_id: str):
-    e = get_entry(entry_id)
-    if not e:
-        abort(404)
-    e = dict(e)
-    e["entry_id"] = entry_id
-    e["history_url"] = url_for("history")
-    e["entry_url"] = url_for("submitted", entry_id=entry_id)
-    return render_template("presales_submitted.html", data=e)
-
-
-@app.route("/history")
-def history():
-    entries = read_all_entries()
-    return render_template(
-        "history.html",
-        entries=entries,
-        storage_dir=f"github:{GITHUB_REPO}",
-        entries_path=GITHUB_PATH,
-    )
-
-
-@app.route("/entry/<entry_id>/payload.json")
-def entry_payload(entry_id: str):
-    e = get_entry(entry_id)
-    if not e:
-        abort(404)
-    mem = io.BytesIO(json.dumps(e, indent=2).encode("utf-8"))
-    mem.seek(0)
-    fname = f"presales_payload_{entry_id}.json"
-    return send_file(mem, mimetype="application/json", as_attachment=True, download_name=fname)
-
-
-@app.route("/entry/<entry_id>/package")
-def entry_package(entry_id: str):
-    e = get_entry(entry_id)
-    if not e:
-        abort(404)
-    mem, dl_name = _build_doc_package(e)
-    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name=dl_name)
-
-
-@app.route("/presales/package", methods=["POST"])
-def presales_package():
-    payload = request.form.get("payload", "")
-    if not payload:
-        flash("Missing payload for package generation.", "error")
-        return redirect(url_for("presales"))
-
-    try:
-        data = json.loads(payload)
-    except Exception:
-        flash("Invalid payload for package generation.", "error")
-        return redirect(url_for("presales"))
-
-    mem, dl_name = _build_doc_package(data)
-    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name=dl_name)
-
-
-@app.route("/predeploy")
-def predeploy():
-    return render_template("predeploy.html")
-
-
-# --------------------------------------------------------------------------------------
-# Helpers: package builder (writes .md and .docx when python-docx is available)
-# --------------------------------------------------------------------------------------
-def _build_docx_bytes(title: str, company: str, opp: str, ir: str, opp_url: str, now_str: str) -> bytes:
-    if Document is None:
-        return b""
-    doc = Document()
-    doc.add_heading(title, level=1)
-    doc.add_paragraph(f"Company: {company}")
-    doc.add_paragraph(f"Opportunity: {opp}")
-    doc.add_paragraph(f"IR: {ir}")
-    doc.add_paragraph(f"Opportunity URL: {opp_url or '(n/a)'}")
-    doc.add_paragraph(f"Generated: {now_str}")
-    doc.add_paragraph("")
-    doc.add_paragraph("This is a generated scaffold based on the presales discovery submission.")
-    bio = io.BytesIO()
-    doc.save(bio)
-    bio.seek(0)
-    return bio.read()
-
-
-def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
-    requested = data.get("docs_requested") or []
-    if isinstance(requested, str):
-        requested = [requested]
-
-    def safe_name(label: str) -> str:
-        base = (
-            (label or "").replace("/", "_")
-            .replace("\\", "_")
-            .replace(" ", "_")
-            .replace("(", "")
-            .replace(")", "")
-        )
-        return base.upper() or "DOCUMENT"
-
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    company = (data.get("company_name") or "Customer").strip() or "Customer"
-    opp = data.get("sf_opportunity_name", "")
-    ir = data.get("ir_number", "")
-    opp_url = data.get("sf_opportunity_url", "")
-
-    def doc_body(title: str) -> str:
-        header = f"{title}\n{'=' * len(title)}\n"
-        meta = (
-            f"Company: {company}\n"
-            f"Opportunity: {opp}\n"
-            f"IR: {ir}\n"
-            f"Opportunity URL: {opp_url or '(n/a)'}\n"
-            f"Generated: {now}\n\n"
-        )
-        summary = "This is a generated scaffold based on the presales discovery submission.\n\n"
-        return header + meta + summary
-
-    mem = io.BytesIO()
-    with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(
-            "README.txt",
-            "Document Package\n=================\n"
-            f"Generated: {now}\n\n"
-            f"Included documents: {', '.join(requested) if requested else '(none specified)'}\n"
-            f"Formats: Markdown (.md){' and Word (.docx)' if Document else ''}\n"
-            f"{'' if Document else 'Note: python-docx not installed; only .md files were generated.'}\n"
-        )
-        zf.writestr("context/presales_payload.json", json.dumps(data, indent=2))
-
-        for label in requested:
-            fname = safe_name(label)
-            title = (label or "DOCUMENT").upper()
-            zf.writestr(f"docs/{fname}.md", doc_body(title))
-            docx_bytes = _build_docx_bytes(title, company, opp, ir, opp_url, now)
-            if docx_bytes:
-                zf.writestr(f"docs/{fname}.docx", docx_bytes)
-
-        if any((x or "").upper() in ("ROM", "ROM ESTIMATE") for x in requested):
-            zf.writestr("docs/ROM_ESTIMATE.md", doc_body("ROM ESTIMATE"))
-            docx_bytes = _build_docx_bytes("ROM ESTIMATE", company, opp, ir, opp_url, now)
-            if docx_bytes:
-                zf.writestr("docs/ROM_ESTIMATE.docx", docx_bytes)
-
-    mem.seek(0)
-    dl_name = f"WWT_VDI_Doc_Package_{company.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.zip"
-    return mem, dl_name
-
-
-# --------------------------------------------------------------------------------------
-# Diagnostics
-# --------------------------------------------------------------------------------------
-@app.route("/diag")
-def diag():
-    content_text, sha = gh_read_entries_file(force=True)
-    base = gh_check_repo_branch()
-    return {
-        "github_repo": GITHUB_REPO,
-        "github_branch": GITHUB_BRANCH,
-        "github_path": GITHUB_PATH,
-        "configured": bool(GITHUB_TOKEN and GITHUB_REPO),
-        "repo_ok": base.get("repo_ok"),
-        "branch_ok": base.get("branch_ok"),
-        "path_leading_slash": base.get("path_leading_slash"),
-        "exists_entries": content_text is not None,
-        "entries_len_bytes": len(content_text.encode("utf-8")) if isinstance(content_text, str) else None,
-        "sha": sha,
-        "preview_head": content_text[:500] if isinstance(content_text, str) else None,
-    }
-
-
-@app.route("/ghcheck")
-def ghcheck():
-    """Human-friendly checklist to fix 404s on GitHub writes."""
-    info = gh_check_repo_branch()
-    hints = []
-    if not info.get("token_set"):
-        hints.append("Set GITHUB_TOKEN env var (classic PAT with repo scope, or fine-grained with Contents: Read/Write).")
-    if not info.get("repo_ok"):
-        hints.append("GITHUB_REPO must be 'owner/repo' and the token must have access (for private/org repos, authorize SSO).")
-    if not info.get("branch_ok"):
-        hints.append(f"GITHUB_BRANCH '{GITHUB_BRANCH}' must exist. Create it or set the env var to your default branch.")
-    if info.get("path_leading_slash"):
-        hints.append("GITHUB_PATH must not start with '/'. Use a repo-relative path like 'data/entries.jsonl'.")
-    return {
-        "repo": info.get("repo"),
-        "branch": info.get("branch"),
-        "path": info.get("path"),
-        "token_set": info.get("token_set"),
-        "repo_ok": info.get("repo_ok"),
-        "branch_ok": info.get("branch_ok"),
-        "path_leading_slash": info.get("path_leading_slash"),
-        "hints": hints or ["Looks good. Try submitting the form again."],
-    }
-
-
-# --------------------------------------------------------------------------------------
-# Health (useful for Render)
-# --------------------------------------------------------------------------------------
-@app.route("/healthz")
-def healthz():
-    return {
-        "ok": True,
-        "ts": datetime.utcnow().isoformat(),
-        "storage": f"github:{GITHUB_REPO}:{GITHUB_PATH}",
-        "branch": GITHUB_BRANCH,
-        "configured": bool(GITHUB_TOKEN and GITHUB_REPO),
-    }
-
-
-# --------------------------------------------------------------------------------------
-# Main
-# --------------------------------------------------------------------------------------
-if __name__ == "__main__":
-    # For local runs only; Render will use gunicorn
-    app.run(host="0.0.0.0", port=5000, debug=True)
+        "ir_number": form.get("i_
