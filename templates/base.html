@@ -8,11 +8,11 @@
     <style>
       .req-asterisk { color: #dc3545; margin-left: 2px; }
       .placeholder-helper { opacity: 0.95; }
+      .yesno-check { margin-right: 6px; transform: scale(1.2); vertical-align: middle; }
     </style>
   </head>
 
   <body class="bg-light" style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
-    <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
       <div class="container-fluid">
         <a class="navbar-brand" href="{{ url_for('index') }}">WWT Markdown</a>
@@ -21,21 +21,11 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav me-auto">
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'presales' %}active{% endif %}" href="{{ url_for('presales') }}">Presales Discovery</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'pdg' %}active{% endif %}" href="{{ url_for('pdg') }}">Project Definition Guide</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'predeploy' %}active{% endif %}" href="{{ url_for('predeploy') }}">Pre-Deployment Guide</a>
-            </li>
-
-            {# Only render History link if the route exists #}
+            <li class="nav-item"><a class="nav-link {% if request.endpoint == 'presales' %}active{% endif %}" href="{{ url_for('presales') }}">Presales Discovery</a></li>
+            <li class="nav-item"><a class="nav-link {% if request.endpoint == 'pdg' %}active{% endif %}" href="{{ url_for('pdg') }}">Project Definition Guide</a></li>
+            <li class="nav-item"><a class="nav-link {% if request.endpoint == 'predeploy' %}active{% endif %}" href="{{ url_for('predeploy') }}">Pre-Deployment Guide</a></li>
             {% if has_endpoint('history') %}
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">History</a>
-            </li>
+            <li class="nav-item"><a class="nav-link {% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">History</a></li>
             {% endif %}
           </ul>
         </div>
@@ -58,17 +48,14 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Add asterisks to all required fields' labels -->
+    <!-- Asterisk logic -->
     <script>
       (function () {
         function markRequired(root) {
           const fields = root.querySelectorAll('input[required], select[required], textarea[required]');
           fields.forEach(function (el) {
             let label = null;
-
-            if (el.id) {
-              label = root.querySelector('label[for="' + el.id + '"]');
-            }
+            if (el.id) label = root.querySelector('label[for="' + el.id + '"]');
             if (!label) {
               let p = el.closest('.col-md-12, .col-md-8, .col-md-6, .col-md-4, .mb-3, .form-group, fieldset, .row, div');
               while (p && !label) {
@@ -77,7 +64,6 @@
                 p = p.parentElement;
               }
             }
-
             if (label && !label.dataset.requiredDecorated) {
               const span = document.createElement('span');
               span.className = 'req-asterisk';
@@ -87,114 +73,104 @@
             }
           });
         }
-
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', function () { markRequired(document); });
-        } else {
-          markRequired(document);
-        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => markRequired(document));
+        else markRequired(document);
       })();
     </script>
 
-    <!-- Inject smart placeholders for presales form fields (non-intrusive) -->
+    <!-- Placeholder logic -->
     <script>
       (function () {
-        const NUM_HINT   = 'e.g., 250';
-        const GB_HINT    = 'e.g., 512';
-        const URL_HINT   = 'https://your-instance.example.com/...';
-        const DATE_HINT  = 'e.g., 2025-10-20';
-        const PCT_HINT   = 'e.g., 20';
-        const FACTOR_HINT= 'e.g., 1.10';
-
-        function setIfEmptyPlaceholder(el, text) {
-          if (!el || el.hasAttribute('placeholder')) return;
-          el.setAttribute('placeholder', text);
-          el.classList.add('placeholder-helper');
+        const NUM_HINT='e.g., 250', GB_HINT='e.g., 512', URL_HINT='https://your-instance.example.com/...', DATE_HINT='e.g., 2025-10-20', PCT_HINT='e.g., 20', FACTOR_HINT='e.g., 1.10';
+        function setIfEmpty(el, t){ if(!el||el.hasAttribute('placeholder'))return; el.setAttribute('placeholder',t); el.classList.add('placeholder-helper'); }
+        function ensureSelectPrompt(sel){ if(!sel||sel.dataset.selectDecorated)return;const f=sel.options[0];const looks=f&&(f.disabled||/select/i.test(f.text)||f.value==='');if(!looks){const o=document.createElement('option');o.textContent='Select...';o.value='';o.disabled=true;o.selected=!sel.value;sel.insertBefore(o,sel.firstChild);}sel.dataset.selectDecorated='1';}
+        function applySmart(el){
+          const key=((el.name||'')+' '+(el.id||'')).toLowerCase();
+          if(['radio','checkbox','button','submit'].includes(el.type))return;
+          if(key.includes('url')||key.includes('salesforce')){setIfEmpty(el,URL_HINT);return;}
+          if(key.includes('company')){setIfEmpty(el,'e.g., Centene Corporation');return;}
+          if(key.includes('customer')){setIfEmpty(el,'e.g., Jane Smith');return;}
+          if(key.includes('contact')){setIfEmpty(el,'e.g., john.doe@company.com');return;}
+          if(key.includes('concurrent')||key.includes('total_users')){setIfEmpty(el,NUM_HINT);return;}
+          if(key.includes('num_images')){setIfEmpty(el,'e.g., 3');return;}
+          if(key.includes('host_cpu_cores')){setIfEmpty(el,'e.g., 64');return;}
+          if(key.includes('host_ram_gb')){setIfEmpty(el,GB_HINT);return;}
+          if(key.includes('vm_vcpu')){setIfEmpty(el,'e.g., 2');return;}
+          if(key.includes('vm_ram_gb')){setIfEmpty(el,'e.g., 8');return;}
+          if(key.includes('vcpu_to_pcpu')){setIfEmpty(el,'e.g., 4');return;}
+          if(key.includes('base_image_gb')){setIfEmpty(el,'e.g., 40');return;}
+          if(key.includes('delta_gb')){setIfEmpty(el,'e.g., 6');return;}
+          if(key.includes('per_vm_overhead_gb')){setIfEmpty(el,'e.g., 1');return;}
+          if(key.includes('growth_factor')){setIfEmpty(el,FACTOR_HINT);return;}
+          if(key.includes('vsan_policy_factor')){setIfEmpty(el,'e.g., 2.0');return;}
+          if(key.includes('gpu_sessions_cap')){setIfEmpty(el,'e.g., 16');return;}
+          if(key.match(/region_pct_|_pct\b|percent/)){setIfEmpty(el,PCT_HINT);return;}
+          if(key.includes('start_date')){setIfEmpty(el,DATE_HINT);return;}
+          if(key.includes('timeline')){setIfEmpty(el,'e.g., Pilot by Nov 15; Prod by Dec 5');return;}
+          if(key.includes('platform')){setIfEmpty(el,'e.g., vSphere 8.0.3');return;}
+          if(key.includes('storage_type')){setIfEmpty(el,'e.g., vSAN');return;}
+          if(key.includes('mfa_solution')){setIfEmpty(el,'e.g., Duo, Okta Verify');return;}
+          if(key.includes('remote_access')){setIfEmpty(el,'e.g., UAG via Internet');return;}
+          if(key.includes('endpoint_types')){setIfEmpty(el,'e.g., Windows, macOS, IGEL');return;}
+          if(key.includes('main_use_cases')){setIfEmpty(el,'e.g., Task workers, call center');return;}
+          if(key.includes('secondary_use_case')){setIfEmpty(el,'e.g., Power users need 16GB RAM');return;}
+          if(/_gb\b/.test(key)){setIfEmpty(el,GB_HINT);return;}
+          if(/\bcount|\bnum|\bcores|\bsessions|\busers/.test(key)){setIfEmpty(el,NUM_HINT);return;}
+          if(el.type==='url'){setIfEmpty(el,URL_HINT);return;}
         }
+        function decorate(root){root.querySelectorAll('input,textarea,select').forEach(el=>{if(el.tagName.toLowerCase()==='select')ensureSelectPrompt(el);else applySmart(el);});}
+        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>decorate(document));else decorate(document);
+      })();
+    </script>
 
-        function ensureSelectPrompt(sel) {
-          if (!sel || sel.dataset.selectDecorated) return;
-          const first = sel.options[0];
-          const looksPrompt = first && (first.disabled || /select/i.test(first.text) || first.value === '');
-          if (!looksPrompt) {
-            const opt = document.createElement('option');
-            opt.textContent = 'Select...';
-            opt.value = '';
-            opt.disabled = true;
-            opt.selected = !sel.value;
-            sel.insertBefore(opt, sel.firstChild);
-          }
-          sel.dataset.selectDecorated = '1';
-        }
+    <!-- Yes/No conversion logic -->
+    <script>
+      (function () {
+        function convertYesNo(root) {
+          const yesNoLabels = Array.from(root.querySelectorAll('label')).filter(l => {
+            const t = l.textContent.trim().toLowerCase();
+            return t.endsWith('?') && (t.includes('yes/no') || t.includes('yes or no'));
+          });
 
-        function nameOrId(el) {
-          return (el.name || '') + ' ' + (el.id || '');
-        }
+          yesNoLabels.forEach(label => {
+            const inputId = label.getAttribute('for');
+            const origInput = inputId ? root.querySelector('#' + inputId) : null;
+            if (!origInput) return;
 
-        function applySmartPlaceholder(el) {
-          const key = nameOrId(el).toLowerCase();
+            // Create wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'form-check form-switch mb-2';
 
-          if (el.type === 'radio' || el.type === 'checkbox' || el.type === 'button' || el.type === 'submit') return;
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'form-check-input yesno-check';
+            cb.id = inputId + '_cb';
+            cb.name = inputId + '_cb';
 
-          if (key.includes('url') || key.includes('salesforce')) { setIfEmptyPlaceholder(el, URL_HINT); return; }
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = origInput.name;
+            hidden.value = '';
 
-          if (key.includes('company'))   { setIfEmptyPlaceholder(el, 'e.g., Centene Corporation'); return; }
-          if (key.includes('customer'))  { setIfEmptyPlaceholder(el, 'e.g., Jane Smith'); return; }
-          if (key.includes('contact'))   { setIfEmptyPlaceholder(el, 'e.g., john.doe@company.com'); return; }
+            cb.addEventListener('change', function () {
+              hidden.value = this.checked ? 'Yes' : '';
+            });
 
-          if (key.includes('concurrent')){ setIfEmptyPlaceholder(el, NUM_HINT); return; }
-          if (key.includes('total_users')){ setIfEmptyPlaceholder(el, NUM_HINT); return; }
-          if (key.includes('num_images')){ setIfEmptyPlaceholder(el, 'e.g., 3'); return; }
+            const qText = label.textContent.replace(/yes\s*\/?\s*no/i, '').trim();
+            const newLabel = document.createElement('label');
+            newLabel.className = 'form-check-label';
+            newLabel.htmlFor = cb.id;
+            newLabel.textContent = qText;
 
-          if (key.includes('host_cpu_cores')) { setIfEmptyPlaceholder(el, 'e.g., 64'); return; }
-          if (key.includes('host_ram_gb'))    { setIfEmptyPlaceholder(el, GB_HINT); return; }
-          if (key.includes('vm_vcpu'))        { setIfEmptyPlaceholder(el, 'e.g., 2'); return; }
-          if (key.includes('vm_ram_gb'))      { setIfEmptyPlaceholder(el, 'e.g., 8'); return; }
-          if (key.includes('vcpu_to_pcpu'))   { setIfEmptyPlaceholder(el, 'e.g., 4'); return; }
-
-          if (key.includes('base_image_gb'))      { setIfEmptyPlaceholder(el, 'e.g., 40'); return; }
-          if (key.includes('delta_gb'))           { setIfEmptyPlaceholder(el, 'e.g., 6'); return; }
-          if (key.includes('per_vm_overhead_gb')) { setIfEmptyPlaceholder(el, 'e.g., 1'); return; }
-          if (key.includes('growth_factor'))      { setIfEmptyPlaceholder(el, FACTOR_HINT); return; }
-          if (key.includes('vsan_policy_factor')) { setIfEmptyPlaceholder(el, 'e.g., 2.0'); return; }
-
-          if (key.includes('gpu_sessions_cap')) { setIfEmptyPlaceholder(el, 'e.g., 16'); return; }
-
-          if (key.match(/region_pct_|_pct\b|percent/)) { setIfEmptyPlaceholder(el, PCT_HINT); return; }
-
-          if (key.includes('start_date')) { setIfEmptyPlaceholder(el, DATE_HINT); return; }
-          if (key.includes('timeline'))   { setIfEmptyPlaceholder(el, 'e.g., Pilot by Nov 15; Prod by Dec 5'); return; }
-
-          if (key.includes('platform'))       { setIfEmptyPlaceholder(el, 'e.g., vSphere 8.0.3'); return; }
-          if (key.includes('storage_type'))   { setIfEmptyPlaceholder(el, 'e.g., vSAN'); return; }
-          if (key.includes('mfa_solution'))   { setIfEmptyPlaceholder(el, 'e.g., Duo, Okta Verify'); return; }
-          if (key.includes('remote_access'))  { setIfEmptyPlaceholder(el, 'e.g., UAG via Internet'); return; }
-          if (key.includes('endpoint_types')) { setIfEmptyPlaceholder(el, 'e.g., Windows, macOS, IGEL'); return; }
-
-          if (key.includes('main_use_cases')) { setIfEmptyPlaceholder(el, 'e.g., Task workers, call center'); return; }
-          if (key.includes('secondary_use_case')) { setIfEmptyPlaceholder(el, 'e.g., Power users need 16GB RAM'); return; }
-
-          if (/_gb\b/.test(key)) { setIfEmptyPlaceholder(el, GB_HINT); return; }
-          if (/\bcount|\bnum|\bcores|\bsessions|\busers/.test(key)) { setIfEmptyPlaceholder(el, NUM_HINT); return; }
-
-          if (el.type === 'url') { setIfEmptyPlaceholder(el, URL_HINT); return; }
-        }
-
-        function decorate(root) {
-          const inputs = root.querySelectorAll('input, textarea, select');
-          inputs.forEach(function(el) {
-            if (el.tagName.toLowerCase() === 'select') {
-              ensureSelectPrompt(el);
-            } else {
-              applySmartPlaceholder(el);
-            }
+            wrapper.append(cb, newLabel, hidden);
+            origInput.closest('.mb-3, .form-group, div').replaceWith(wrapper);
           });
         }
 
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', function () { decorate(document); });
+          document.addEventListener('DOMContentLoaded', () => convertYesNo(document));
         } else {
-          decorate(document);
+          convertYesNo(document);
         }
       })();
     </script>
