@@ -251,11 +251,15 @@ def presales():
     if request.method == "POST":
         data = request.form.to_dict(flat=True)
 
+        # helper to accept both name and name[] from template
+        def mgetlist(name: str):
+            return request.form.getlist(name) or request.form.getlist(f"{name}[]")
+
         # Multi-selects / checkboxes
-        data["docs_requested"]     = request.form.getlist("docs_requested")
-        data["training_required"]  = request.form.getlist("training_required")
-        data["profile_mgmt"]       = request.form.getlist("profile_mgmt")
-        data["virtual_apps"]       = request.form.getlist("virtual_apps")
+        data["docs_requested"]     = mgetlist("docs_requested")
+        data["training_required"]  = mgetlist("training_required")
+        data["profile_mgmt"]       = mgetlist("profile_mgmt")
+        data["virtual_apps"]       = mgetlist("virtual_apps")
 
         # Use cases (main + dynamic secondary fields)
         use_cases = []
@@ -275,18 +279,18 @@ def presales():
         data["use_cases_list"] = use_cases
 
         # Region mix: build structured map + validate 100%
-REGIONS = [
-    ("US","Continental US"),
-    ("US_HI","US – HI"),
-    ("US_AK","US – AK"),
-    ("CAN","Canada"),
-    ("LATAM","LATAM"),
-    ("EMEA","EMEA"),
-    ("APAC","APAC"),
-    ("INDIA","India"),
-    ("ANZ","ANZ"),
-    ("OTHER","Other"),
-]
+        REGIONS = [
+            ("US","Continental US"),
+            ("US_HI","US – HI"),
+            ("US_AK","US – AK"),
+            ("CAN","Canada"),
+            ("LATAM","LATAM"),
+            ("EMEA","EMEA"),
+            ("APAC","APAC"),
+            ("INDIA","India"),
+            ("ANZ","ANZ"),
+            ("OTHER","Other"),
+        ]
 
         location_mix = {}
         total_pct = 0
@@ -301,12 +305,12 @@ REGIONS = [
                     if pct > 0:
                         location_mix[key] = pct
                         total_pct += pct
-        if total_pct != 100:
+        if total_pct != 100 and any(request.form.get(f"region_ck_{k}") for k, _ in REGIONS):
             flash(f"Regional mix must total 100% (currently {total_pct}%).", "error")
             return render_template("presales_form.html", form=data)
         data["location_mix"] = location_mix
 
-        # Required fields
+        # Required fields (minimal set for early version)
         required = ["company_name","customer_name","concurrent_users","host_cpu_cores","host_ram_gb","vm_vcpu","vm_ram_gb"]
         missing = [r for r in required if not (data.get(r) or "").strip()]
         if missing:
@@ -330,7 +334,7 @@ REGIONS = [
         return render_template("presales_submitted.html", data=payload)
 
     # GET
-    return render_template("presales_form.html")
+    return render_template("presales_form.html", form={})
 
 @app.route("/predeploy", methods=["GET"])
 def predeploy():
