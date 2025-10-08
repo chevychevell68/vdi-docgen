@@ -111,14 +111,13 @@
     <input name="main_use_cases" class="form-control" placeholder="Task workers with Office, Teams, SAP GUI" value="{{ form.main_use_cases or '' }}">
   </div>
 
-  <!-- Secondary use cases (2..N) are read if provided -->
   <div class="col-12">
     <label class="form-label">Secondary Use Case #2</label>
     <input name="secondary_use_case_2" class="form-control" placeholder="Power users with Visual Studio and SQL tooling" value="{{ form.secondary_use_case_2 or '' }}">
   </div>
 
   <!-- =========================
-       GPU (Yes/No → checkbox)
+       GPU
   ========================== -->
   <div class="col-12">
     <h5 class="mt-4">GPU</h5>
@@ -168,15 +167,15 @@
   <div class="col-12">
     <label class="form-label d-block">Profile Management (multi-select)</label>
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="profile_mgmt" id="pm_fslogix" value="FSLogix" {% if 'FSLogix' in (form.profile_mgmt or []) %}checked{% endif %}>
+      <input class="form-check-input" type="checkbox" name="profile_mgmt[]" id="pm_fslogix" value="FSLogix" {% if 'FSLogix' in (form.profile_mgmt or []) %}checked{% endif %}>
       <label class="form-check-label" for="pm_fslogix">FSLogix</label>
     </div>
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="profile_mgmt" id="pm_dem" value="DEM" {% if 'DEM' in (form.profile_mgmt or []) %}checked{% endif %}>
+      <input class="form-check-input" type="checkbox" name="profile_mgmt[]" id="pm_dem" value="DEM" {% if 'DEM' in (form.profile_mgmt or []) %}checked{% endif %}>
       <label class="form-check-label" for="pm_dem">VMware DEM</label>
     </div>
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="profile_mgmt" id="pm_other" value="Other" {% if 'Other' in (form.profile_mgmt or []) %}checked{% endif %}>
+      <input class="form-check-input" type="checkbox" name="profile_mgmt[]" id="pm_other" value="Other" {% if 'Other' in (form.profile_mgmt or []) %}checked{% endif %}>
       <label class="form-check-label" for="pm_other">Other</label>
     </div>
   </div>
@@ -184,15 +183,15 @@
   <div class="col-12">
     <label class="form-label d-block">Virtual Apps (multi-select)</label>
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="virtual_apps" id="va_av" value="App Volumes" {% if 'App Volumes' in (form.virtual_apps or []) %}checked{% endif %}>
+      <input class="form-check-input" type="checkbox" name="virtual_apps[]" id="va_av" value="App Volumes" {% if 'App Volumes' in (form.virtual_apps or []) %}checked{% endif %}>
       <label class="form-check-label" for="va_av">App Volumes</label>
     </div>
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="virtual_apps" id="va_mdt" value="MSIX/App Attach" {% if 'MSIX/App Attach' in (form.virtual_apps or []) %}checked{% endif %}>
+      <input class="form-check-input" type="checkbox" name="virtual_apps[]" id="va_mdt" value="MSIX/App Attach" {% if 'MSIX/App Attach' in (form.virtual_apps or []) %}checked{% endif %}>
       <label class="form-check-label" for="va_mdt">MSIX / App Attach</label>
     </div>
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="virtual_apps" id="va_pack" value="Packaging" {% if 'Packaging' in (form.virtual_apps or []) %}checked{% endif %}>
+      <input class="form-check-input" type="checkbox" name="virtual_apps[]" id="va_pack" value="Packaging" {% if 'Packaging' in (form.virtual_apps or []) %}checked{% endif %}>
       <label class="form-check-label" for="va_pack">Traditional Packaging</label>
     </div>
   </div>
@@ -208,7 +207,7 @@
   </div>
 
   <!-- =========================
-       Access & Identity (checkbox for yes/no)
+       Access & Identity
   ========================== -->
   <div class="col-12">
     <h5 class="mt-4">Access & Identity</h5>
@@ -270,7 +269,7 @@
   </div>
 
   <!-- =========================
-       Directory & Core (checkbox for yes/no)
+       Directory & Core
   ========================== -->
   <div class="col-12">
     <h5 class="mt-4">Directory & Core</h5>
@@ -417,7 +416,7 @@
   </div>
 
   <!-- =========================
-       Regional Mix (checkbox + %)
+       Regional Mix
   ========================== -->
   <div class="col-12">
     <h5 class="mt-4">Regional Mix (must total 100% if any are selected)</h5>
@@ -451,7 +450,7 @@
   {% endfor %}
 
   <!-- =========================
-       Ops & Delivery (checkbox for yes/no)
+       Operations & Delivery
   ========================== -->
   <div class="col-12">
     <h5 class="mt-4">Operations & Delivery</h5>
@@ -485,19 +484,20 @@
   <div class="col-12">
     <label class="form-label d-block">Training Required (multi-select)</label>
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="training_required" id="train_admins" value="Admins" {% if 'Admins' in (form.training_required or []) %}checked{% endif %}>
+      <input class="form-check-input" type="checkbox" name="training_required[]" id="train_admins" value="Admins" {% if 'Admins' in (form.training_required or []) %}checked{% endif %}>
       <label class="form-check-label" for="train_admins">Admins</label>
     </div>
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="training_required" id="train_operators" value="Operators" {% if 'Operators' in (form.training_required or []) %}checked{% endif %}>
+      <input class="form-check-input" type="checkbox" name="training_required[]" id="train_operators" value="Operators" {% if 'Operators' in (form.training_required or []) %}checked{% endif %}>
       <label class="form-check-label" for="train_operators">Operators</label>
     </div>
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="training_required" id="train_endusers" value="End Users" {% if 'End Users' in (form.training_required or []) %}checked{% endif %}>
+      <input class="form-check-input" type="checkbox" name="training_required[]" id="train_endusers" value="End Users" {% if 'End Users' in (form.training_required or []) %}checked{% endif %}>
       <label class="form-check-label" for="train_endusers">End Users</label>
     </div>
   </div>
 
+  <!-- Keep checkbox = Yes to match current app.py boolean parsing -->
   <div class="col-md-3 d-flex align-items-end">
     <div class="form-check">
       <input class="form-check-input" type="checkbox" id="runbook_required" name="runbook_required" {% if form.runbook_required %}checked{% endif %}>
@@ -534,20 +534,34 @@
     <input name="timeline" class="form-control" placeholder="Pilot in Q1, rollout Q2–Q3..." value="{{ form.timeline or '' }}">
   </div>
 
+  <!-- =========================
+       Documents Requested
+  ========================== -->
   <div class="col-12">
     <label class="form-label d-block">Documents Requested (multi-select)</label>
-    <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="docs_requested" id="doc_exec" value="Executive Summary" {% if 'Executive Summary' in (form.docs_requested or []) %}checked{% endif %}>
-      <label class="form-check-label" for="doc_exec">Executive Summary</label>
-    </div>
-    <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="docs_requested" id="doc_rom" value="ROM" {% if 'ROM' in (form.docs_requested or []) %}checked{% endif %}>
-      <label class="form-check-label" for="doc_rom">ROM</label>
-    </div>
-    <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="docs_requested" id="doc_plan" value="Project Plan" {% if 'Project Plan' in (form.docs_requested or []) %}checked{% endif %}>
-      <label class="form-check-label" for="doc_plan">Project Plan</label>
-    </div>
+
+    <!-- Expanded set -->
+    {% set DOCS = [
+      'Discovery Summary',
+      'Executive Summary',
+      'Architecture Overview',
+      'Implementation Plan',
+      'Test Plan',
+      'Operations Guide',
+      'Runbook',
+      'ROM Estimate',
+      'SOW Outline',
+      'Pre-Deployment Checklist',
+      'Project Plan'
+    ] %}
+
+    {% for label in DOCS %}
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" name="docs_requested[]" id="doc_{{ loop.index }}" value="{{ label }}"
+               {% if label in (form.docs_requested or []) %}checked{% endif %}>
+        <label class="form-check-label" for="doc_{{ loop.index }}">{{ label }}</label>
+      </div>
+    {% endfor %}
   </div>
 
   <div class="col-12">
@@ -558,7 +572,7 @@
   <!-- =========================
        Submit / Cancel
   ========================== -->
- <div class="col-12">
+  <div class="col-12">
     <div class="d-flex gap-2">
       <button class="btn btn-primary" type="submit">{{ form.entry_id and 'Update' or 'Submit' }}</button>
       <a class="btn btn-outline-secondary" href="{{ url_for('index') }}">Cancel</a>
