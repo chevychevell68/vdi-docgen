@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [v1.1.4] – Safe Yes/No Conversion
+### Fixed
+- Reworked Yes/No conversion to **not replace** containers; inserts checkbox before original controls and hides/disables the radios/select instead.
+- Prevents section content from disappearing.
+
+### Maintained
+- Required-field asterisks and placeholder logic unchanged.
+
+---
+
 ## [v1.1.3] – Convert Yes/No Questions to Checkboxes
 ### Added
 - Automatically converts Yes/No **radio** or **select** groups into a single checkbox with hidden `"Yes"` value.

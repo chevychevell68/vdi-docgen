@@ -8,7 +8,8 @@
     <style>
       .req-asterisk { color: #dc3545; margin-left: 2px; }
       .placeholder-helper { opacity: 0.95; }
-      .yesno-check { margin-right: 6px; transform: scale(1.2); vertical-align: middle; }
+      .yesno-check { margin-right: 6px; transform: scale(1.1); vertical-align: middle; }
+      .yn-hidden { display:none !important; }
     </style>
   </head>
 
@@ -48,7 +49,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Add asterisks to all required fields' labels -->
+    <!-- Required-field asterisks -->
     <script>
       (function () {
         function markRequired(root) {
@@ -78,34 +79,34 @@
       })();
     </script>
 
-    <!-- Inject smart placeholders for presales form fields (non-intrusive) -->
+    <!-- Smart placeholders -->
     <script>
       (function () {
-        const NUM_HINT='e.g., 250', GB_HINT='e.g., 512', URL_HINT='https://your-instance.example.com/...', DATE_HINT='e.g., 2025-10-20', PCT_HINT='e.g., 20', FACTOR_HINT='e.g., 1.10';
-        function setIfEmpty(el, t){ if(!el||el.hasAttribute('placeholder'))return; el.setAttribute('placeholder',t); el.classList.add('placeholder-helper'); }
-        function ensureSelectPrompt(sel){ if(!sel||sel.dataset.selectDecorated)return;const f=sel.options[0];const looks=f&&(f.disabled||/select/i.test(f.text)||f.value==='');if(!looks){const o=document.createElement('option');o.textContent='Select...';o.value='';o.disabled=true;o.selected=!sel.value;sel.insertBefore(o,sel.firstChild);}sel.dataset.selectDecorated='1';}
-        function applySmart(el){
+        const NUM='e.g., 250', GB='e.g., 512', URL='https://your-instance.example.com/...', DATE='e.g., 2025-10-20', PCT='e.g., 20', FACTOR='e.g., 1.10';
+        function setIfEmpty(el,t){ if(!el||el.hasAttribute('placeholder'))return; el.setAttribute('placeholder',t); el.classList.add('placeholder-helper'); }
+        function selectPrompt(sel){ if(!sel||sel.dataset.selectDecorated)return; const f=sel.options[0]; const looks=f&&(f.disabled||/select/i.test(f.text)||f.value===''); if(!looks){const o=document.createElement('option'); o.textContent='Select...'; o.value=''; o.disabled=true; o.selected=!sel.value; sel.insertBefore(o,sel.firstChild);} sel.dataset.selectDecorated='1'; }
+        function apply(el){
           const key=((el.name||'')+' '+(el.id||'')).toLowerCase();
           if(['radio','checkbox','button','submit'].includes(el.type))return;
-          if(key.includes('url')||key.includes('salesforce')){setIfEmpty(el,URL_HINT);return;}
+          if(key.includes('url')||key.includes('salesforce')){setIfEmpty(el,URL);return;}
           if(key.includes('company')){setIfEmpty(el,'e.g., Centene Corporation');return;}
           if(key.includes('customer')){setIfEmpty(el,'e.g., Jane Smith');return;}
           if(key.includes('contact')){setIfEmpty(el,'e.g., john.doe@company.com');return;}
-          if(key.includes('concurrent')||key.includes('total_users')){setIfEmpty(el,NUM_HINT);return;}
+          if(key.includes('concurrent')||key.includes('total_users')){setIfEmpty(el,NUM);return;}
           if(key.includes('num_images')){setIfEmpty(el,'e.g., 3');return;}
           if(key.includes('host_cpu_cores')){setIfEmpty(el,'e.g., 64');return;}
-          if(key.includes('host_ram_gb')){setIfEmpty(el,GB_HINT);return;}
+          if(key.includes('host_ram_gb')){setIfEmpty(el,GB);return;}
           if(key.includes('vm_vcpu')){setIfEmpty(el,'e.g., 2');return;}
           if(key.includes('vm_ram_gb')){setIfEmpty(el,'e.g., 8');return;}
           if(key.includes('vcpu_to_pcpu')){setIfEmpty(el,'e.g., 4');return;}
           if(key.includes('base_image_gb')){setIfEmpty(el,'e.g., 40');return;}
           if(key.includes('delta_gb')){setIfEmpty(el,'e.g., 6');return;}
           if(key.includes('per_vm_overhead_gb')){setIfEmpty(el,'e.g., 1');return;}
-          if(key.includes('growth_factor')){setIfEmpty(el,FACTOR_HINT);return;}
+          if(key.includes('growth_factor')){setIfEmpty(el,FACTOR);return;}
           if(key.includes('vsan_policy_factor')){setIfEmpty(el,'e.g., 2.0');return;}
           if(key.includes('gpu_sessions_cap')){setIfEmpty(el,'e.g., 16');return;}
-          if(key.match(/region_pct_|_pct\b|percent/)){setIfEmpty(el,PCT_HINT);return;}
-          if(key.includes('start_date')){setIfEmpty(el,DATE_HINT);return;}
+          if(key.match(/region_pct_|_pct\b|percent/)){setIfEmpty(el,PCT);return;}
+          if(key.includes('start_date')){setIfEmpty(el,DATE);return;}
           if(key.includes('timeline')){setIfEmpty(el,'e.g., Pilot by Nov 15; Prod by Dec 5');return;}
           if(key.includes('platform')){setIfEmpty(el,'e.g., vSphere 8.0.3');return;}
           if(key.includes('storage_type')){setIfEmpty(el,'e.g., vSAN');return;}
@@ -114,124 +115,142 @@
           if(key.includes('endpoint_types')){setIfEmpty(el,'e.g., Windows, macOS, IGEL');return;}
           if(key.includes('main_use_cases')){setIfEmpty(el,'e.g., Task workers, call center');return;}
           if(key.includes('secondary_use_case')){setIfEmpty(el,'e.g., Power users need 16GB RAM');return;}
-          if(/_gb\b/.test(key)){setIfEmpty(el,GB_HINT);return;}
-          if(/\bcount|\bnum|\bcores|\bsessions|\busers/.test(key)){setIfEmpty(el,NUM_HINT);return;}
-          if(el.type==='url'){setIfEmpty(el,URL_HINT);return;}
+          if(/_gb\b/.test(key)){setIfEmpty(el,GB);return;}
+          if(/\bcount|\bnum|\bcores|\bsessions|\busers/.test(key)){setIfEmpty(el,NUM);return;}
+          if(el.type==='url'){setIfEmpty(el,URL);return;}
         }
-        function decorate(root){root.querySelectorAll('input,textarea,select').forEach(el=>{if(el.tagName.toLowerCase()==='select')ensureSelectPrompt(el);else applySmart(el);});}
-        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>decorate(document));else decorate(document);
+        function run(root){ root.querySelectorAll('input,textarea,select').forEach(el=>{ if(el.tagName.toLowerCase()==='select') selectPrompt(el); else apply(el); }); }
+        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>run(document)); else run(document);
       })();
     </script>
 
-    <!-- Convert Yes/No radio/select groups into a single checkbox with hidden 'Yes' -->
+    <!-- SAFE Yes/No conversion: insert checkbox; disable+hide original radios/select -->
     <script>
       (function () {
-        function convertYesNo(root) {
-          const processed = new Set();
+        function nearestQuestionLabel(el) {
+          // Prefer a label with .form-label in ancestors; else a previous sibling label
+          let p = el.closest('.mb-3, .form-group, fieldset, .row, div');
+          if (p) {
+            let lab = p.querySelector('label.form-label');
+            if (lab) return lab;
+          }
+          let prev = el.previousElementSibling;
+          while (prev) {
+            if (prev.tagName && prev.tagName.toLowerCase() === 'label') return prev;
+            prev = prev.previousElementSibling;
+          }
+          return null;
+        }
 
-          // --- Radios: find groups with exactly Yes/No
+        function makeCheckboxUI(name, qText, requiredStar) {
+          const wrap = document.createElement('div');
+          wrap.className = 'form-check mb-2';
+
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'form-check-input yesno-check';
+          cb.id = name + '_cb';
+
+          const hid = document.createElement('input');
+          hid.type = 'hidden';
+          hid.name = name;
+          hid.value = '';
+
+          cb.addEventListener('change', () => { hid.value = cb.checked ? 'Yes' : ''; });
+
+          const lab = document.createElement('label');
+          lab.className = 'form-check-label';
+          lab.htmlFor = cb.id;
+          lab.textContent = qText || (name.replace(/[_\-]/g,' ') + '?');
+          if (requiredStar) lab.appendChild(requiredStar.cloneNode(true));
+
+          wrap.append(cb, lab, hid);
+          return { wrap, cb, hid };
+        }
+
+        function convertRadioGroups(root) {
           const radios = Array.from(root.querySelectorAll('input[type="radio"][name]'));
-          const byName = {};
-          radios.forEach(r => { (byName[r.name] = byName[r.name] || []).push(r); });
+          const groups = {};
+          radios.forEach(r => (groups[r.name] = groups[r.name] || []).push(r));
 
-          Object.entries(byName).forEach(([name, inputs]) => {
-            if (processed.has(name)) return;
-            if (inputs.length < 2) return;
+          Object.entries(groups).forEach(([name, list]) => {
+            if (list.length < 2) return;
 
+            // Determine if this is a Yes/No group
             let hasYes = false, hasNo = false;
-            inputs.forEach(r => {
+            list.forEach(r => {
               const val = (r.value || '').trim().toLowerCase();
-              if (val === 'yes') hasYes = true;
-              if (val === 'no') hasNo = true;
               const lab = r.id ? root.querySelector('label[for="' + r.id + '"]') : null;
               const txt = lab ? lab.textContent.trim().toLowerCase() : '';
-              if (txt === 'yes') hasYes = true;
-              if (txt === 'no') hasNo = true;
+              if (val === 'yes' || txt === 'yes') hasYes = true;
+              if (val === 'no'  || txt === 'no')  hasNo = true;
             });
             if (!(hasYes && hasNo)) return;
 
-            // Locate question label (not the inline yes/no labels)
-            const container = inputs[0].closest('.mb-3, .form-group, fieldset, .row') || inputs[0].parentElement;
-            const qLabel = container.querySelector('label.form-label') || container.querySelector('label:not([for])');
-            const qText  = qLabel ? qLabel.textContent.trim() : (name.replace(/[_\-]/g,' ') + '?');
-
-            // Build checkbox + hidden
-            const wrapper = document.createElement('div');
-            wrapper.className = 'form-check mb-3';
-
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.className = 'form-check-input yesno-check';
-            cb.id = name + '_cb';
-
-            const hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = name;
-            hidden.value = '';
-
-            const yesSelected = inputs.some(r => r.checked && ((r.value||'').toLowerCase() === 'yes'));
-            cb.checked = yesSelected;
-            hidden.value = yesSelected ? 'Yes' : '';
-
-            cb.addEventListener('change', () => { hidden.value = cb.checked ? 'Yes' : ''; });
-
-            const newLabel = document.createElement('label');
-            newLabel.className = 'form-check-label';
-            newLabel.htmlFor = cb.id;
-            newLabel.textContent = qText;
-            // carry forward asterisk if present
+            // Build UI and insert BEFORE the first radio group's container
+            const first = list[0];
+            const qLabel = nearestQuestionLabel(first);
             const star = qLabel && qLabel.querySelector('.req-asterisk');
-            if (star) newLabel.appendChild(star.cloneNode(true));
+            const qText = qLabel ? qLabel.textContent.trim() : '';
 
-            wrapper.append(cb, newLabel, hidden);
-            container.replaceWith(wrapper);
-            processed.add(name);
+            const { wrap, cb, hid } = makeCheckboxUI(name, qText, star);
+
+            // Insert just before the first radio element (or its small container)
+            const insertionPoint = first.closest('.form-check, .mb-2, .mb-3, .form-group') || first;
+            insertionPoint.parentElement.insertBefore(wrap, insertionPoint);
+
+            // Initialize from current selection
+            const yesSelected = list.some(r => r.checked && (((r.value||'').toLowerCase() === 'yes')));
+            cb.checked = yesSelected;
+            hid.value = yesSelected ? 'Yes' : '';
+
+            // Hide + disable original radios without removing layout blocks
+            const groupAncestor = insertionPoint.closest('.mb-3, .form-group, fieldset, .row') || insertionPoint;
+            // Only hide the specific radio rows
+            list.forEach(r => {
+              r.disabled = true;
+              const rc = r.closest('.form-check, .form-check-inline') || r;
+              rc.classList.add('yn-hidden');
+            });
           });
+        }
 
-          // --- Selects: options Yes/No
+        function convertSelectYesNo(root) {
           const selects = Array.from(root.querySelectorAll('select[name], select[id]'));
           selects.forEach(sel => {
             if (sel.dataset.ynConverted) return;
-            const opts = Array.from(sel.options).map(o => (o.textContent || '').trim().toLowerCase());
-            if (!(opts.includes('yes') && opts.includes('no'))) return;
+            const values = Array.from(sel.options).map(o => (o.textContent || '').trim().toLowerCase());
+            if (!(values.includes('yes') && values.includes('no'))) return;
 
-            const container = sel.closest('.mb-3, .form-group, fieldset, .row') || sel.parentElement;
-            const qLabel = container.querySelector('label.form-label') || container.querySelector('label:not([for])');
-            const qText  = qLabel ? qLabel.textContent.trim() : ((sel.name || sel.id || 'option') + '?');
+            const name = sel.name || sel.id;
+            const qLabel = nearestQuestionLabel(sel);
+            const star = qLabel && qLabel.querySelector('.req-asterisk');
+            const qText = qLabel ? qLabel.textContent.trim() : '';
 
-            const wrapper = document.createElement('div');
-            wrapper.className = 'form-check mb-3';
+            const { wrap, cb, hid } = makeCheckboxUI(name, qText, star);
 
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.className = 'form-check-input yesno-check';
-            cb.id = (sel.name || sel.id) + '_cb';
-
-            const hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = sel.name || sel.id;
-            hidden.value = '';
+            // Insert before the select element
+            sel.parentElement.insertBefore(wrap, sel);
 
             const isYes = ((sel.value || '').trim().toLowerCase() === 'yes');
             cb.checked = isYes;
-            hidden.value = isYes ? 'Yes' : '';
-            cb.addEventListener('change', () => { hidden.value = cb.checked ? 'Yes' : ''; });
+            hid.value = isYes ? 'Yes' : '';
 
-            const newLabel = document.createElement('label');
-            newLabel.className = 'form-check-label';
-            newLabel.htmlFor = cb.id;
-            newLabel.textContent = qText;
-            const star = qLabel && qLabel.querySelector('.req-asterisk');
-            if (star) newLabel.appendChild(star.cloneNode(true));
+            // Hide + disable original select
+            sel.disabled = true;
+            sel.classList.add('yn-hidden');
 
-            wrapper.append(cb, newLabel, hidden);
-            container.replaceWith(wrapper);
             sel.dataset.ynConverted = '1';
           });
         }
 
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => convertYesNo(document));
-        else convertYesNo(document);
+        function run(root) {
+          convertRadioGroups(root);
+          convertSelectYesNo(root);
+        }
+
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => run(document));
+        else run(document);
       })();
     </script>
   </body>
