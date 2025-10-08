@@ -6,7 +6,7 @@ import base64
 import zipfile
 import datetime as dt
 from pathlib import Path
-from flask import Flask, request, render_template, redirect, url_for, flash, send_file, current_app  # + current_app
+from flask import Flask, request, render_template, redirect, url_for, flash, send_file, current_app
 
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -20,7 +20,6 @@ def inject_helpers():
     """
     Provides `has_endpoint(name)` in templates, so you can do:
         {% if has_endpoint('history') %} ... {% endif %}
-    This avoids referencing `current_app` directly in Jinja.
     """
     def has_endpoint(name: str) -> bool:
         try:
@@ -28,6 +27,11 @@ def inject_helpers():
         except Exception:
             return False
     return dict(has_endpoint=has_endpoint)
+
+# Also inject current_app so legacy templates referencing it won't crash
+@app.context_processor
+def inject_current_app():
+    return dict(current_app=current_app)
 
 # --------- GitHub settings (set these in Render env) ----------
 GITHUB_TOKEN  = os.getenv("GITHUB_TOKEN", "").strip()
