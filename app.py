@@ -25,13 +25,11 @@ from flask import (
 
 import requests
 
-# Word support (ensure python-docx in requirements)
+# Optional Word support (pip install python-docx)
 try:
     from docx import Document  # type: ignore
 except Exception:
     Document = None
-
-APP_VERSION = "2025-10-08-docx-only-v2"
 
 # --------------------------------------------------------------------------------------
 # App setup
@@ -45,6 +43,11 @@ GITHUB_REPO = os.getenv("GITHUB_REPO", "")  # "owner/repo"
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 GITHUB_PATH = os.getenv("GITHUB_PATH", "data/entries.jsonl")  # path within the repo (no leading slash)
 GITHUB_API_ROOT = os.getenv("GITHUB_API_ROOT", "https://api.github.com")
+
+if not (GITHUB_TOKEN and GITHUB_REPO):
+    app.logger.warning(
+        "GitHub persistence not fully configured. Set GITHUB_TOKEN and GITHUB_REPO."
+    )
 
 # Small cache to reduce API calls
 _gh_cache: Dict[str, Any] = {"sha": None, "content_text": None, "fetched_ts": 0.0}
@@ -150,8 +153,13 @@ def gh_write_entries_file(new_text: str, sha: Optional[str]) -> bool:
 
 def gh_save_entries_list(entries: List[Dict[str, Any]]) -> bool:
     """Overwrite the JSONL file with the provided list (used for edits)."""
-    _text, sha = gh_read_entries_file()
-    new_text = "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in entries)
+    content_text, sha = gh_read_entries_file()
+    if content_text is None:
+        # treat as create
+        sha = None
+    new_text = ""
+    for e in entries:
+        new_text += json.dumps(e, ensure_ascii=False) + "\n"
     return gh_write_entries_file(new_text, sha)
 
 
@@ -214,15 +222,20 @@ def get_entry(entry_id: str) -> Optional[Dict[str, Any]]:
 def replace_entry(entry_id: str, new_obj: Dict[str, Any]) -> bool:
     """Replace an existing entry (by entry_id) with new_obj."""
     entries = read_all_entries()
+    replaced = False
     for i, e in enumerate(entries):
         if e.get("entry_id") == entry_id:
+            # preserve original submitted_utc unless new_obj overrides
             if "submitted_utc" not in new_obj:
                 new_obj["submitted_utc"] = e.get("submitted_utc")
             new_obj["entry_id"] = entry_id
             new_obj["updated_utc"] = _now_utc_str()
             entries[i] = new_obj
-            return gh_save_entries_list(entries)
-    return False
+            replaced = True
+            break
+    if not replaced:
+        return False
+    return gh_save_entries_list(entries)
 
 
 # --------------------------------------------------------------------------------------
@@ -355,411 +368,14 @@ def presales():
         "customer_name": form.get("customer_name", ""),
         "sf_opportunity_name": form.get("sf_opportunity_name", ""),
         "sf_opportunity_url": form.get("sf_opportunity_url", ""),
-        "ir_number": form.get("ir_number", ""),
-        "voc": form.get("voc", ""),
-        "submitted_utc": _now_utc_str(),
-
-        # Existing VDI
-        "existing_vdi": form.get("existing_vdi", ""),
-        "existing_vdi_pain": form.get("existing_vdi_pain", ""),
-
-        # Users & Scope
-        "total_users": as_int("total_users"),
-        "concurrent_users": concurrent_users,
-        "num_datacenters": as_int("num_datacenters"),
-        "datacenters_detail": form.get("datacenters_detail", ""),
-        "deployment_type": form.get("deployment_type", ""),
-        "location_mix": location_mix,
-        "num_personas": as_int("num_personas"),
-        "main_use_cases": form.get("main_use_cases", ""),
-        "use_cases_list": [],
-    }
-
-    if data["main_use_cases"]:
-        data["use_cases_list"].append({"label": "Main", "text": data["main_use_cases"]})
-    n_personas = data["num_personas"] or 0
-    for i in range(2, n_personas + 1):
-        v = (form.get(f"secondary_use_case_{i}", "") or "").strip()
-        if v:
-            data["use_cases_list"].append({"label": f"Secondary {i}", "text": v})
-
-    # GPU
-    data.update(
-        {
-            "gpu_required": bool(form.get("gpu_required")),
-            "gpu_users": as_int("gpu_users"),
-            "gpu_vram_per_user": as_float("gpu_vram_per_user"),
-            "gpu_use_case": form.get("gpu_use_case", ""),
-        }
-    )
-
-    # Image & Apps
-    data.update(
-        {
-            "num_images": num_images,
-            "gold_image_source": form.get("gold_image_source", ""),
-            "profile_mgmt": profile_mgmt,
-            "virtual_apps": virtual_apps,
-            "required_apps": form.get("required_apps", ""),
-            "wwt_app_packaging": form.get("wwt_app_packaging", ""),
-        }
-    )
-
-    # Access & Identity
-    data.update(
-        {
-            "remote_access": bool(form.get("remote_access")),
-            "mfa_required": bool(form.get("mfa_required")),
-            "mfa_solution": form.get("mfa_solution", ""),
-            "smartcard": bool(form.get("smartcard")),
-            "idp_provider": form.get("idp_provider", ""),
-        }
-    )
-
-    # Endpoints
-    data.update(
-        {
-            "endpoint_provisioning": form.get("endpoint_provisioning", ""),
-            "endpoint_types": form.get("endpoint_types", ""),
-            "thin_client_mgmt": form.get("thin_client_mgmt", ""),
-        }
-    )
-
-    # Directory & Core
-    data.update(
-        {
-            "ad_exists": bool(form.get("ad_exists")),
-            "num_domains": as_int("num_domains"),
-            "vd_domain_name": form.get("vd_domain_name", ""),
-            "core_domain_name": form.get("core_domain_name", ""),
-        }
-    )
-
-    # Platform & Infra
-    data.update(
-        {
-            "platform": form.get("platform", ""),
-            "general_compute_cluster": form.get("general_compute_cluster", ""),
-            "host_cpu_cores": host_cpu_cores,
-            "host_ram_gb": host_ram_gb,
-            "hosts_count": as_int("hosts_count"),
-            "vm_vcpu": vm_vcpu,
-            "vm_ram_gb": vm_ram_gb,
-            "vcpu_to_pcpu": vcpu_to_pcpu,
-            "storage_type": storage_type,
-            "storage_vendor_model": form.get("storage_vendor_model", ""),
-            "storage_protocol": form.get("storage_protocol", ""),
-            "storage_usable_gb": as_int("storage_usable_gb"),
-            "base_image_gb": base_image_gb,
-            "vsan_policy_factor": vsan_policy_factor,
-            "delta_gb": delta_gb,
-            "per_vm_overhead_gb": per_vm_overhead_gb,
-            "growth_factor": growth_factor,
-            "mem_headroom_pct": mem_headroom_pct,
-            "esxi_overhead_gb": esxi_overhead_gb,
-            "gpu_sessions_cap": gpu_sessions_cap,
-            "vsan_total_gb": vsan_total_gb,
-            "per_host_density": per_host_density,
-            "load_balancer": form.get("load_balancer", ""),
-        }
-    )
-
-    # Ops & Delivery
-    data.update(
-        {
-            "ogs_staffing": form.get("ogs_staffing", ""),
-            "monitoring_stack": form.get("monitoring_stack", ""),
-            "local_printing": bool(form.get("local_printing")),
-            "usb_redirection": bool(form.get("usb_redirection")),
-            "training_required": training_required,
-            "onboarding_time_value": as_int("onboarding_time_value"),
-            "onboarding_time_unit": form.get("onboarding_time_unit", ""),
-            "kt_expectations": form.get("kt_expectations", ""),
-            "runbook_required": bool(form.get("runbook_required")),
-            "adoption_services": bool(form.get("adoption_services")),
-            "ha_dr": bool(form.get("ha_dr")),
-            "delivery_model": form.get("delivery_model", ""),
-            "start_date": form.get("start_date", ""),
-            "timeline": form.get("timeline", ""),
-            "docs_requested": docs_requested,
-            "stakeholders": form.get("stakeholders", ""),
-        }
-    )
-
-    # Create new or update existing
-    try:
-        if editing_entry_id:
-            ok = replace_entry(editing_entry_id, data)
-            if not ok:
-                raise RuntimeError("Entry not found or failed to update on GitHub.")
-            data["entry_id"] = editing_entry_id
-        else:
-            entry_id = append_entry(data)
-            data["entry_id"] = entry_id
-    except RuntimeError as e:
-        flash(str(e), "error")
-        # repopulate form with posted values
-        prefill = form.to_dict(flat=True)
-        prefill["profile_mgmt"] = profile_mgmt
-        prefill["virtual_apps"] = virtual_apps
-        prefill["docs_requested"] = docs_requested
-        prefill["training_required"] = training_required
-        for key, _label in REGIONS:
-            if form.get(f"region_ck_{key}"):
-                prefill[f"region_ck_{key}"] = True
-                prefill[f"region_pct_{key}"] = form.get(f"region_pct_{key}", "")
-        flash("Open /ghcheck if this keeps happening.", "warning")
-        return render_template("presales_form.html", form=prefill), 500
-
-    data["history_url"] = url_for("history")
-    data["entry_url"] = url_for("submitted", entry_id=data["entry_id"])
-    return render_template("presales_submitted.html", data=data)
-
-
-@app.route("/presales/edit/<entry_id>")
-def presales_edit(entry_id: str):
-    """Prefill the presales form to edit an existing submission."""
-    e = get_entry(entry_id)
-    if not e:
-        abort(404)
-    e = dict(e)
-    e["entry_id"] = entry_id
-    return render_template("presales_form.html", form=e, editing=True)
-
-
-@app.route("/submitted/<entry_id>")
-def submitted(entry_id: str):
-    e = get_entry(entry_id)
-    if not e:
-        abort(404)
-    e = dict(e)
-    e["entry_id"] = entry_id
-    e["history_url"] = url_for("history")
-    e["entry_url"] = url_for("submitted", entry_id=entry_id)
-    return render_template("presales_submitted.html", data=e)
-
-
-@app.route("/history")
-def history():
-    entries = read_all_entries()
-    return render_template(
-        "history.html",
-        entries=entries,
-        storage_dir=f"github:{GITHUB_REPO}",
-        entries_path=GITHUB_PATH,
-    )
-
-
-@app.route("/entry/<entry_id>/payload.json")
-def entry_payload(entry_id: str):
-    e = get_entry(entry_id)
-    if not e:
-        abort(404)
-    mem = io.BytesIO(json.dumps(e, indent=2).encode("utf-8"))
-    mem.seek(0)
-    fname = f"presales_payload_{entry_id}.json"
-    return send_file(mem, mimetype="application/json", as_attachment=True, download_name=fname)
-
-
-@app.route("/entry/<entry_id>/package")
-def entry_package(entry_id: str):
-    # Build a DOCX-only package from a stored entry
-    if Document is None:
-        flash("Word generation is not available on this deployment (python-docx not installed).", "error")
-        return redirect(url_for("submitted", entry_id=entry_id))
-    e = get_entry(entry_id)
-    if not e:
-        abort(404)
-    mem, dl_name = _build_doc_package(e)
-    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name=dl_name)
-
-
-@app.route("/presales/package", methods=["POST"])
-def presales_package():
-    """Build a DOCX-only ZIP from the submitted page via hidden JSON payload."""
-    if Document is None:
-        flash("Word generation is not available on this deployment (python-docx not installed).", "error")
-        return redirect(url_for("presales"))
-
-    payload = request.form.get("payload", "")
-    if not payload:
-        flash("Missing payload for package generation.", "error")
-        return redirect(url_for("presales"))
-    try:
-        data = json.loads(payload)
-    except Exception:
-        flash("Invalid payload for package generation.", "error")
-        return redirect(url_for("presales"))
-
-    mem, dl_name = _build_doc_package(data)
-    return send_file(mem, mimetype="application/zip", as_attachment=True, download_name=dl_name)
-
-
-@app.route("/predeploy")
-def predeploy():
-    return render_template("predeploy.html")
-
-
-# --------------------------------------------------------------------------------------
-# Helpers: package builder (DOCX only; no README or JSON)
-# --------------------------------------------------------------------------------------
-def _build_docx_bytes(title: str, company: str, opp: str, ir: str, opp_url: str, now_str: str) -> bytes:
-    if Document is None:
-        return b""
-    doc = Document()
-    doc.add_heading(title, level=1)
-    doc.add_paragraph(f"Company: {company}")
-    doc.add_paragraph(f"Opportunity: {opp}")
-    doc.add_paragraph(f"IR: {ir}")
-    doc.add_paragraph(f"Opportunity URL: {opp_url or '(n/a)'}")
-    doc.add_paragraph(f"Generated: {now_str}")
-    doc.add_paragraph("")
-    doc.add_paragraph("This is a generated scaffold based on the presales discovery submission.")
-    bio = io.BytesIO()
-    doc.save(bio)
-    bio.seek(0)
-    return bio.read()
-
-
-def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
-    """Create an in-memory ZIP with DOCX files only (no README, no JSON)."""
-    requested = data.get("docs_requested") or []
-    if isinstance(requested, str):
-        requested = [requested]
-
-    def safe_name(label: str) -> str:
-        base = (
-            (label or "").replace("/", "_")
-            .replace("\\", "_")
-            .replace(" ", "_")
-            .replace("(", "")
-            .replace(")", "")
-        )
-        return base.upper() or "DOCUMENT"
-
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    company = (data.get("company_name") or "Customer").strip() or "Customer"
-    opp = data.get("sf_opportunity_name", "")
-    ir = data.get("ir_number", "")
-    opp_url = data.get("sf_opportunity_url", "")
-
-    # If no labels were selected, create one default doc so the ZIP isn't empty
-    if not requested:
-        requested = ["Discovery Summary"]
-
-    mem = io.BytesIO()
-    with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # Write DOCX files only
-        wrote_any = False
-        for label in requested:
-            title = (label or "DOCUMENT").upper()
-            docx_bytes = _build_docx_bytes(title, company, opp, ir, opp_url, now)
-            if docx_bytes:
-                zf.writestr(f"docs/{safe_name(label)}.docx", docx_bytes)
-                wrote_any = True
-
-        # ROM convenience
-        if any((x or "").upper() in ("ROM", "ROM ESTIMATE") for x in requested):
-            docx_bytes = _build_docx_bytes("ROM ESTIMATE", company, opp, ir, opp_url, now)
-            if docx_bytes:
-                zf.writestr("docs/ROM_ESTIMATE.docx", docx_bytes)
-                wrote_any = True
-
-        # If no doc was written (shouldn't happen), write a tiny sentinel docx
-        if not wrote_any:
-            fallback = _build_docx_bytes("DISCOVERY SUMMARY", company, opp, ir, opp_url, now)
-            if fallback:
-                zf.writestr("docs/DISCOVERY_SUMMARY.docx", fallback)
-
-    mem.seek(0)
-    dl_name = f"WWT_Doc_Package_{company.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.zip"
-    return mem, dl_name
-
-
-# --------------------------------------------------------------------------------------
-# Diagnostics & test endpoints
-# --------------------------------------------------------------------------------------
-@app.route("/diag")
-def diag():
-    content_text, sha = gh_read_entries_file(force=True)
-    base = gh_check_repo_branch()
-    return {
-        "app_version": APP_VERSION,
-        "github_repo": GITHUB_REPO,
-        "github_branch": GITHUB_BRANCH,
-        "github_path": GITHUB_PATH,
-        "configured": bool(GITHUB_TOKEN and GITHUB_REPO),
-        "repo_ok": base.get("repo_ok"),
-        "branch_ok": base.get("branch_ok"),
-        "path_leading_slash": base.get("path_leading_slash"),
-        "exists_entries": content_text is not None,
-        "entries_len_bytes": len(content_text.encode("utf-8")) if isinstance(content_text, str) else None,
-        "sha": sha,
-        "preview_head": content_text[:500] if isinstance(content_text, str) else None,
-    }
-
-
-@app.route("/ghcheck")
-def ghcheck():
-    """Human-friendly checklist to fix GitHub write issues."""
-    info = gh_check_repo_branch()
-    hints = []
-    if not info.get("token_set"):
-        hints.append("Set GITHUB_TOKEN with Contents: Read/Write.")
-    if not info.get("repo_ok"):
-        hints.append("GITHUB_REPO must be 'owner/repo' and the token must have access.")
-    if not info.get("branch_ok"):
-        hints.append(f"GITHUB_BRANCH '{GITHUB_BRANCH}' must exist.")
-    if info.get("path_leading_slash"):
-        hints.append("GITHUB_PATH must not start with '/'. Use a repo-relative path like 'data/entries.jsonl'.")
-    return {
-        "repo": info.get("repo"),
-        "branch": info.get("branch"),
-        "path": info.get("path"),
-        "token_set": info.get("token_set"),
-        "repo_ok": info.get("repo_ok"),
-        "branch_ok": info.get("branch_ok"),
-        "path_leading_slash": info.get("path_leading_slash"),
-        "hints": hints or ["Looks good. Try submitting the form again."],
-    }
-
-
-@app.route("/docx_test")
-def docx_test():
-    """Quick smoke test: returns a single DOCX so we can confirm python-docx works."""
-    if Document is None:
-        return {"ok": False, "error": "python-docx not installed"}, 500
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    payload = {
-        "company": "TestCo",
-        "opportunity": "Smoke Test",
-        "ir": "N/A",
-        "url": "(n/a)",
-    }
-    b = _build_docx_bytes("DOCX SMOKE TEST", payload["company"], payload["opportunity"], payload["ir"], payload["url"], now)
-    bio = io.BytesIO(b)
-    bio.seek(0)
-    return send_file(bio, mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                     as_attachment=True, download_name="docx_smoke_test.docx")
-
-
-@app.route("/healthz")
-def healthz():
-    return {
-        "ok": True,
-        "ts": datetime.utcnow().isoformat(),
-        "app_version": APP_VERSION,
-        "package_mode": "docx_only",
-        "docx_available": Document is not None,
-        "storage": f"github:{GITHUB_REPO}:{GITHUB_PATH}",
-        "branch": GITHUB_BRANCH,
-        "configured": bool(GITHUB_TOKEN and GITHUB_REPO),
-    }
-
-
-# --------------------------------------------------------------------------------------
-# Main
-# --------------------------------------------------------------------------------------
-if __name__ == "__main__":
-    # For local runs only; Render will use gunicorn
-    app.run(host="0.0.0.0", port=5000, debug=True)
+        "ir_number": form.get("i_
+{% extends "base.html" %}
+{% block title %}Pre-Deployment Guide{% endblock %}
+{% block content %}
+  <h1>Pre-Deployment Guide</h1>
+  <p class="text-muted">Placeholder page. Add your checklist/template when ready.</p>
+  <div class="btn-group">
+    <a class="btn btn-outline-primary" href="{{ url_for('index') }}">Home</a>
+    <a class="btn btn-primary" href="{{ url_for('presales') }}">Go to Presales Form</a>
+  </div>
+{% endblock %}
