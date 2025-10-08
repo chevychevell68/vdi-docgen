@@ -8,12 +8,15 @@
     <style>
       .req-asterisk { color: #dc3545; margin-left: 2px; }
       .placeholder-helper { opacity: 0.95; }
+
+      /* Yes/No */
       .yesno-check { margin-right: 6px; transform: scale(1.1); vertical-align: middle; }
-      .yn-hidden { display:none !important; }
+      .yn-visually-hidden { display: none !important; } /* keep enabled for events/submission */
     </style>
   </head>
 
   <body class="bg-light" style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
+    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
       <div class="container-fluid">
         <a class="navbar-brand" href="{{ url_for('index') }}">WWT Markdown</a>
@@ -124,14 +127,19 @@
       })();
     </script>
 
-    <!-- SAFE Yes/No conversion: insert checkbox; disable+hide original radios/select -->
+    <!-- Yes/No conversion that preserves original inputs for events/submission -->
     <script>
       (function () {
+        function dispatchChange(el) {
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
         function nearestQuestionLabel(el) {
-          // Prefer a label with .form-label in ancestors; else a previous sibling label
-          let p = el.closest('.mb-3, .form-group, fieldset, .row, div');
-          if (p) {
-            let lab = p.querySelector('label.form-label');
+          // Prefer a .form-label in the group; else previous sibling label
+          const group = el.closest('.mb-3, .form-group, fieldset, .row, div');
+          if (group) {
+            const lab = group.querySelector('label.form-label');
             if (lab) return lab;
           }
           let prev = el.previousElementSibling;
@@ -142,32 +150,6 @@
           return null;
         }
 
-        function makeCheckboxUI(name, qText, requiredStar) {
-          const wrap = document.createElement('div');
-          wrap.className = 'form-check mb-2';
-
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.className = 'form-check-input yesno-check';
-          cb.id = name + '_cb';
-
-          const hid = document.createElement('input');
-          hid.type = 'hidden';
-          hid.name = name;
-          hid.value = '';
-
-          cb.addEventListener('change', () => { hid.value = cb.checked ? 'Yes' : ''; });
-
-          const lab = document.createElement('label');
-          lab.className = 'form-check-label';
-          lab.htmlFor = cb.id;
-          lab.textContent = qText || (name.replace(/[_\-]/g,' ') + '?');
-          if (requiredStar) lab.appendChild(requiredStar.cloneNode(true));
-
-          wrap.append(cb, lab, hid);
-          return { wrap, cb, hid };
-        }
-
         function convertRadioGroups(root) {
           const radios = Array.from(root.querySelectorAll('input[type="radio"][name]'));
           const groups = {};
@@ -176,41 +158,67 @@
           Object.entries(groups).forEach(([name, list]) => {
             if (list.length < 2) return;
 
-            // Determine if this is a Yes/No group
-            let hasYes = false, hasNo = false;
+            let yesRadio = null, noRadio = null;
             list.forEach(r => {
               const val = (r.value || '').trim().toLowerCase();
               const lab = r.id ? root.querySelector('label[for="' + r.id + '"]') : null;
               const txt = lab ? lab.textContent.trim().toLowerCase() : '';
-              if (val === 'yes' || txt === 'yes') hasYes = true;
-              if (val === 'no'  || txt === 'no')  hasNo = true;
+              if (val === 'yes' || txt === 'yes') yesRadio = r;
+              if (val === 'no'  || txt === 'no')  noRadio  = r;
             });
-            if (!(hasYes && hasNo)) return;
+            if (!(yesRadio && noRadio)) return; // not a yes/no pair
 
-            // Build UI and insert BEFORE the first radio group's container
+            const qLabel = nearestQuestionLabel(list[0]);
+            const qText = qLabel ? qLabel.textContent.trim() : (name.replace(/[_\-]/g, ' ') + '?');
+            const star  = qLabel && qLabel.querySelector('.req-asterisk');
+
+            // Build checkbox UI
+            const wrapper = document.createElement('div');
+            wrapper.className = 'form-check mb-2';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'form-check-input yesno-check';
+            cb.id = name + '_cb';
+            const lab = document.createElement('label');
+            lab.className = 'form-check-label';
+            lab.htmlFor = cb.id;
+            lab.textContent = qText;
+            if (star) lab.appendChild(star.cloneNode(true));
+            wrapper.append(cb, lab);
+
+            // Insert before the first radio
             const first = list[0];
-            const qLabel = nearestQuestionLabel(first);
-            const star = qLabel && qLabel.querySelector('.req-asterisk');
-            const qText = qLabel ? qLabel.textContent.trim() : '';
-
-            const { wrap, cb, hid } = makeCheckboxUI(name, qText, star);
-
-            // Insert just before the first radio element (or its small container)
             const insertionPoint = first.closest('.form-check, .mb-2, .mb-3, .form-group') || first;
-            insertionPoint.parentElement.insertBefore(wrap, insertionPoint);
+            insertionPoint.parentElement.insertBefore(wrapper, insertionPoint);
 
-            // Initialize from current selection
-            const yesSelected = list.some(r => r.checked && (((r.value||'').toLowerCase() === 'yes')));
-            cb.checked = yesSelected;
-            hid.value = yesSelected ? 'Yes' : '';
-
-            // Hide + disable original radios without removing layout blocks
-            const groupAncestor = insertionPoint.closest('.mb-3, .form-group, fieldset, .row') || insertionPoint;
-            // Only hide the specific radio rows
+            // Hide (but DO NOT disable) original label and radio rows
+            if (qLabel) qLabel.classList.add('yn-visually-hidden');
             list.forEach(r => {
-              r.disabled = true;
               const rc = r.closest('.form-check, .form-check-inline') || r;
-              rc.classList.add('yn-hidden');
+              rc.classList.add('yn-visually-hidden');
+            });
+
+            // Initial state from existing selection
+            cb.checked = !!yesRadio.checked;
+
+            // Sync checkbox -> radios
+            cb.addEventListener('change', () => {
+              if (cb.checked) {
+                yesRadio.checked = true;
+                if (noRadio) noRadio.checked = false;
+              } else {
+                if (noRadio) noRadio.checked = true; // or clear both if you'd rather
+                yesRadio.checked = false;
+              }
+              dispatchChange(yesRadio);
+              if (noRadio) dispatchChange(noRadio);
+            });
+
+            // Sync radios -> checkbox (if something else toggles them)
+            list.forEach(r => {
+              r.addEventListener('change', () => {
+                cb.checked = !!yesRadio.checked;
+              });
             });
           });
         }
@@ -219,26 +227,45 @@
           const selects = Array.from(root.querySelectorAll('select[name], select[id]'));
           selects.forEach(sel => {
             if (sel.dataset.ynConverted) return;
-            const values = Array.from(sel.options).map(o => (o.textContent || '').trim().toLowerCase());
-            if (!(values.includes('yes') && values.includes('no'))) return;
+            const texts = Array.from(sel.options).map(o => (o.textContent || '').trim().toLowerCase());
+            if (!(texts.includes('yes') && texts.includes('no'))) return;
 
-            const name = sel.name || sel.id;
+            const name  = sel.name || sel.id;
             const qLabel = nearestQuestionLabel(sel);
-            const star = qLabel && qLabel.querySelector('.req-asterisk');
-            const qText = qLabel ? qLabel.textContent.trim() : '';
+            const qText  = qLabel ? qLabel.textContent.trim() : (name.replace(/[_\-]/g, ' ') + '?');
+            const star   = qLabel && qLabel.querySelector('.req-asterisk');
 
-            const { wrap, cb, hid } = makeCheckboxUI(name, qText, star);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'form-check mb-2';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'form-check-input yesno-check';
+            cb.id = name + '_cb';
+            const lab = document.createElement('label');
+            lab.className = 'form-check-label';
+            lab.htmlFor = cb.id;
+            lab.textContent = qText;
+            if (star) lab.appendChild(star.cloneNode(true));
+            wrapper.append(cb, lab);
 
-            // Insert before the select element
-            sel.parentElement.insertBefore(wrap, sel);
+            // Insert before the select; hide original label & select (but keep enabled)
+            sel.parentElement.insertBefore(wrapper, sel);
+            if (qLabel) qLabel.classList.add('yn-visually-hidden');
+            sel.classList.add('yn-visually-hidden');
 
-            const isYes = ((sel.value || '').trim().toLowerCase() === 'yes');
-            cb.checked = isYes;
-            hid.value = isYes ? 'Yes' : '';
+            // Initial state from select
+            cb.checked = ((sel.value || '').trim().toLowerCase() === 'yes');
 
-            // Hide + disable original select
-            sel.disabled = true;
-            sel.classList.add('yn-hidden');
+            // Sync checkbox -> select
+            cb.addEventListener('change', () => {
+              sel.value = cb.checked ? 'Yes' : 'No';
+              dispatchChange(sel);
+            });
+
+            // Sync select -> checkbox
+            sel.addEventListener('change', () => {
+              cb.checked = ((sel.value || '').trim().toLowerCase() === 'yes');
+            });
 
             sel.dataset.ynConverted = '1';
           });
@@ -249,8 +276,11 @@
           convertSelectYesNo(root);
         }
 
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => run(document));
-        else run(document);
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', () => run(document));
+        } else {
+          run(document);
+        }
       })();
     </script>
   </body>

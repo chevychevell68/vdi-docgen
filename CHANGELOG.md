@@ -14,6 +14,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [v1.1.5] – Fix Yes/No Conversion (no regressions)
+### Fixed
+- Keeps original radios/selects **enabled and hidden** so existing conditional UI (e.g., GPU section) continues to work.
+- Moves the original question label onto the new checkbox and hides the old label to prevent duplicate text.
+- Synchronizes state both ways and dispatches `change` events to trigger existing logic.
+
+### Maintained
+- Required-field asterisks and smart placeholders unchanged.
+
+---
+
 ## [v1.1.3] – Convert Yes/No Questions to Checkboxes
 ### Added
 - Automatically converts Yes/No **radio** or **select** groups into a single checkbox with hidden `"Yes"` value.
