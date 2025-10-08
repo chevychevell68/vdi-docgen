@@ -48,7 +48,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Asterisk logic -->
+    <!-- Add asterisks to all required fields' labels -->
     <script>
       (function () {
         function markRequired(root) {
@@ -78,7 +78,7 @@
       })();
     </script>
 
-    <!-- Placeholder logic -->
+    <!-- Inject smart placeholders for presales form fields (non-intrusive) -->
     <script>
       (function () {
         const NUM_HINT='e.g., 250', GB_HINT='e.g., 512', URL_HINT='https://your-instance.example.com/...', DATE_HINT='e.g., 2025-10-20', PCT_HINT='e.g., 20', FACTOR_HINT='e.g., 1.10';
@@ -123,55 +123,115 @@
       })();
     </script>
 
-    <!-- Yes/No conversion logic -->
+    <!-- Convert Yes/No radio/select groups into a single checkbox with hidden 'Yes' -->
     <script>
       (function () {
         function convertYesNo(root) {
-          const yesNoLabels = Array.from(root.querySelectorAll('label')).filter(l => {
-            const t = l.textContent.trim().toLowerCase();
-            return t.endsWith('?') && (t.includes('yes/no') || t.includes('yes or no'));
-          });
+          const processed = new Set();
 
-          yesNoLabels.forEach(label => {
-            const inputId = label.getAttribute('for');
-            const origInput = inputId ? root.querySelector('#' + inputId) : null;
-            if (!origInput) return;
+          // --- Radios: find groups with exactly Yes/No
+          const radios = Array.from(root.querySelectorAll('input[type="radio"][name]'));
+          const byName = {};
+          radios.forEach(r => { (byName[r.name] = byName[r.name] || []).push(r); });
 
-            // Create wrapper
+          Object.entries(byName).forEach(([name, inputs]) => {
+            if (processed.has(name)) return;
+            if (inputs.length < 2) return;
+
+            let hasYes = false, hasNo = false;
+            inputs.forEach(r => {
+              const val = (r.value || '').trim().toLowerCase();
+              if (val === 'yes') hasYes = true;
+              if (val === 'no') hasNo = true;
+              const lab = r.id ? root.querySelector('label[for="' + r.id + '"]') : null;
+              const txt = lab ? lab.textContent.trim().toLowerCase() : '';
+              if (txt === 'yes') hasYes = true;
+              if (txt === 'no') hasNo = true;
+            });
+            if (!(hasYes && hasNo)) return;
+
+            // Locate question label (not the inline yes/no labels)
+            const container = inputs[0].closest('.mb-3, .form-group, fieldset, .row') || inputs[0].parentElement;
+            const qLabel = container.querySelector('label.form-label') || container.querySelector('label:not([for])');
+            const qText  = qLabel ? qLabel.textContent.trim() : (name.replace(/[_\-]/g,' ') + '?');
+
+            // Build checkbox + hidden
             const wrapper = document.createElement('div');
-            wrapper.className = 'form-check form-switch mb-2';
+            wrapper.className = 'form-check mb-3';
 
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.className = 'form-check-input yesno-check';
-            cb.id = inputId + '_cb';
-            cb.name = inputId + '_cb';
+            cb.id = name + '_cb';
 
             const hidden = document.createElement('input');
             hidden.type = 'hidden';
-            hidden.name = origInput.name;
+            hidden.name = name;
             hidden.value = '';
 
-            cb.addEventListener('change', function () {
-              hidden.value = this.checked ? 'Yes' : '';
-            });
+            const yesSelected = inputs.some(r => r.checked && ((r.value||'').toLowerCase() === 'yes'));
+            cb.checked = yesSelected;
+            hidden.value = yesSelected ? 'Yes' : '';
 
-            const qText = label.textContent.replace(/yes\s*\/?\s*no/i, '').trim();
+            cb.addEventListener('change', () => { hidden.value = cb.checked ? 'Yes' : ''; });
+
             const newLabel = document.createElement('label');
             newLabel.className = 'form-check-label';
             newLabel.htmlFor = cb.id;
             newLabel.textContent = qText;
+            // carry forward asterisk if present
+            const star = qLabel && qLabel.querySelector('.req-asterisk');
+            if (star) newLabel.appendChild(star.cloneNode(true));
 
             wrapper.append(cb, newLabel, hidden);
-            origInput.closest('.mb-3, .form-group, div').replaceWith(wrapper);
+            container.replaceWith(wrapper);
+            processed.add(name);
+          });
+
+          // --- Selects: options Yes/No
+          const selects = Array.from(root.querySelectorAll('select[name], select[id]'));
+          selects.forEach(sel => {
+            if (sel.dataset.ynConverted) return;
+            const opts = Array.from(sel.options).map(o => (o.textContent || '').trim().toLowerCase());
+            if (!(opts.includes('yes') && opts.includes('no'))) return;
+
+            const container = sel.closest('.mb-3, .form-group, fieldset, .row') || sel.parentElement;
+            const qLabel = container.querySelector('label.form-label') || container.querySelector('label:not([for])');
+            const qText  = qLabel ? qLabel.textContent.trim() : ((sel.name || sel.id || 'option') + '?');
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'form-check mb-3';
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'form-check-input yesno-check';
+            cb.id = (sel.name || sel.id) + '_cb';
+
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = sel.name || sel.id;
+            hidden.value = '';
+
+            const isYes = ((sel.value || '').trim().toLowerCase() === 'yes');
+            cb.checked = isYes;
+            hidden.value = isYes ? 'Yes' : '';
+            cb.addEventListener('change', () => { hidden.value = cb.checked ? 'Yes' : ''; });
+
+            const newLabel = document.createElement('label');
+            newLabel.className = 'form-check-label';
+            newLabel.htmlFor = cb.id;
+            newLabel.textContent = qText;
+            const star = qLabel && qLabel.querySelector('.req-asterisk');
+            if (star) newLabel.appendChild(star.cloneNode(true));
+
+            wrapper.append(cb, newLabel, hidden);
+            container.replaceWith(wrapper);
+            sel.dataset.ynConverted = '1';
           });
         }
 
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', () => convertYesNo(document));
-        } else {
-          convertYesNo(document);
-        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => convertYesNo(document));
+        else convertYesNo(document);
       })();
     </script>
   </body>
