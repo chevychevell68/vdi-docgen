@@ -14,19 +14,37 @@
   {% else %}
     <div class="table-responsive">
       <table class="table table-sm align-middle">
-        <thead><tr><th>When (UTC)</th><th>Company</th><th>Opp</th><th>IR</th><th>Actions</th></tr></thead>
+        <thead>
+          <tr>
+            <th>When (UTC)</th>
+            <th>Company</th>
+            <th>Salesforce Opportunity</th>
+            <th>IR</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
         <tbody>
           {% for e in entries %}
             <tr>
-              <td><code>{{ e.submitted_utc }}</code></td>
-              <td>{{ e.company_name or '—' }}</td>
-              <td>{{ e.sf_opportunity_name or '—' }}</td>
+              <td><code>{{ e.submitted_utc }}</code>{% if e.updated_utc %}<br><small class="text-muted">Updated: {{ e.updated_utc }}</small>{% endif %}</td>
+              <td>
+                <a href="{{ url_for('submitted', entry_id=e.entry_id) }}">{{ e.company_name or '—' }}</a>
+              </td>
+              <td>
+                {% set opp = e.sf_opportunity_name or '—' %}
+                {% set url = e.sf_opportunity_url or '' %}
+                {% if url %}
+                  <a href="{{ url }}" target="_blank" rel="noopener">{{ opp }}</a>
+                {% else %}
+                  {{ opp }}
+                {% endif %}
+              </td>
               <td>{{ e.ir_number or '—' }}</td>
               <td class="d-flex gap-2">
-                <!-- Open goes to the submitted-style page -->
-                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('submitted', entry_id=e.entry_id) }}">Open</a>
+                <!-- Edit goes to the prefilled form -->
+                <a class="btn btn-sm btn-primary" href="{{ url_for('presales_edit', entry_id=e.entry_id) }}">Edit</a>
                 <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('entry_payload', entry_id=e.entry_id) }}">Payload JSON</a>
-                <a class="btn btn-sm btn-outline-success" href="{{ url_for('entry_package', entry_id=e.entry_id) }}">Build Package</a>
+                <a class="btn btn-sm btn-success" href="{{ url_for('entry_package', entry_id=e.entry_id) }}">Build Package</a>
               </td>
             </tr>
           {% endfor %}
@@ -34,7 +52,7 @@
       </table>
     </div>
     <div class="text-muted mt-3">
-      Storage dir: <code>{{ storage_dir }}</code> · File: <code>{{ entries_path }}</code>
+      Storage: <code>{{ storage_dir }}</code> · File: <code>{{ entries_path }}</code>
     </div>
   {% endif %}
 {% endblock %}

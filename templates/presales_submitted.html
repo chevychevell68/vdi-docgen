@@ -1,275 +1,60 @@
 {% extends "base.html" %}
-{% block title %}Presales Submission{% endblock %}
+{% block title %}Submission Saved{% endblock %}
 {% block content %}
-
-<h1 class="mb-3">Presales Submission</h1>
-
-{% if data.persist_result %}
-  <div class="alert alert-info py-2">{{ data.persist_result }}</div>
-{% endif %}
-
-<div class="mb-3 d-flex gap-2 flex-wrap">
-  <a class="btn btn-secondary" href="{{ url_for('index') }}">Home</a>
-  <a class="btn btn-primary" href="{{ url_for('presales') }}">Start another</a>
-
-  <!-- Download package -->
-  <form method="post" action="{{ url_for('presales_package') }}" class="d-inline">
-    <input type="hidden" name="payload" value='{{ data | tojson | safe }}'>
-    <button class="btn btn-success">Download Document Package (.zip)</button>
-  </form>
-</div>
-
-<div class="row g-4">
-  <div class="col-lg-6">
-    <!-- Customer -->
-    <div class="card">
-      <div class="card-header">Customer</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-5">Company</dt><dd class="col-sm-7">{{ data.company_name }}</dd>
-          <dt class="col-sm-5">Primary contact</dt><dd class="col-sm-7">{{ data.customer_name }}</dd>
-
-          {% if data.sf_opportunity_name %}
-            <dt class="col-sm-5">SF Opportunity</dt>
-            <dd class="col-sm-7">
-              {{ data.sf_opportunity_name }}
-              {% if data.sf_opportunity_url %}
-                <div>
-                  <a href="{{ data.sf_opportunity_url }}" target="_blank" rel="noopener">Open in Salesforce</a>
-                </div>
-              {% endif %}
-            </dd>
-          {% endif %}
-
-          {% if data.ir_number %}
-            <dt class="col-sm-5">IR number</dt><dd class="col-sm-7">{{ data.ir_number }}</dd>
-          {% endif %}
-
-          {% if data.voc %}
-            <dt class="col-sm-5">Voice of the Customer</dt>
-            <dd class="col-sm-7"><pre class="mb-0" style="white-space:pre-wrap">{{ data.voc }}</pre></dd>
-          {% endif %}
-
-          <dt class="col-sm-5">Submitted (UTC)</dt><dd class="col-sm-7">{{ data.submitted_utc }}</dd>
-        </dl>
-      </div>
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="mb-0">Submission</h1>
+    <div class="btn-group">
+      <a class="btn btn-outline-secondary" href="{{ url_for('entry_payload', entry_id=data.entry_id) }}">Payload JSON</a>
+      <form action="{{ url_for('presales_package') }}" method="post" class="d-inline">
+        <input type="hidden" name="payload" value='{{ data | tojson | safe }}'>
+        <button class="btn btn-success" type="submit">Build Package</button>
+      </form>
+      <a class="btn btn-outline-primary" href="{{ url_for('history') }}">Back to History</a>
+      <a class="btn btn-primary" href="{{ url_for('index') }}">Home</a>
+      <a class="btn btn-warning" href="{{ url_for('presales_edit', entry_id=data.entry_id) }}">Edit</a>
     </div>
+  </div>
 
-    <!-- Users & Scope -->
-    <div class="card mt-3">
-      <div class="card-header">Users & Scope</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Total users</dt><dd class="col-sm-6">{{ data.total_users or '—' }}</dd>
-          <dt class="col-sm-6">Concurrent users</dt><dd class="col-sm-6">{{ data.concurrent_users or '—' }}</dd>
-          <dt class="col-sm-6">Deployment type</dt><dd class="col-sm-6">{{ data.deployment_type or '—' }}</dd>
-          <dt class="col-sm-6">Datacenters (count)</dt><dd class="col-sm-6">{{ data.num_datacenters or '—' }}</dd>
-          <dt class="col-sm-6">Datacenters (where)</dt><dd class="col-sm-6">{{ data.datacenters_detail or '—' }}</dd>
-        </dl>
+  <div class="alert alert-success">Saved as Entry ID: <strong>{{ data.entry_id }}</strong></div>
 
-        {% if data.location_mix %}
-          <hr>
-          <h6 class="mt-2">Regional user mix</h6>
-          <table class="table table-sm mb-0">
-            <thead><tr><th>Region</th><th class="text-end">%</th></tr></thead>
-            <tbody>
-              {% set region_labels = {
-                'US':'Continental US','US_HI':'US – HI','US_AK':'US – AK',
-                'CAN':'Canada','LATAM':'LATAM','EMEA':'EMEA',
-                'APAC':'APAC','INDIA':'India','ANZ':'ANZ','OTHER':'Other'
-              } %}
-              {% for key, pct in data.location_mix.items() %}
-                <tr>
-                  <td>{{ region_labels.get(key, key) }}</td>
-                  <td class="text-end">{{ pct }}%</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        {% endif %}
-
-        {% if data.use_cases_list and data.use_cases_list|length > 0 %}
-          <hr>
-          <h6 class="mt-2">Use cases</h6>
+  <div class="row">
+    <div class="col-lg-6">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Summary</h5>
           <ul class="mb-0">
-            {% for uc in data.use_cases_list %}
-              <li><strong>{{ uc.label }}:</strong> {{ uc.text }}</li>
-            {% endfor %}
+            <li><strong>Company:</strong> {{ data.company_name or '—' }}</li>
+            <li>
+              <strong>Opportunity:</strong>
+              {% if data.sf_opportunity_url %}
+                <a href="{{ data.sf_opportunity_url }}" target="_blank" rel="noopener">{{ data.sf_opportunity_name or data.sf_opportunity_url }}</a>
+              {% else %}
+                {{ data.sf_opportunity_name or '—' }}
+              {% endif %}
+            </li>
+            <li><strong>IR:</strong> {{ data.ir_number or '—' }}</li>
+            <li><strong>Submitted (UTC):</strong> <code>{{ data.submitted_utc }}</code>
+              {% if data.updated_utc %}<span class="text-muted ms-2">(Updated: {{ data.updated_utc }})</span>{% endif %}
+            </li>
+            <li><strong>Docs Requested:</strong> {{ (data.docs_requested or []) | join(', ') if data.docs_requested else '—' }}</li>
           </ul>
-        {% endif %}
+        </div>
       </div>
     </div>
-
-    <!-- Access & Identity -->
-    <div class="card mt-3">
-      <div class="card-header">Access & Identity</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Remote access</dt><dd class="col-sm-6">{{ data.remote_access or '—' }}</dd>
-          <dt class="col-sm-6">MFA required</dt><dd class="col-sm-6">{{ data.mfa_required or '—' }}</dd>
-          {% if data.mfa_required == 'Yes' and data.mfa_solution %}
-            <dt class="col-sm-6">MFA solution</dt><dd class="col-sm-6">{{ data.mfa_solution }}</dd>
-          {% endif %}
-          <dt class="col-sm-6">Smart card authentication</dt><dd class="col-sm-6">{{ data.smartcard or '—' }}</dd>
-          <dt class="col-sm-6">IdP / WS1 Access</dt><dd class="col-sm-6">{{ data.idp_provider or '—' }}</dd>
-        </dl>
-      </div>
-    </div>
-
-    <!-- Endpoints -->
-    <div class="card mt-3">
-      <div class="card-header">Endpoints</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Provision endpoints</dt><dd class="col-sm-6">{{ data.endpoint_provisioning or '—' }}</dd>
-          <dt class="col-sm-6">Endpoint types</dt><dd class="col-sm-6">{{ data.endpoint_types or '—' }}</dd>
-          <dt class="col-sm-6">Thin client mgmt</dt><dd class="col-sm-6">{{ data.thin_client_mgmt or '—' }}</dd>
-        </dl>
+    <div class="col-lg-6">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Location Mix</h5>
+          <pre class="mb-0 bg-light p-2 border rounded">{{ (data.location_mix or {}) | tojson(indent=2) }}</pre>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-6">
-    <!-- Image & Apps -->
-    <div class="card">
-      <div class="card-header">Image & Applications</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Base images</dt><dd class="col-sm-6">{{ data.num_images or '—' }}</dd>
-          <dt class="col-sm-6">Gold image</dt><dd class="col-sm-6">{{ data.gold_image_source or '—' }}</dd>
-          <dt class="col-sm-6">Profile mgmt</dt>
-          <dd class="col-sm-6">
-            {% if data.profile_mgmt %}{{ data.profile_mgmt | join(', ') }}{% else %}—{% endif %}
-          </dd>
-          <dt class="col-sm-6">Virtual apps</dt>
-          <dd class="col-sm-6">
-            {% if data.virtual_apps %}{{ data.virtual_apps | join(', ') }}{% else %}—{% endif %}
-          </dd>
-          <dt class="col-sm-6">App packaging by WWT</dt><dd class="col-sm-6">{{ data.wwt_app_packaging or '—' }}</dd>
-        </dl>
-        {% if data.required_apps %}
-          <hr>
-          <h6 class="mt-2">Required applications</h6>
-          <pre class="mb-0" style="white-space:pre-wrap">{{ data.required_apps }}</pre>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Graphics / GPU -->
-    <div class="card mt-3">
-      <div class="card-header">Graphics / GPU</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">GPU required</dt><dd class="col-sm-6">{{ data.gpu_required or '—' }}</dd>
-          {% if data.gpu_required == 'Yes' %}
-            <dt class="col-sm-6">GPU users</dt><dd class="col-sm-6">{{ data.gpu_users or '—' }}</dd>
-            <dt class="col-sm-6">VRAM per user (GB)</dt><dd class="col-sm-6">{{ data.gpu_vram_per_user or '—' }}</dd>
-            <dt class="col-sm-6">GPU use case</dt><dd class="col-sm-6">{{ data.gpu_use_case or '—' }}</dd>
-          {% endif %}
-        </dl>
-      </div>
-    </div>
-
-    <!-- Directory & Core Services -->
-    <div class="card mt-3">
-      <div class="card-header">Directory & Core Services</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Existing AD?</dt><dd class="col-sm-6">{{ data.ad_exists or '—' }}</dd>
-          <dt class="col-sm-6">Domains / trusts</dt><dd class="col-sm-6">{{ data.num_domains or '—' }}</dd>
-          <dt class="col-sm-6">VDI domain</dt><dd class="col-sm-6">{{ data.vd_domain_name or '—' }}</dd>
-          <dt class="col-sm-6">Core servers domain</dt><dd class="col-sm-6">{{ data.core_domain_name or '—' }}</dd>
-        </dl>
-      </div>
-    </div>
-
-    <!-- Platform & Infra -->
-    <div class="card mt-3">
-      <div class="card-header">Platform & Infra</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Platform</dt><dd class="col-sm-6">{{ data.platform or '—' }}</dd>
-          <dt class="col-sm-6">General compute cluster</dt><dd class="col-sm-6">{{ data.general_compute_cluster or '—' }}</dd>
-
-          <dt class="col-sm-6">Host CPU cores</dt><dd class="col-sm-6">{{ data.host_cpu_cores or '—' }}</dd>
-          <dt class="col-sm-6">Host RAM (GB)</dt><dd class="col-sm-6">{{ data.host_ram_gb or '—' }}</dd>
-
-          <dt class="col-sm-6">VM vCPU</dt><dd class="col-sm-6">{{ data.vm_vcpu or '—' }}</dd>
-          <dt class="col-sm-6">VM RAM (GB)</dt><dd class="col-sm-6">{{ data.vm_ram_gb or '—' }}</dd>
-          <dt class="col-sm-6">vCPU:pCPU</dt><dd class="col-sm-6">1:{{ data.vcpu_to_pcpu or '4' }}</dd>
-
-          <dt class="col-sm-6">Storage type</dt><dd class="col-sm-6">{{ data.storage_type or '—' }}</dd>
-          {% if data.storage_type and data.storage_type != 'vSAN' %}
-            <dt class="col-sm-6">Storage vendor/model</dt><dd class="col-sm-6">{{ data.storage_vendor_model or '—' }}</dd>
-            <dt class="col-sm-6">Protocol</dt><dd class="col-sm-6">{{ data.storage_protocol or '—' }}</dd>
-            <dt class="col-sm-6">Usable capacity (GB)</dt><dd class="col-sm-6">{{ data.storage_usable_gb or '—' }}</dd>
-          {% endif %}
-
-          {% if data.vsan_total_gb is not none %}
-            <dt class="col-sm-6">vSAN IC capacity (GB)</dt><dd class="col-sm-6">{{ "{:,}".format(data.vsan_total_gb) }}</dd>
-          {% endif %}
-          {% if data.per_host_density is not none %}
-            <dt class="col-sm-6">Users per host (est.)</dt><dd class="col-sm-6">{{ data.per_host_density }}</dd>
-          {% endif %}
-
-          <dt class="col-sm-6">Load balancer</dt><dd class="col-sm-6">{{ data.load_balancer or '—' }}</dd>
-        </dl>
-      </div>
-    </div>
-
-    <!-- Operations & Delivery -->
-    <div class="card mt-3">
-      <div class="card-header">Operations & Delivery</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Operations staffing</dt><dd class="col-sm-6">{{ data.ogs_staffing or '—' }}</dd>
-          <dt class="col-sm-6">Monitoring</dt><dd class="col-sm-6">{{ data.monitoring_stack or '—' }}</dd>
-          <dt class="col-sm-6">Local printing</dt><dd class="col-sm-6">{{ data.local_printing or '—' }}</dd>
-          <dt class="col-sm-6">USB/mass storage</dt><dd class="col-sm-6">{{ data.usb_redirection or '—' }}</dd>
-
-          <!-- Onboarding time -->
-          {% if data.onboarding_time_value %}
-            <dt class="col-sm-6">Onboarding time (per user)</dt>
-            <dd class="col-sm-6">
-              {{ data.onboarding_time_value }} {{ data.onboarding_time_unit or '' }}
-            </dd>
-          {% endif %}
-
-          <dt class="col-sm-6">Delivery model</dt><dd class="col-sm-6">{{ data.delivery_model or '—' }}</dd>
-          <dt class="col-sm-6">Target start date</dt><dd class="col-sm-6">{{ data.start_date or '—' }}</dd>
-          <dt class="col-sm-6">Timeline/deadlines</dt><dd class="col-sm-6">{{ data.timeline or '—' }}</dd>
-        </dl>
-
-        <hr>
-        <h6 class="mt-2">Docs requested</h6>
-        <p class="mb-2">
-          {% if data.docs_requested and data.docs_requested|length > 0 %}
-            {{ data.docs_requested | join(', ') }}
-          {% else %}—{% endif %}
-        </p>
-
-        {% if data.training_required and data.training_required|length > 0 %}
-          <h6>Training required</h6>
-          <p class="mb-2">{{ data.training_required | join(', ') }}</p>
-        {% endif %}
-
-        {% if data.kt_expectations %}
-          <h6>KT expectations</h6>
-          <pre class="mb-0" style="white-space:pre-wrap">{{ data.kt_expectations }}</pre>
-        {% endif %}
-
-        {% if data.stakeholders %}
-          <hr>
-          <h6>Stakeholders / 3rd parties</h6>
-          <pre class="mb-0" style="white-space:pre-wrap">{{ data.stakeholders }}</pre>
-        {% endif %}
-      </div>
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title">Full Payload</h5>
+      <pre class="mb-0 bg-light p-2 border rounded">{{ data | tojson(indent=2) }}</pre>
     </div>
   </div>
-</div>
-
-<div class="mt-4">
-  <a class="btn btn-outline-secondary" href="{{ url_for('presales') }}">Start another</a>
-</div>
-
 {% endblock %}

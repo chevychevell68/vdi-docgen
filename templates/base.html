@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}VDI Discovery Tools{% endblock %}</title>
+    <title>{% block title %}WWT Markdown{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <style>
@@ -15,14 +15,14 @@
   <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top shadow-sm">
       <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('index') }}">VDI Tools</a>
+        <a class="navbar-brand" href="{{ url_for('index') }}">WWT Markdown</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarVDI">
           <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarVDI">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
             <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'presales' %}active{% endif %}" href="{{ url_for('presales') }}">Presales Discovery Form</a>
+              <a class="nav-link {% if request.endpoint == 'presales' or request.endpoint == 'presales_edit' %}active{% endif %}" href="{{ url_for('presales') }}">Presales Discovery Form</a>
             </li>
             <li class="nav-item">
               <a class="nav-link {% if request.endpoint == 'predeploy' %}active{% endif %}" href="{{ url_for('predeploy') }}">Pre-Deployment Guide</a>
@@ -52,7 +52,7 @@
     </main>
 
     <footer class="text-center text-muted mt-5 py-3 border-top small">
-      VDI Discovery Tools © <span id="year"></span>
+      WWT Markdown © <span id="year"></span>
     </footer>
     <script>
       document.getElementById('year').textContent = new Date().getFullYear();

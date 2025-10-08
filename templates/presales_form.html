@@ -2,9 +2,15 @@
 {% block title %}Presales Discovery{% endblock %}
 
 {% block content %}
-<h1 class="mb-4">Presales Discovery Form</h1>
+<h1 class="mb-4">{{ editing and 'Edit Submission' or 'Presales Discovery Form' }}</h1>
 
 <form method="post" class="row g-3" style="max-width: 980px;">
+  {% if form.entry_id %}
+    <input type="hidden" name="entry_id" value="{{ form.entry_id }}">
+    <div class="alert alert-warning">
+      Editing entry <strong>{{ form.entry_id }}</strong>. Saving will update history.
+    </div>
+  {% endif %}
 
   <!-- =========================
        Customer / Opportunity
@@ -552,15 +558,14 @@
   <!-- =========================
        Submit / Cancel
   ========================== -->
-  <div class="col-12">
+ <div class="col-12">
     <div class="d-flex gap-2">
-      <button class="btn btn-primary" type="submit">Submit</button>
+      <button class="btn btn-primary" type="submit">{{ form.entry_id and 'Update' or 'Submit' }}</button>
       <a class="btn btn-outline-secondary" href="{{ url_for('index') }}">Cancel</a>
     </div>
     <div class="form-text mt-2">
       <span class="text-danger">*</span> indicates a required field.
     </div>
   </div>
-
 </form>
 {% endblock %}
