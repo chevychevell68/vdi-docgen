@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [v1.1.6] – Checkbox Label Cleanup
+### Fixed
+- Single clean checkbox label (e.g., "☐ GPU required?") without duplicated text.
+- Original labels hidden instead of removed.
+- Preserves existing logic that expands conditional GPU sections.
+
+---
+
 ## [v1.1.4] – Safe Yes/No Conversion
 ### Fixed
 - Reworked Yes/No conversion to **not replace** containers; inserts checkbox before original controls and hides/disables the radios/select instead.
@@ -11,14 +19,6 @@ All notable changes to this project will be documented in this file.
 
 ### Maintained
 - Required-field asterisks and placeholder logic unchanged.
-
----
-
-## [v1.1.6] – Checkbox Label Cleanup
-### Fixed
-- Single clean checkbox label (e.g., "☐ GPU required?") without duplicated text.
-- Original labels hidden instead of removed.
-- Preserves existing logic that expands conditional GPU sections.
 
 ---
 
