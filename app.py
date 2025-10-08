@@ -25,7 +25,7 @@ from flask import (
 
 import requests
 
-# Optional Word support (pip install python-docx)
+# Optional Word support (requires python-docx in requirements.txt)
 try:
     from docx import Document  # type: ignore
 except Exception:
@@ -68,6 +68,7 @@ def _gh_contents_url() -> str:
 
 
 def gh_check_repo_branch() -> Dict[str, Any]:
+    """Quick diagnostics for repo access and branch existence."""
     info: Dict[str, Any] = {
         "repo_ok": False,
         "branch_ok": False,
@@ -153,13 +154,8 @@ def gh_write_entries_file(new_text: str, sha: Optional[str]) -> bool:
 
 def gh_save_entries_list(entries: List[Dict[str, Any]]) -> bool:
     """Overwrite the JSONL file with the provided list (used for edits)."""
-    content_text, sha = gh_read_entries_file()
-    if content_text is None:
-        # treat as create
-        sha = None
-    new_text = ""
-    for e in entries:
-        new_text += json.dumps(e, ensure_ascii=False) + "\n"
+    _text, sha = gh_read_entries_file()
+    new_text = "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in entries)
     return gh_write_entries_file(new_text, sha)
 
 
@@ -222,20 +218,15 @@ def get_entry(entry_id: str) -> Optional[Dict[str, Any]]:
 def replace_entry(entry_id: str, new_obj: Dict[str, Any]) -> bool:
     """Replace an existing entry (by entry_id) with new_obj."""
     entries = read_all_entries()
-    replaced = False
     for i, e in enumerate(entries):
         if e.get("entry_id") == entry_id:
-            # preserve original submitted_utc unless new_obj overrides
             if "submitted_utc" not in new_obj:
                 new_obj["submitted_utc"] = e.get("submitted_utc")
             new_obj["entry_id"] = entry_id
             new_obj["updated_utc"] = _now_utc_str()
             entries[i] = new_obj
-            replaced = True
-            break
-    if not replaced:
-        return False
-    return gh_save_entries_list(entries)
+            return gh_save_entries_list(entries)
+    return False
 
 
 # --------------------------------------------------------------------------------------
@@ -535,7 +526,6 @@ def presales_edit(entry_id: str):
     e = get_entry(entry_id)
     if not e:
         abort(404)
-    # Pass the entry as 'form' so the template fills values; include entry_id hidden field
     e = dict(e)
     e["entry_id"] = entry_id
     return render_template("presales_form.html", form=e, editing=True)
@@ -577,6 +567,10 @@ def entry_payload(entry_id: str):
 
 @app.route("/entry/<entry_id>/package")
 def entry_package(entry_id: str):
+    # Build a DOCX-only package from a stored entry
+    if Document is None:
+        flash("Word generation is not available on this deployment (python-docx not installed).", "error")
+        return redirect(url_for("submitted", entry_id=entry_id))
     e = get_entry(entry_id)
     if not e:
         abort(404)
@@ -586,6 +580,11 @@ def entry_package(entry_id: str):
 
 @app.route("/presales/package", methods=["POST"])
 def presales_package():
+    """Build a DOCX-only ZIP from the submitted page via hidden JSON payload."""
+    if Document is None:
+        flash("Word generation is not available on this deployment (python-docx not installed).", "error")
+        return redirect(url_for("presales"))
+
     payload = request.form.get("payload", "")
     if not payload:
         flash("Missing payload for package generation.", "error")
@@ -606,7 +605,7 @@ def predeploy():
 
 
 # --------------------------------------------------------------------------------------
-# Helpers: package builder (now DOCX only; no .md files)
+# Helpers: package builder (DOCX only; no README or JSON)
 # --------------------------------------------------------------------------------------
 def _build_docx_bytes(title: str, company: str, opp: str, ir: str, opp_url: str, now_str: str) -> bytes:
     if Document is None:
@@ -627,7 +626,7 @@ def _build_docx_bytes(title: str, company: str, opp: str, ir: str, opp_url: str,
 
 
 def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
-    """Create the in-memory ZIP using the payload. DOCX only (no .md)."""
+    """Create an in-memory ZIP with DOCX files only (no README, no JSON)."""
     requested = data.get("docs_requested") or []
     if isinstance(requested, str):
         requested = [requested]
@@ -648,28 +647,20 @@ def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
     ir = data.get("ir_number", "")
     opp_url = data.get("sf_opportunity_url", "")
 
+    # If no labels were selected, create one default doc so the ZIP isn't empty
+    if not requested:
+        requested = ["Discovery Summary"]
+
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # README
-        zf.writestr(
-            "README.txt",
-            "Document Package\n=================\n"
-            f"Generated: {now}\n\n"
-            f"Included documents: {', '.join(requested) if requested else '(none specified)'}\n"
-            f"Formats: Word (.docx) only\n"
-            f"{'Note: python-docx is not installed; docs cannot be generated.' if Document is None else ''}\n"
-        )
-        # JSON context
-        zf.writestr("context/presales_payload.json", json.dumps(data, indent=2))
-
-        # Write DOCX files only (skip .md entirely)
+        # Write DOCX files only
         for label in requested:
             title = (label or "DOCUMENT").upper()
             docx_bytes = _build_docx_bytes(title, company, opp, ir, opp_url, now)
             if docx_bytes:
                 zf.writestr(f"docs/{safe_name(label)}.docx", docx_bytes)
 
-        # ROM convenience (DOCX only)
+        # ROM convenience
         if any((x or "").upper() in ("ROM", "ROM ESTIMATE") for x in requested):
             docx_bytes = _build_docx_bytes("ROM ESTIMATE", company, opp, ir, opp_url, now)
             if docx_bytes:
@@ -704,6 +695,7 @@ def diag():
 
 @app.route("/ghcheck")
 def ghcheck():
+    """Human-friendly checklist to fix GitHub write issues."""
     info = gh_check_repo_branch()
     hints = []
     if not info.get("token_set"):
@@ -713,7 +705,7 @@ def ghcheck():
     if not info.get("branch_ok"):
         hints.append(f"GITHUB_BRANCH '{GITHUB_BRANCH}' must exist.")
     if info.get("path_leading_slash"):
-        hints.append("GITHUB_PATH must not start with '/'.")
+        hints.append("GITHUB_PATH must not start with '/'. Use a repo-relative path like 'data/entries.jsonl'.")
     return {
         "repo": info.get("repo"),
         "branch": info.get("branch"),
@@ -722,7 +714,7 @@ def ghcheck():
         "repo_ok": info.get("repo_ok"),
         "branch_ok": info.get("branch_ok"),
         "path_leading_slash": info.get("path_leading_slash"),
-        "hints": hints or ["Looks good."],
+        "hints": hints or ["Looks good. Try submitting the form again."],
     }
 
 
@@ -737,6 +729,7 @@ def healthz():
         "storage": f"github:{GITHUB_REPO}:{GITHUB_PATH}",
         "branch": GITHUB_BRANCH,
         "configured": bool(GITHUB_TOKEN and GITHUB_REPO),
+        "docx_available": Document is not None,
     }
 
 
@@ -744,4 +737,5 @@ def healthz():
 # Main
 # --------------------------------------------------------------------------------------
 if __name__ == "__main__":
+    # For local runs only; Render will use gunicorn
     app.run(host="0.0.0.0", port=5000, debug=True)
