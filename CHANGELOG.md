@@ -1,17 +1,13 @@
-# Changelog
-
-All notable changes to this project will be documented in this file.  
-Versioning follows **MAJOR.MINOR.PATCH** (Semantic Versioning).
-
----
-
-## [v1.1.1] – Current Development
+## [v1.1.2] – Added Placeholder Text
 ### Added
-- Automatic asterisk decoration for all required form fields (global via `base.html`).
-- Branch created for isolated development and testing (`v1.1.1`).
+- Auto-injected sample placeholder text for all presales form fields (via centralized logic in `base.html`).
+- Example hints now appear dynamically (e.g., “e.g., 250”, “https://your-instance.example.com/...”) without modifying each individual field template.
+
+### Fixed / Improved
+- No UI regressions; all required field asterisks remain intact.
+- Dropdowns now display a default “Select…” option for better UX.
 
 ### Deployment
-- Render workspace configured to deploy from branch `v1.1.1`.
-- Start command:
-  ```bash
-  gunicorn app:app --bind 0.0.0.0:$PORT
+- Commit: `v1.1.2`
+- Branch: `v1.1.1`
+- Service: Render (deploying from `v1.1.1`)
