@@ -14,6 +14,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [v1.1.6] – Checkbox Label Cleanup
+### Fixed
+- Single clean checkbox label (e.g., "☐ GPU required?") without duplicated text.
+- Original labels hidden instead of removed.
+- Preserves existing logic that expands conditional GPU sections.
+
+---
+
 ## [v1.1.5] – Fix Yes/No Conversion (no regressions)
 ### Fixed
 - Keeps original radios/selects **enabled and hidden** so existing conditional UI (e.g., GPU section) continues to work.

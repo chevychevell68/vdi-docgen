@@ -1,133 +1,4 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}VDI Tools{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-      .req-asterisk { color: #dc3545; margin-left: 2px; }
-      .placeholder-helper { opacity: 0.95; }
-
-      /* Yes/No */
-      .yesno-check { margin-right: 6px; transform: scale(1.1); vertical-align: middle; }
-      .yn-visually-hidden { display: none !important; } /* keep enabled for events/submission */
-    </style>
-  </head>
-
-  <body class="bg-light" style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('index') }}">WWT Markdown</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav me-auto">
-            <li class="nav-item"><a class="nav-link {% if request.endpoint == 'presales' %}active{% endif %}" href="{{ url_for('presales') }}">Presales Discovery</a></li>
-            <li class="nav-item"><a class="nav-link {% if request.endpoint == 'pdg' %}active{% endif %}" href="{{ url_for('pdg') }}">Project Definition Guide</a></li>
-            <li class="nav-item"><a class="nav-link {% if request.endpoint == 'predeploy' %}active{% endif %}" href="{{ url_for('predeploy') }}">Pre-Deployment Guide</a></li>
-            {% if has_endpoint('history') %}
-            <li class="nav-item"><a class="nav-link {% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">History</a></li>
-            {% endif %}
-          </ul>
-        </div>
-      </div>
-    </nav>
-
-    <main class="container">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-              {{ message }}
-              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
-      {% block content %}{% endblock %}
-    </main>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Required-field asterisks -->
-    <script>
-      (function () {
-        function markRequired(root) {
-          const fields = root.querySelectorAll('input[required], select[required], textarea[required]');
-          fields.forEach(function (el) {
-            let label = null;
-            if (el.id) label = root.querySelector('label[for="' + el.id + '"]');
-            if (!label) {
-              let p = el.closest('.col-md-12, .col-md-8, .col-md-6, .col-md-4, .mb-3, .form-group, fieldset, .row, div');
-              while (p && !label) {
-                label = p.querySelector('label.form-label') || p.querySelector('label');
-                if (label) break;
-                p = p.parentElement;
-              }
-            }
-            if (label && !label.dataset.requiredDecorated) {
-              const span = document.createElement('span');
-              span.className = 'req-asterisk';
-              span.textContent = ' *';
-              label.appendChild(span);
-              label.dataset.requiredDecorated = '1';
-            }
-          });
-        }
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => markRequired(document));
-        else markRequired(document);
-      })();
-    </script>
-
-    <!-- Smart placeholders -->
-    <script>
-      (function () {
-        const NUM='e.g., 250', GB='e.g., 512', URL='https://your-instance.example.com/...', DATE='e.g., 2025-10-20', PCT='e.g., 20', FACTOR='e.g., 1.10';
-        function setIfEmpty(el,t){ if(!el||el.hasAttribute('placeholder'))return; el.setAttribute('placeholder',t); el.classList.add('placeholder-helper'); }
-        function selectPrompt(sel){ if(!sel||sel.dataset.selectDecorated)return; const f=sel.options[0]; const looks=f&&(f.disabled||/select/i.test(f.text)||f.value===''); if(!looks){const o=document.createElement('option'); o.textContent='Select...'; o.value=''; o.disabled=true; o.selected=!sel.value; sel.insertBefore(o,sel.firstChild);} sel.dataset.selectDecorated='1'; }
-        function apply(el){
-          const key=((el.name||'')+' '+(el.id||'')).toLowerCase();
-          if(['radio','checkbox','button','submit'].includes(el.type))return;
-          if(key.includes('url')||key.includes('salesforce')){setIfEmpty(el,URL);return;}
-          if(key.includes('company')){setIfEmpty(el,'e.g., Centene Corporation');return;}
-          if(key.includes('customer')){setIfEmpty(el,'e.g., Jane Smith');return;}
-          if(key.includes('contact')){setIfEmpty(el,'e.g., john.doe@company.com');return;}
-          if(key.includes('concurrent')||key.includes('total_users')){setIfEmpty(el,NUM);return;}
-          if(key.includes('num_images')){setIfEmpty(el,'e.g., 3');return;}
-          if(key.includes('host_cpu_cores')){setIfEmpty(el,'e.g., 64');return;}
-          if(key.includes('host_ram_gb')){setIfEmpty(el,GB);return;}
-          if(key.includes('vm_vcpu')){setIfEmpty(el,'e.g., 2');return;}
-          if(key.includes('vm_ram_gb')){setIfEmpty(el,'e.g., 8');return;}
-          if(key.includes('vcpu_to_pcpu')){setIfEmpty(el,'e.g., 4');return;}
-          if(key.includes('base_image_gb')){setIfEmpty(el,'e.g., 40');return;}
-          if(key.includes('delta_gb')){setIfEmpty(el,'e.g., 6');return;}
-          if(key.includes('per_vm_overhead_gb')){setIfEmpty(el,'e.g., 1');return;}
-          if(key.includes('growth_factor')){setIfEmpty(el,FACTOR);return;}
-          if(key.includes('vsan_policy_factor')){setIfEmpty(el,'e.g., 2.0');return;}
-          if(key.includes('gpu_sessions_cap')){setIfEmpty(el,'e.g., 16');return;}
-          if(key.match(/region_pct_|_pct\b|percent/)){setIfEmpty(el,PCT);return;}
-          if(key.includes('start_date')){setIfEmpty(el,DATE);return;}
-          if(key.includes('timeline')){setIfEmpty(el,'e.g., Pilot by Nov 15; Prod by Dec 5');return;}
-          if(key.includes('platform')){setIfEmpty(el,'e.g., vSphere 8.0.3');return;}
-          if(key.includes('storage_type')){setIfEmpty(el,'e.g., vSAN');return;}
-          if(key.includes('mfa_solution')){setIfEmpty(el,'e.g., Duo, Okta Verify');return;}
-          if(key.includes('remote_access')){setIfEmpty(el,'e.g., UAG via Internet');return;}
-          if(key.includes('endpoint_types')){setIfEmpty(el,'e.g., Windows, macOS, IGEL');return;}
-          if(key.includes('main_use_cases')){setIfEmpty(el,'e.g., Task workers, call center');return;}
-          if(key.includes('secondary_use_case')){setIfEmpty(el,'e.g., Power users need 16GB RAM');return;}
-          if(/_gb\b/.test(key)){setIfEmpty(el,GB);return;}
-          if(/\bcount|\bnum|\bcores|\bsessions|\busers/.test(key)){setIfEmpty(el,NUM);return;}
-          if(el.type==='url'){setIfEmpty(el,URL);return;}
-        }
-        function run(root){ root.querySelectorAll('input,textarea,select').forEach(el=>{ if(el.tagName.toLowerCase()==='select') selectPrompt(el); else apply(el); }); }
-        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>run(document)); else run(document);
-      })();
-    </script>
-
-    <!-- Yes/No conversion that preserves original inputs for events/submission -->
+    <!-- Final Yes/No conversion fix (v1.1.6): clean single checkbox label, preserve GPU logic -->
     <script>
       (function () {
         function dispatchChange(el) {
@@ -136,7 +7,6 @@
         }
 
         function nearestQuestionLabel(el) {
-          // Prefer a .form-label in the group; else previous sibling label
           const group = el.closest('.mb-3, .form-group, fieldset, .row, div');
           if (group) {
             const lab = group.querySelector('label.form-label');
@@ -148,6 +18,12 @@
             prev = prev.previousElementSibling;
           }
           return null;
+        }
+
+        function cleanLabelText(text) {
+          if (!text) return '';
+          // normalize spacing, ensure single '?'
+          return text.replace(/\s*\?\s*$/, '').trim() + '?';
         }
 
         function convertRadioGroups(root) {
@@ -166,15 +42,15 @@
               if (val === 'yes' || txt === 'yes') yesRadio = r;
               if (val === 'no'  || txt === 'no')  noRadio  = r;
             });
-            if (!(yesRadio && noRadio)) return; // not a yes/no pair
+            if (!(yesRadio && noRadio)) return;
 
             const qLabel = nearestQuestionLabel(list[0]);
-            const qText = qLabel ? qLabel.textContent.trim() : (name.replace(/[_\-]/g, ' ') + '?');
-            const star  = qLabel && qLabel.querySelector('.req-asterisk');
+            const qText  = cleanLabelText(qLabel ? qLabel.textContent : name);
+            const star   = qLabel && qLabel.querySelector('.req-asterisk');
 
-            // Build checkbox UI
-            const wrapper = document.createElement('div');
-            wrapper.className = 'form-check mb-2';
+            // Build checkbox + label
+            const wrap = document.createElement('div');
+            wrap.className = 'form-check mb-2';
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.className = 'form-check-input yesno-check';
@@ -184,41 +60,27 @@
             lab.htmlFor = cb.id;
             lab.textContent = qText;
             if (star) lab.appendChild(star.cloneNode(true));
-            wrapper.append(cb, lab);
+            wrap.append(cb, lab);
 
-            // Insert before the first radio
+            // Insert before first radio
             const first = list[0];
             const insertionPoint = first.closest('.form-check, .mb-2, .mb-3, .form-group') || first;
-            insertionPoint.parentElement.insertBefore(wrapper, insertionPoint);
+            insertionPoint.parentElement.insertBefore(wrap, insertionPoint);
 
-            // Hide (but DO NOT disable) original label and radio rows
-            if (qLabel) qLabel.classList.add('yn-visually-hidden');
+            // Hide original label and radios (keep enabled)
+            if (qLabel) qLabel.style.display = 'none';
             list.forEach(r => {
-              const rc = r.closest('.form-check, .form-check-inline') || r;
-              rc.classList.add('yn-visually-hidden');
+              const rc = r.closest('.form-check, .form-check-inline');
+              if (rc) rc.style.display = 'none';
             });
 
-            // Initial state from existing selection
+            // Sync states
             cb.checked = !!yesRadio.checked;
-
-            // Sync checkbox -> radios
             cb.addEventListener('change', () => {
-              if (cb.checked) {
-                yesRadio.checked = true;
-                if (noRadio) noRadio.checked = false;
-              } else {
-                if (noRadio) noRadio.checked = true; // or clear both if you'd rather
-                yesRadio.checked = false;
-              }
+              yesRadio.checked = cb.checked;
+              if (noRadio) noRadio.checked = !cb.checked;
               dispatchChange(yesRadio);
               if (noRadio) dispatchChange(noRadio);
-            });
-
-            // Sync radios -> checkbox (if something else toggles them)
-            list.forEach(r => {
-              r.addEventListener('change', () => {
-                cb.checked = !!yesRadio.checked;
-              });
             });
           });
         }
@@ -232,11 +94,11 @@
 
             const name  = sel.name || sel.id;
             const qLabel = nearestQuestionLabel(sel);
-            const qText  = qLabel ? qLabel.textContent.trim() : (name.replace(/[_\-]/g, ' ') + '?');
+            const qText  = cleanLabelText(qLabel ? qLabel.textContent : name);
             const star   = qLabel && qLabel.querySelector('.req-asterisk');
 
-            const wrapper = document.createElement('div');
-            wrapper.className = 'form-check mb-2';
+            const wrap = document.createElement('div');
+            wrap.className = 'form-check mb-2';
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.className = 'form-check-input yesno-check';
@@ -246,27 +108,22 @@
             lab.htmlFor = cb.id;
             lab.textContent = qText;
             if (star) lab.appendChild(star.cloneNode(true));
-            wrapper.append(cb, lab);
+            wrap.append(cb, lab);
 
-            // Insert before the select; hide original label & select (but keep enabled)
-            sel.parentElement.insertBefore(wrapper, sel);
-            if (qLabel) qLabel.classList.add('yn-visually-hidden');
-            sel.classList.add('yn-visually-hidden');
+            // Insert before select; hide original label + select
+            sel.parentElement.insertBefore(wrap, sel);
+            if (qLabel) qLabel.style.display = 'none';
+            sel.style.display = 'none';
 
-            // Initial state from select
-            cb.checked = ((sel.value || '').trim().toLowerCase() === 'yes');
-
-            // Sync checkbox -> select
+            // Sync
+            cb.checked = (sel.value || '').trim().toLowerCase() === 'yes';
             cb.addEventListener('change', () => {
               sel.value = cb.checked ? 'Yes' : 'No';
               dispatchChange(sel);
             });
-
-            // Sync select -> checkbox
             sel.addEventListener('change', () => {
-              cb.checked = ((sel.value || '').trim().toLowerCase() === 'yes');
+              cb.checked = (sel.value || '').trim().toLowerCase() === 'yes';
             });
-
             sel.dataset.ynConverted = '1';
           });
         }
@@ -283,5 +140,3 @@
         }
       })();
     </script>
-  </body>
-</html>
