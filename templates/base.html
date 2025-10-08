@@ -26,6 +26,13 @@
             <li class="nav-item">
               <a class="nav-link {% if request.endpoint == 'predeploy' %}active{% endif %}" href="{{ url_for('predeploy') }}">Pre-Deployment Guide</a>
             </li>
+
+            {# Only render History link if the route exists #}
+            {% if 'history' in current_app.view_functions %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">History</a>
+            </li>
+            {% endif %}
           </ul>
         </div>
       </div>
