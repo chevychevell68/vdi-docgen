@@ -41,7 +41,7 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "")  # "owner/repo"
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
-GITHUB_PATH = os.getenv("GITHUB_PATH", "data/entries.jsonl")  # path within the repo
+GITHUB_PATH = os.getenv("GITHUB_PATH", "data/entries.jsonl")  # path within the repo (no leading slash)
 GITHUB_API_ROOT = os.getenv("GITHUB_API_ROOT", "https://api.github.com")
 
 if not (GITHUB_TOKEN and GITHUB_REPO):
@@ -49,7 +49,7 @@ if not (GITHUB_TOKEN and GITHUB_REPO):
         "GitHub persistence not fully configured. Set GITHUB_TOKEN and GITHUB_REPO."
     )
 
-# Keep a tiny cache to reduce API calls during a request storm
+# Small cache to reduce API calls
 _gh_cache: Dict[str, Any] = {"sha": None, "content_text": None, "fetched_ts": 0.0}
 
 
@@ -64,7 +64,37 @@ def _gh_headers() -> Dict[str, str]:
 
 def _gh_contents_url() -> str:
     # /repos/{owner}/{repo}/contents/{path}
-    return f"{GITHUB_API_ROOT}/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
+    # GITHUB_PATH must NOT start with a slash
+    p = GITHUB_PATH.lstrip("/")
+    return f"{GITHUB_API_ROOT}/repos/{GITHUB_REPO}/contents/{p}"
+
+
+def gh_check_repo_branch() -> Dict[str, Any]:
+    """Quick diagnostics for repo access and branch existence."""
+    info: Dict[str, Any] = {
+        "repo_ok": False,
+        "branch_ok": False,
+        "path_leading_slash": GITHUB_PATH.startswith("/"),
+        "repo": GITHUB_REPO,
+        "branch": GITHUB_BRANCH,
+        "path": GITHUB_PATH,
+        "token_set": bool(GITHUB_TOKEN),
+    }
+    try:
+        r = requests.get(f"{GITHUB_API_ROOT}/repos/{GITHUB_REPO}", headers=_gh_headers(), timeout=10)
+        info["repo_status"] = r.status_code
+        info["repo_ok"] = r.status_code == 200
+        if info["repo_ok"]:
+            rb = requests.get(
+                f"{GITHUB_API_ROOT}/repos/{GITHUB_REPO}/branches/{GITHUB_BRANCH}",
+                headers=_gh_headers(),
+                timeout=10,
+            )
+            info["branch_status"] = rb.status_code
+            info["branch_ok"] = rb.status_code == 200
+    except Exception as e:
+        info["exception"] = repr(e)
+    return info
 
 
 def gh_read_entries_file(force: bool = False) -> tuple[Optional[str], Optional[str]]:
@@ -73,7 +103,6 @@ def gh_read_entries_file(force: bool = False) -> tuple[Optional[str], Optional[s
     On error, returns (None, None).
     """
     now = time.time()
-    # 10s micro-cache
     if not force and _gh_cache["content_text"] is not None and now - _gh_cache["fetched_ts"] < 10:
         return _gh_cache["content_text"], _gh_cache["sha"]
 
@@ -81,7 +110,7 @@ def gh_read_entries_file(force: bool = False) -> tuple[Optional[str], Optional[s
     try:
         r = requests.get(_gh_contents_url(), headers=_gh_headers(), params=params, timeout=15)
         if r.status_code == 404:
-            # File not found: treat as empty contents; no SHA yet
+            # File not found (or token can't see repo). Treat as empty file if repo/branch ok.
             _gh_cache.update({"content_text": "", "sha": None, "fetched_ts": now})
             return "", None
         r.raise_for_status()
@@ -89,7 +118,6 @@ def gh_read_entries_file(force: bool = False) -> tuple[Optional[str], Optional[s
         if not isinstance(data, dict) or "content" not in data:
             return None, None
         content_b64 = data.get("content", "")
-        # GitHub may include line breaks in base64
         content_decoded = base64.b64decode(content_b64.encode()).decode("utf-8", errors="replace")
         sha = data.get("sha")
         _gh_cache.update({"content_text": content_decoded, "sha": sha, "fetched_ts": now})
@@ -103,6 +131,7 @@ def gh_write_entries_file(new_text: str, sha: Optional[str]) -> bool:
     """
     Writes the given text to the repo path. If sha is None, creates the file.
     Returns True on success.
+    404 here usually means: bad repo/branch, or token lacks access (GitHub hides existence).
     """
     content_b64 = base64.b64encode(new_text.encode("utf-8")).decode("utf-8")
     payload = {
@@ -118,7 +147,6 @@ def gh_write_entries_file(new_text: str, sha: Optional[str]) -> bool:
         if r.status_code in (200, 201):
             data = r.json()
             new_sha = data.get("content", {}).get("sha")
-            # Update cache
             _gh_cache.update({"content_text": new_text, "sha": new_sha, "fetched_ts": time.time()})
             return True
         else:
@@ -143,6 +171,7 @@ def _gen_entry_id() -> str:
 def append_entry(payload: Dict[str, Any]) -> str:
     """
     Appends a JSON line to the GitHub file (entries.jsonl) and returns the new entry_id.
+    Raises RuntimeError if GitHub write fails.
     """
     entry = dict(payload)  # shallow copy
     entry_id = _gen_entry_id()
@@ -151,7 +180,7 @@ def append_entry(payload: Dict[str, Any]) -> str:
 
     content_text, sha = gh_read_entries_file()
     if content_text is None:
-        # If we can't read from GitHub, we still proceed to try a write as a create
+        # If we can't read from GitHub, we still try to create the file
         content_text = ""
         sha = None
 
@@ -159,8 +188,11 @@ def append_entry(payload: Dict[str, Any]) -> str:
     new_text = (content_text + "\n" if content_text and not content_text.endswith("\n") else content_text) + new_line + "\n"
     ok = gh_write_entries_file(new_text, sha)
     if not ok:
-        # If write failed, the submission did not persist — raise to show error
-        raise RuntimeError("Failed to persist entry to GitHub. Check logs and env vars.")
+        raise RuntimeError(
+            "Failed to persist entry to GitHub. Check GITHUB_REPO (owner/repo), "
+            "GITHUB_BRANCH exists, token scopes (repo or contents:write), org SSO, "
+            "and that GITHUB_PATH has no leading slash."
+        )
 
     return entry_id
 
@@ -181,7 +213,6 @@ def read_all_entries() -> List[Dict[str, Any]]:
                 out.append(obj)
         except Exception:
             continue
-    # newest first (by entry_id timestamp prefix)
     return sorted(out, key=lambda x: x.get("entry_id", ""), reverse=True)
 
 
@@ -289,8 +320,8 @@ def presales():
     storage_type = form.get("storage_type", "")
     vsan_total_gb = None
     if storage_type == "vSAN":
-        per_vm_writable = delta_gb + vm_ram_gb + per_vm_overhead_gb  # delta + mem + overhead
-        replicas = num_images * base_image_gb                        # base image replicas
+        per_vm_writable = delta_gb + vm_ram_gb + per_vm_overhead_gb
+        replicas = num_images * base_image_gb
         raw = (concurrent_users * per_vm_writable) + replicas
         vsan_total_gb = math.ceil(raw * vsan_policy_factor * growth_factor)
 
@@ -341,7 +372,6 @@ def presales():
         "use_cases_list": [],
     }
 
-    # Use-cases list (main + N secondary)
     if data["main_use_cases"]:
         data["use_cases_list"].append({"label": "Main", "text": data["main_use_cases"]})
     n_personas = data["num_personas"] or 0
@@ -453,8 +483,25 @@ def presales():
         }
     )
 
-    # Persist the entry to GitHub and annotate with id + history links
-    entry_id = append_entry(data)
+    # Persist to GitHub with friendly error handling
+    try:
+        entry_id = append_entry(data)
+    except RuntimeError as e:
+        flash(str(e), "error")
+        # repopulate form with posted values
+        prefill = form.to_dict(flat=True)
+        prefill["profile_mgmt"] = profile_mgmt
+        prefill["virtual_apps"] = virtual_apps
+        prefill["docs_requested"] = docs_requested
+        prefill["training_required"] = training_required
+        for key, _label in REGIONS:
+            if form.get(f"region_ck_{key}"):
+                prefill[f"region_ck_{key}"] = True
+                prefill[f"region_pct_{key}"] = form.get(f"region_pct_{key}", "")
+        # Add a hint pointing to /ghcheck
+        flash("Open /ghcheck to verify repo/branch/token/path.", "warning")
+        return render_template("presales_form.html", form=prefill), 500
+
     data["entry_id"] = entry_id
     data["history_url"] = url_for("history")
     data["entry_url"] = url_for("submitted", entry_id=entry_id)
@@ -464,7 +511,6 @@ def presales():
 
 @app.route("/submitted/<entry_id>")
 def submitted(entry_id: str):
-    """Render the submitted-style view for a previously saved entry."""
     e = get_entry(entry_id)
     if not e:
         abort(404)
@@ -508,7 +554,6 @@ def entry_package(entry_id: str):
 
 @app.route("/presales/package", methods=["POST"])
 def presales_package():
-    """Build a ZIP from the submitted page via hidden JSON payload."""
     payload = request.form.get("payload", "")
     if not payload:
         flash("Missing payload for package generation.", "error")
@@ -530,7 +575,7 @@ def predeploy():
 
 
 # --------------------------------------------------------------------------------------
-# Helpers: package builder (writes both .md and .docx when python-docx is available)
+# Helpers: package builder (writes .md and .docx when python-docx is available)
 # --------------------------------------------------------------------------------------
 def _build_docx_bytes(title: str, company: str, opp: str, ir: str, opp_url: str, now_str: str) -> bytes:
     if Document is None:
@@ -542,7 +587,7 @@ def _build_docx_bytes(title: str, company: str, opp: str, ir: str, opp_url: str,
     doc.add_paragraph(f"IR: {ir}")
     doc.add_paragraph(f"Opportunity URL: {opp_url or '(n/a)'}")
     doc.add_paragraph(f"Generated: {now_str}")
-    doc.add_paragraph("")  # spacer
+    doc.add_paragraph("")
     doc.add_paragraph("This is a generated scaffold based on the presales discovery submission.")
     bio = io.BytesIO()
     doc.save(bio)
@@ -551,7 +596,6 @@ def _build_docx_bytes(title: str, company: str, opp: str, ir: str, opp_url: str,
 
 
 def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
-    """Create the in-memory ZIP using the current/archived payload. Writes both .md and .docx."""
     requested = data.get("docs_requested") or []
     if isinstance(requested, str):
         requested = [requested]
@@ -586,7 +630,6 @@ def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
 
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # README
         zf.writestr(
             "README.txt",
             "Document Package\n=================\n"
@@ -595,23 +638,16 @@ def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
             f"Formats: Markdown (.md){' and Word (.docx)' if Document else ''}\n"
             f"{'' if Document else 'Note: python-docx not installed; only .md files were generated.'}\n"
         )
-        # JSON context
         zf.writestr("context/presales_payload.json", json.dumps(data, indent=2))
 
-        # Each requested label -> write .md and (if available) .docx
         for label in requested:
             fname = safe_name(label)
             title = (label or "DOCUMENT").upper()
-
-            # Markdown
             zf.writestr(f"docs/{fname}.md", doc_body(title))
-
-            # DOCX (if python-docx is available)
             docx_bytes = _build_docx_bytes(title, company, opp, ir, opp_url, now)
             if docx_bytes:
                 zf.writestr(f"docs/{fname}.docx", docx_bytes)
 
-        # Optional ROM convenience if requested
         if any((x or "").upper() in ("ROM", "ROM ESTIMATE") for x in requested):
             zf.writestr("docs/ROM_ESTIMATE.md", doc_body("ROM ESTIMATE"))
             docx_bytes = _build_docx_bytes("ROM ESTIMATE", company, opp, ir, opp_url, now)
@@ -629,15 +665,44 @@ def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
 @app.route("/diag")
 def diag():
     content_text, sha = gh_read_entries_file(force=True)
+    base = gh_check_repo_branch()
     return {
         "github_repo": GITHUB_REPO,
         "github_branch": GITHUB_BRANCH,
         "github_path": GITHUB_PATH,
         "configured": bool(GITHUB_TOKEN and GITHUB_REPO),
+        "repo_ok": base.get("repo_ok"),
+        "branch_ok": base.get("branch_ok"),
+        "path_leading_slash": base.get("path_leading_slash"),
         "exists_entries": content_text is not None,
         "entries_len_bytes": len(content_text.encode("utf-8")) if isinstance(content_text, str) else None,
         "sha": sha,
         "preview_head": content_text[:500] if isinstance(content_text, str) else None,
+    }
+
+
+@app.route("/ghcheck")
+def ghcheck():
+    """Human-friendly checklist to fix 404s on GitHub writes."""
+    info = gh_check_repo_branch()
+    hints = []
+    if not info.get("token_set"):
+        hints.append("Set GITHUB_TOKEN env var (classic PAT with repo scope, or fine-grained with Contents: Read/Write).")
+    if not info.get("repo_ok"):
+        hints.append("GITHUB_REPO must be 'owner/repo' and the token must have access (for private/org repos, authorize SSO).")
+    if not info.get("branch_ok"):
+        hints.append(f"GITHUB_BRANCH '{GITHUB_BRANCH}' must exist. Create it or set the env var to your default branch.")
+    if info.get("path_leading_slash"):
+        hints.append("GITHUB_PATH must not start with '/'. Use a repo-relative path like 'data/entries.jsonl'.")
+    return {
+        "repo": info.get("repo"),
+        "branch": info.get("branch"),
+        "path": info.get("path"),
+        "token_set": info.get("token_set"),
+        "repo_ok": info.get("repo_ok"),
+        "branch_ok": info.get("branch_ok"),
+        "path_leading_slash": info.get("path_leading_slash"),
+        "hints": hints or ["Looks good. Try submitting the form again."],
     }
 
 
