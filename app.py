@@ -25,11 +25,13 @@ from flask import (
 
 import requests
 
-# Optional Word support (requires python-docx in requirements.txt)
+# Word support (ensure python-docx in requirements)
 try:
     from docx import Document  # type: ignore
 except Exception:
     Document = None
+
+APP_VERSION = "2025-10-08-docx-only-v2"
 
 # --------------------------------------------------------------------------------------
 # App setup
@@ -43,11 +45,6 @@ GITHUB_REPO = os.getenv("GITHUB_REPO", "")  # "owner/repo"
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 GITHUB_PATH = os.getenv("GITHUB_PATH", "data/entries.jsonl")  # path within the repo (no leading slash)
 GITHUB_API_ROOT = os.getenv("GITHUB_API_ROOT", "https://api.github.com")
-
-if not (GITHUB_TOKEN and GITHUB_REPO):
-    app.logger.warning(
-        "GitHub persistence not fully configured. Set GITHUB_TOKEN and GITHUB_REPO."
-    )
 
 # Small cache to reduce API calls
 _gh_cache: Dict[str, Any] = {"sha": None, "content_text": None, "fetched_ts": 0.0}
@@ -68,7 +65,6 @@ def _gh_contents_url() -> str:
 
 
 def gh_check_repo_branch() -> Dict[str, Any]:
-    """Quick diagnostics for repo access and branch existence."""
     info: Dict[str, Any] = {
         "repo_ok": False,
         "branch_ok": False,
@@ -654,17 +650,26 @@ def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         # Write DOCX files only
+        wrote_any = False
         for label in requested:
             title = (label or "DOCUMENT").upper()
             docx_bytes = _build_docx_bytes(title, company, opp, ir, opp_url, now)
             if docx_bytes:
                 zf.writestr(f"docs/{safe_name(label)}.docx", docx_bytes)
+                wrote_any = True
 
         # ROM convenience
         if any((x or "").upper() in ("ROM", "ROM ESTIMATE") for x in requested):
             docx_bytes = _build_docx_bytes("ROM ESTIMATE", company, opp, ir, opp_url, now)
             if docx_bytes:
                 zf.writestr("docs/ROM_ESTIMATE.docx", docx_bytes)
+                wrote_any = True
+
+        # If no doc was written (shouldn't happen), write a tiny sentinel docx
+        if not wrote_any:
+            fallback = _build_docx_bytes("DISCOVERY SUMMARY", company, opp, ir, opp_url, now)
+            if fallback:
+                zf.writestr("docs/DISCOVERY_SUMMARY.docx", fallback)
 
     mem.seek(0)
     dl_name = f"WWT_Doc_Package_{company.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.zip"
@@ -672,13 +677,14 @@ def _build_doc_package(data: Dict[str, Any]) -> tuple[io.BytesIO, str]:
 
 
 # --------------------------------------------------------------------------------------
-# Diagnostics
+# Diagnostics & test endpoints
 # --------------------------------------------------------------------------------------
 @app.route("/diag")
 def diag():
     content_text, sha = gh_read_entries_file(force=True)
     base = gh_check_repo_branch()
     return {
+        "app_version": APP_VERSION,
         "github_repo": GITHUB_REPO,
         "github_branch": GITHUB_BRANCH,
         "github_path": GITHUB_PATH,
@@ -718,18 +724,36 @@ def ghcheck():
     }
 
 
-# --------------------------------------------------------------------------------------
-# Health
-# --------------------------------------------------------------------------------------
+@app.route("/docx_test")
+def docx_test():
+    """Quick smoke test: returns a single DOCX so we can confirm python-docx works."""
+    if Document is None:
+        return {"ok": False, "error": "python-docx not installed"}, 500
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    payload = {
+        "company": "TestCo",
+        "opportunity": "Smoke Test",
+        "ir": "N/A",
+        "url": "(n/a)",
+    }
+    b = _build_docx_bytes("DOCX SMOKE TEST", payload["company"], payload["opportunity"], payload["ir"], payload["url"], now)
+    bio = io.BytesIO(b)
+    bio.seek(0)
+    return send_file(bio, mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                     as_attachment=True, download_name="docx_smoke_test.docx")
+
+
 @app.route("/healthz")
 def healthz():
     return {
         "ok": True,
         "ts": datetime.utcnow().isoformat(),
+        "app_version": APP_VERSION,
+        "package_mode": "docx_only",
+        "docx_available": Document is not None,
         "storage": f"github:{GITHUB_REPO}:{GITHUB_PATH}",
         "branch": GITHUB_BRANCH,
         "configured": bool(GITHUB_TOKEN and GITHUB_REPO),
-        "docx_available": Document is not None,
     }
 
 
