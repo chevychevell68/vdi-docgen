@@ -1,0 +1,985 @@
+{% extends "base.html" %}
+{% block title %}Horizon Presales Discovery{% endblock %}
+{% block content %}
+
+<h1 class="mb-3">Horizon Presales Discovery</h1>
+<p class="text-muted">Architect-led conversation. Do not send to customers.</p>
+
+{% macro yes_checkbox(name, label_text, checked=false) -%}
+  <div class="form-check mb-2">
+    <input class="form-check-input" type="checkbox" id="{{name}}" name="{{name}}"
+           {% if checked in [True, 'yes', 'true', '1', 'on', 'checked'] %}checked{% endif %}>
+    <label class="form-check-label" for="{{name}}">{{ label_text }}</label>
+  </div>
+{%- endmacro %}
+
+<form method="post" id="presales-form">
+  <!-- 0) Customer Info -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Customer Info</legend>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Company name</label>
+        <input class="form-control" name="company_name" value="{{ (form.company_name if form else '') }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Customer name (primary contact)</label>
+        <input class="form-control" name="customer_name" value="{{ (form.customer_name if form else '') }}" required>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Salesforce Opportunity name</label>
+        <input class="form-control" name="sf_opportunity_name" value="{{ (form.sf_opportunity_name if form else '') }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">IR number</label>
+        <input class="form-control" name="ir_number" value="{{ (form.ir_number if form else '') }}" placeholder="e.g., IR-123456">
+      </div>
+
+      <div class="col-md-12">
+        <label class="form-label">Salesforce Opportunity URL</label>
+        <input type="url" class="form-control" name="sf_opportunity_url"
+               placeholder="https://your-instance.lightning.force.com/lightning/r/Opportunity/..."
+               value="{{ (form.sf_opportunity_url if form else '') }}">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label d-block">Existing VDI in environment?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="existing_vdi" id="existing_vdi_no" value="No" {% if form and form.existing_vdi=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="existing_vdi_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="existing_vdi" id="existing_vdi_yes" value="Yes" {% if form and form.existing_vdi=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="existing_vdi_yes">Yes</label>
+        </div>
+      </div>
+      <div class="col-12" id="existing_vdi_pain_group" style="display:{% if form and form.existing_vdi=='Yes' %}block{% else %}none{% endif %};">
+        <label class="form-label">If yes, top pain points</label>
+        <textarea class="form-control" name="existing_vdi_pain" rows="2">{{ (form.existing_vdi_pain if form else '') }}</textarea>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Voice of the Customer (VoC)</label>
+        <textarea class="form-control" name="voc" rows="4" placeholder="Business drivers, pain points, success criteria, deadlines, risk tolerance…">{{ (form.voc if form else '') }}</textarea>
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 1) Users & Scope -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Users & Scope</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Total users</label>
+        <input type="number" class="form-control" name="total_users" min="0" value="{{ (form.total_users if form else '') }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Concurrent users (peak)</label>
+        <input type="number" class="form-control" id="concurrent_users" name="concurrent_users" min="0" required value="{{ (form.concurrent_users if form else '') }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label"># of datacenters/regions</label>
+        <input type="number" class="form-control" name="num_datacenters" min="1" value="{{ (form.num_datacenters if form else '') }}">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Datacenters/regions (where)</label>
+        <input class="form-control" name="datacenters_detail" value="{{ (form.datacenters_detail if form else '') }}" placeholder="City/region list">
+      </div>
+
+      <!-- Deployment type near datacenter questions -->
+      <div class="col-md-4">
+        <label class="form-label">Deployment type</label>
+        <select class="form-select" name="deployment_type">
+          <option value="" {{ 'selected' if (form and form.deployment_type=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.deployment_type=='On-prem') else '' }}>On-prem</option>
+          <option {{ 'selected' if (form and form.deployment_type=='Cloud') else '' }}>Cloud</option>
+          <option {{ 'selected' if (form and form.deployment_type=='Hybrid') else '' }}>Hybrid</option>
+        </select>
+      </div>
+
+      <!-- Region checklist with % (includes US_HI, US_AK) -->
+      <div class="col-12">
+        <label class="form-label d-block">User locations (regional mix)</label>
+
+        <div class="row g-2 align-items-center">
+          {% set regions = [
+            ('US', 'Continental US'),
+            ('US_HI', 'US – HI'),
+            ('US_AK', 'US – AK'),
+            ('CAN', 'Canada'),
+            ('LATAM', 'LATAM'),
+            ('EMEA', 'EMEA'),
+            ('APAC', 'APAC'),
+            ('INDIA', 'India'),
+            ('ANZ', 'ANZ'),
+            ('OTHER', 'Other')
+          ] %}
+
+          {% for key, label in regions %}
+            <div class="col-md-3">
+              <div class="form-check">
+                <input class="form-check-input region-check" type="checkbox"
+                       id="reg_{{key}}" name="region_ck_{{key}}"
+                       {% if form and form['region_ck_' ~ key] %}checked{% endif %}>
+                <label class="form-check-label" for="reg_{{key}}">{{ label }}</label>
+              </div>
+              <div class="input-group input-group-sm mt-1">
+                <input type="number" min="0" max="100" step="1"
+                       class="form-control region-pct"
+                       id="reg_{{key}}_pct" name="region_pct_{{key}}"
+                       value="{{ (form['region_pct_' ~ key] if form and form['region_pct_' ~ key] else '') }}"
+                       placeholder="%" {% if not (form and form['region_ck_' ~ key]) %}disabled{% endif %}>
+                <span class="input-group-text">%</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="mt-2">
+          <span class="badge text-bg-secondary">Total: <span id="region_total">0</span>%</span>
+          <small class="text-muted ms-2">Must equal 100%.</small>
+          <div id="region_error" class="text-danger small mt-1" style="display:none;">
+            Regional mix must total 100%.
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label"># of distinct personas/use cases</label>
+        <input type="number" class="form-control" id="num_personas" name="num_personas" min="1" value="{{ (form.num_personas if form else '') }}">
+      </div>
+
+      <!-- Dynamic use case inputs -->
+      <div class="col-12" id="use_case_fields">
+        <label class="form-label">Use case details</label>
+        <div class="mb-2">
+          <input class="form-control" name="main_use_cases" id="main_use_cases" placeholder="Main use case" value="{{ (form.main_use_cases if form else '') }}">
+        </div>
+        <!-- Secondary fields injected by JS -->
+        <div id="secondary_use_cases_container"></div>
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 2) Graphics / GPU -->
+  {{ yes_checkbox('gpu_required', 'GPU Required?', form.gpu_required) }}
+
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="gpu_required" id="gpu_required_yes" value="Yes" {% if form and form.gpu_required=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="gpu_required_yes">Yes</label>
+        </div>
+      </div>
+
+      <!-- GPU detail fields: hidden unless GPU required = Yes -->
+      <div id="gpu_details" style="{% if form and (form.gpu_required in ['Yes', 'yes', True, 'true', '1', 'on', 'checked']) %}display:block{% else %}display:none{% endif %};">
+        <div class="row g-3 mt-1">
+          <div class="col-md-4">
+            <label class="form-label">GPU users (estimate)</label>
+            <input type="number" class="form-control" name="gpu_users" min="0" value="{{ (form.gpu_users if form else '') }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Target GPU profile / VRAM per user (GB)</label>
+            <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5" value="{{ (form.gpu_vram_per_user if form else '') }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label">GPU use case</label>
+            <input class="form-control" name="gpu_use_case" value="{{ (form.gpu_use_case if form else '') }}" placeholder="3D/CAD, imaging, video editing, ML inferencing…">
+          </div>
+        </div>
+      </div>
+      <!-- /#gpu_details -->
+    </div>
+  </fieldset>
+
+  <!-- 3) Image & Applications -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Image & Applications</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label"># of base images</label>
+        <input type="number" class="form-control" id="num_images" name="num_images" min="1" value="{{ (form.num_images if form else '1') }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Gold image provided by customer?</label>
+        <div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="gold_image_source" id="gis_wwt" value="WWT builds" {% if not form or form.gold_image_source=='WWT builds' %}checked{% endif %}>
+            <label class="form-check-label" for="gis_wwt">WWT builds</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="gold_image_source" id="gis_cust" value="Customer provides" {% if form and form.gold_image_source=='Customer provides' %}checked{% endif %}>
+            <label class="form-check-label" for="gis_cust">Customer provides</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile mgmt checkboxes -->
+      <div class="col-md-4">
+        <label class="form-label d-block">Profile management</label>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="pm_dem" name="profile_mgmt" value="DEM" {% if form and 'DEM' in form.get('profile_mgmt', []) %}checked{% endif %}>
+          <label class="form-check-label" for="pm_dem">DEM</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="pm_fslogix" name="profile_mgmt" value="FSLogix" {% if form and 'FSLogix' in form.get('profile_mgmt', []) %}checked{% endif %}>
+          <label class="form-check-label" for="pm_fslogix">FSLogix</label>
+        </div>
+      </div>
+
+      <!-- Virtual apps checkboxes -->
+      <div class="col-md-4">
+        <label class="form-label d-block">Virtual apps?</label>
+        <div class="form-check">
+          <input class="form-check-input va-check" type="checkbox" id="va_appvol" name="virtual_apps" value="App Volumes" {% if form and 'App Volumes' in form.get('virtual_apps', []) %}checked{% endif %}>
+          <label class="form-check-label" for="va_appvol">App Volumes</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input va-check" type="checkbox" id="va_rdsh" name="virtual_apps" value="RDSH" {% if form and 'RDSH' in form.get('virtual_apps', []) %}checked{% endif %}>
+          <label class="form-check-label" for="va_rdsh">RDSH</label>
+        </div>
+      </div>
+
+      <div class="col-12" id="required_apps_group" style="display:{% if form and 'App Volumes' in form.get('virtual_apps', []) %}block{% else %}none{% endif %};">
+        <label class="form-label">Required applications</label>
+        <textarea class="form-control" name="required_apps" rows="3" placeholder="List app names/versions/licensing nuances…">{{ (form.required_apps if form else '') }}</textarea>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label d-block">WWT responsible for app packaging?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="wwt_app_packaging" id="pkg_no" value="No" {% if form and form.wwt_app_packaging=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="pkg_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="wwt_app_packaging" id="pkg_yes" value="Yes" {% if form and form.wwt_app_packaging=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="pkg_yes">Yes</label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 4) Access & Identity -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Access & Identity</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label d-block">Remote access required?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="remote_access" id="ra_no" value="No" {% if form and form.remote_access=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="ra_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="remote_access" id="ra_yes" value="Yes" {% if form and form.remote_access=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="ra_yes">Yes</label>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label d-block">MFA required?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="mfa_required" id="mfa_no" value="No" {% if form and form.mfa_required=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="mfa_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="mfa_required" id="mfa_yes" value="Yes" {% if form and form.mfa_required=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="mfa_yes">Yes</label>
+        </div>
+      </div>
+
+      <div class="col-md-4" id="mfa_solution_group" style="display:{% if form and form.mfa_required=='Yes' %}block{% else %}none{% endif %};">
+        <label class="form-label">Existing MFA solution</label>
+        <input class="form-control" name="mfa_solution" value="{{ (form.mfa_solution if form else '') }}" placeholder="Duo, Okta, Azure, etc.">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label d-block">Smart card authentication?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="smartcard" id="sc_no" value="No" {% if form and form.smartcard=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="sc_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="smartcard" id="sc_yes" value="Yes" {% if form and form.smartcard=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="sc_yes">Yes</label>
+        </div>
+      </div>
+
+      <div class="col-md-8">
+        <label class="form-label">Workspace ONE Access or 3rd-party IdP</label>
+        <input class="form-control" name="idp_provider" value="{{ (form.idp_provider if form else '') }}" placeholder="WS1 Access / Okta / Entra ID / ADFS / Ping…">
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 5) Endpoints -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Endpoints</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label d-block">Provision/configure endpoints?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="endpoint_provisioning" id="ep_no" value="No" {% if form and form.endpoint_provisioning=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="ep_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="endpoint_provisioning" id="ep_yes" value="Yes" {% if form and form.endpoint_provisioning=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="ep_yes">Yes</label>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Endpoint types</label>
+        <input class="form-control" name="endpoint_types" value="{{ (form.endpoint_types if form else '') }}" placeholder="Thin clients, PCs/laptops, zero clients, tablets…">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Thin client management required?</label>
+        <input class="form-control" name="thin_client_mgmt" value="{{ (form.thin_client_mgmt if form else '') }}" placeholder="HPDM, Stratodesk, IGEL…">
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 6) Directory & Core Services -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Directory & Core Services</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label d-block">Existing AD forest/domains?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="ad_exists" id="ad_no" value="No" {% if form and form.ad_exists=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="ad_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="ad_exists" id="ad_yes" value="Yes" {% if form and form.ad_exists=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="ad_yes">Yes</label>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label"># of domains / trusts</label>
+        <input type="number" class="form-control" name="num_domains" min="1" value="{{ (form.num_domains if form else '') }}">
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Domain name for virtual desktops</label>
+        <input class="form-control" name="vd_domain_name" value="{{ (form.vd_domain_name if form else '') }}" placeholder="e.g., corp.example.com">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Separate domain for core servers?</label>
+        <input class="form-control" name="core_domain_name" value="{{ (form.core_domain_name if form else '') }}" placeholder="If separate, specify domain/FQDN">
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 7) Platform & Infra -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Platform & Infra</legend>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Hypervisor/platform</label>
+        <select class="form-select" name="platform" id="platform">
+          <option value="" {{ 'selected' if (form and form.platform=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.platform=='vSphere (ESXi)') else '' }}>vSphere (ESXi)</option>
+          <option {{ 'selected' if (form and form.platform=='Hyper-V') else '' }}>Hyper-V</option>
+          <option {{ 'selected' if (form and form.platform=='Nutanix AHV') else '' }}>Nutanix AHV</option>
+          <option {{ 'selected' if (form and form.platform=='KVM') else '' }}>KVM</option>
+          <option {{ 'selected' if (form and form.platform=='Other') else '' }}>Other</option>
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label d-block">General compute cluster available for core components?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="general_compute_cluster" id="gcc_no" value="No" {% if form and form.general_compute_cluster=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="gcc_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="general_compute_cluster" id="gcc_yes" value="Yes" {% if form and form.general_compute_cluster=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="gcc_yes">Yes</label>
+        </div>
+      </div>
+
+      <!-- Host sizing -->
+      <div class="col-md-3">
+        <label class="form-label">Host CPU cores</label>
+        <input type="number" class="form-control" id="host_cpu_cores" name="host_cpu_cores" min="1" required value="{{ (form.host_cpu_cores if form else '') }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Host RAM (GB)</label>
+        <input type="number" class="form-control" id="host_ram_gb" name="host_ram_gb" min="1" required value="{{ (form.host_ram_gb if form else '') }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label"># of hosts (cluster)</label>
+        <input type="number" class="form-control" name="hosts_count" min="1" value="{{ (form.hosts_count if form else '') }}">
+      </div>
+
+      <!-- VM persona sizing -->
+      <div class="col-md-3">
+        <label class="form-label">VM vCPU</label>
+        <input type="number" class="form-control" id="vm_vcpu" name="vm_vcpu" min="1" value="{{ (form.vm_vcpu if form else '2') }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">VM RAM (GB)</label>
+        <input type="number" class="form-control" id="vm_ram_gb" name="vm_ram_gb" min="1" value="{{ (form.vm_ram_gb if form else '8') }}" required>
+      </div>
+
+      <!-- vCPU:pCPU ratio -->
+      <div class="col-md-3">
+        <label class="form-label">vCPU : pCPU ratio</label>
+        <select class="form-select" id="vcpu_to_pcpu" name="vcpu_to_pcpu">
+          <option value="4" {{ 'selected' if (not form or form.vcpu_to_pcpu=='4') else '' }}>1:4</option>
+          <option value="5" {{ 'selected' if (form and form.vcpu_to_pcpu=='5') else '' }}>1:5</option>
+          <option value="6" {{ 'selected' if (form and form.vcpu_to_pcpu=='6') else '' }}>1:6</option>
+        </select>
+      </div>
+
+      <!-- Storage -->
+      <div class="col-md-3">
+        <label class="form-label">Storage type</label>
+        <select class="form-select" name="storage_type" id="storage_type">
+          <option value="" {{ 'selected' if (form and form.storage_type=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.storage_type=='vSAN') else '' }}>vSAN</option>
+          <option {{ 'selected' if (form and form.storage_type=='Pure') else '' }}>Pure</option>
+          <option {{ 'selected' if (form and form.storage_type=='Other') else '' }}>Other</option>
+        </select>
+      </div>
+
+      <!-- vSAN calc inputs -->
+      <div class="col-md-3 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
+        <label class="form-label">Base image size (GB)</label>
+        <input type="number" class="form-control" id="base_image_gb" name="base_image_gb" value="{{ (form.base_image_gb if form else '40') }}" min="1">
+      </div>
+      <div class="col-md-3 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
+        <label class="form-label">vSAN policy factor</label>
+        <select class="form-select" id="vsan_policy_factor" name="vsan_policy_factor">
+          <option value="2.0"  {{ 'selected' if (not form or form.vsan_policy_factor=='2.0') else '' }}>FTT1 RAID1 (≈2.0x)</option>
+          <option value="1.33" {{ 'selected' if (form and form.vsan_policy_factor=='1.33') else '' }}>FTT1 RAID5 (≈1.33x)</option>
+          <option value="3.0"  {{ 'selected' if (form and form.vsan_policy_factor=='3.0') else '' }}>FTT2 RAID1 (≈3.0x)</option>
+        </select>
+      </div>
+
+      <!-- Advanced tunables -->
+      <div class="col-12 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
+        <details>
+          <summary>Advanced vSAN & density tunables</summary>
+          <div class="row g-3 mt-2">
+            <div class="col-md-3">
+              <label class="form-label">IC delta per user (GB)</label>
+              <input type="number" class="form-control" id="delta_gb" name="delta_gb" value="{{ (form.delta_gb if form else '6') }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Per-VM overhead (GB)</label>
+              <input type="number" class="form-control" id="per_vm_overhead_gb" name="per_vm_overhead_gb" value="{{ (form.per_vm_overhead_gb if form else '1') }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Growth/cushion factor</label>
+              <input type="number" step="0.01" class="form-control" id="growth_factor" name="growth_factor" value="{{ (form.growth_factor if form else '1.10') }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Mem headroom (%)</label>
+              <input type="number" class="form-control" id="mem_headroom_pct" name="mem_headroom_pct" value="{{ (form.mem_headroom_pct if form else '0.20') }}" step="0.01">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">ESXi overhead (GB)</label>
+              <input type="number" class="form-control" id="esxi_overhead_gb" name="esxi_overhead_gb" value="{{ (form.esxi_overhead_gb if form else '8') }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">GPU sessions cap (per host)</label>
+              <input type="number" class="form-control" id="gpu_sessions_cap" name="gpu_sessions_cap" value="{{ (form.gpu_sessions_cap if form else '0') }}" min="0">
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Read-only results -->
+      <div class="col-md-4 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
+        <label class="form-label">vSAN capacity for Instant Clones (GB)</label>
+        <div class="form-control-plaintext fw-bold" id="vsan_total_gb">—</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Users per host (est.)</label>
+        <div class="form-control-plaintext fw-bold" id="per_host_density">—</div>
+      </div>
+
+      <!-- External array fields -->
+      <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
+        <label class="form-label">Storage vendor/model</label>
+        <input class="form-control" name="storage_vendor_model" value="{{ (form.storage_vendor_model if form else '') }}" placeholder="e.g., Pure X50R3">
+      </div>
+      <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
+        <label class="form-label">Protocol</label>
+        <input class="form-control" name="storage_protocol" value="{{ (form.storage_protocol if form else '') }}" placeholder="NFS / iSCSI / FC">
+      </div>
+      <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
+        <label class="form-label">Usable capacity (GB)</label>
+        <input type="number" class="form-control" name="storage_usable_gb" min="1" value="{{ (form.storage_usable_gb if form else '') }}">
+      </div>
+
+      <!-- Load balancer -->
+      <div class="col-md-4">
+        <label class="form-label">Load balancer</label>
+        <select class="form-select" name="load_balancer" id="load_balancer">
+          <option value="">Select…</option>
+          <option {% if form and form.load_balancer=='F5 BIG-IP' %}selected{% endif %}>F5 BIG-IP</option>
+          <option {% if form and form.load_balancer=='NSX Advanced Load Balancer (Avi)' %}selected{% endif %}>NSX Advanced Load Balancer (Avi)</option>
+          <option {% if form and form.load_balancer=='Citrix ADC (NetScaler)' %}selected{% endif %}>Citrix ADC (NetScaler)</option>
+          <option {% if form and form.load_balancer=='NGINX' %}selected{% endif %}>NGINX</option>
+          <option {% if form and form.load_balancer=='HAProxy' %}selected{% endif %}>HAProxy</option>
+          <option {% if form and form.load_balancer=='A10 Thunder' %}selected{% endif %}>A10 Thunder</option>
+          <option {% if form and form.load_balancer=='Kemp LoadMaster' %}selected{% endif %}>Kemp LoadMaster</option>
+          <option {% if form and form.load_balancer=='AWS ALB / NLB' %}selected{% endif %}>AWS ALB / NLB</option>
+          <option {% if form and form.load_balancer=='Azure Load Balancer / Front Door' %}selected{% endif %}>Azure Load Balancer / Front Door</option>
+          <option {% if form and form.load_balancer=='GCP Load Balancer' %}selected{% endif %}>GCP Load Balancer</option>
+          <option {% if form and form.load_balancer=='Other' %}selected{% endif %}>Other</option>
+        </select>
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 8) Operations & Enablement -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Operations & Enablement</legend>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Operations staffing</label>
+        <select class="form-select" name="ogs_staffing">
+          <option value="" {{ 'selected' if (form and form.ogs_staffing=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.ogs_staffing=='Dedicated to VDI') else '' }}>Dedicated to VDI</option>
+          <option {{ 'selected' if (form and form.ogs_staffing=='Shared — other duties besides VDI') else '' }}>Shared — other duties besides VDI</option>
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Monitoring</label>
+        <select class="form-select" name="monitoring_stack" id="monitoring_stack">
+          <option value="" {{ 'selected' if (form and form.monitoring_stack=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='ControlUp (Platform)') else '' }}>ControlUp (Platform)</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='ControlUp Edge DX') else '' }}>ControlUp Edge DX</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='VMware Aria Operations (vROps)') else '' }}>VMware Aria Operations (vROps)</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Lakeside SysTrack') else '' }}>Lakeside SysTrack</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Nexthink') else '' }}>Nexthink</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Liquidware Stratusphere UX') else '' }}>Liquidware Stratusphere UX</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Goliath') else '' }}>Goliath</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='eG Innovations') else '' }}>eG Innovations</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Login VSI / Login Enterprise') else '' }}>Login VSI / Login Enterprise</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='Other') else '' }}>Other</option>
+          <option {{ 'selected' if (form and form.monitoring_stack=='None') else '' }}>None</option>
+        </select>
+      </div>
+
+      <div class="col-md-12">
+        <label class="form-label d-block">Training required</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="train_admin" name="training_required" value="Admin" checked>
+          <label class="form-check-label" for="train_admin">Admin</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="train_helpdesk" name="training_required" value="Helpdesk" checked>
+          <label class="form-check-label" for="train_helpdesk">Helpdesk</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="train_enduser" name="training_required" value="End-user" checked>
+          <label class="form-check-label" for="train_enduser">End-user</label>
+        </div>
+      </div>
+
+      <!-- NEW: Typical onboarding time (per user) -->
+      <div class="col-md-6">
+        <label class="form-label">Typical onboarding time (per user)</label>
+        <div class="input-group">
+          <input type="number" class="form-control" name="onboarding_time_value" min="0"
+                 value="{{ (form.onboarding_time_value if form else '') }}" placeholder="e.g., 2">
+          <select class="form-select" name="onboarding_time_unit" style="max-width: 10rem;">
+            <option value="" {{ 'selected' if (form and form.onboarding_time_unit=='') else '' }}>Select unit…</option>
+            <option {{ 'selected' if (form and form.onboarding_time_unit=='hours') else '' }}>hours</option>
+            <option {{ 'selected' if (form and form.onboarding_time_unit=='days') else '' }}>days</option>
+          </select>
+        </div>
+        <div class="form-text">Estimate the hands-on time to fully onboard one user.</div>
+      </div>
+
+      <div class="col-md-12">
+        <label class="form-label">Knowledge Transfer (KT) expectations</label>
+        <textarea class="form-control" name="kt_expectations" rows="2">{{ (form.kt_expectations if form else '') }}</textarea>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label d-block">Runbook required?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="runbook_required" id="rb_no" value="No" {% if form and form.runbook_required=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="rb_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="runbook_required" id="rb_yes" value="Yes" {% if form and form.runbook_required=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="rb_yes">Yes</label>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label d-block">Adoption Services needed?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="adoption_services" id="adopt_no" value="No" {% if form and form.adoption_services=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="adopt_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="adoption_services" id="adopt_yes" value="Yes" {% if form and form.adoption_services=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="adopt_yes">Yes</label>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label d-block">HA/DR in-scope?</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="ha_dr" id="ha_no" value="No" {% if form and form.ha_dr=='No' %}checked{% endif %}>
+          <label class="form-check-label" for="ha_no">No</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="ha_dr" id="ha_yes" value="Yes" {% if form and form.ha_dr=='Yes' %}checked{% endif %}>
+          <label class="form-check-label" for="ha_yes">Yes</label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 9) Logistics & Delivery Model -->
+  <fieldset class="border p-3 mb-4">
+    <legend>Logistics & Delivery Model</legend>
+    <div class="row g-3">
+      <div class="col-md-8">
+        <label class="form-label">Delivery model</label>
+        <select class="form-select" name="delivery_model">
+          <option value="" {{ 'selected' if (form and form.delivery_model=='') else '' }}>Select…</option>
+          <option {{ 'selected' if (form and form.delivery_model=='WWT builds end-to-end') else '' }}>WWT builds end-to-end</option>
+          <option {{ 'selected' if (form and form.delivery_model=='WWT over-the-shoulder workshops') else '' }}>WWT over-the-shoulder workshops</option>
+          <option {{ 'selected' if (form and form.delivery_model=='Hybrid (shared tasks)') else '' }}>Hybrid (shared tasks)</option>
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Target start date</label>
+        <input type="date" class="form-control" id="start_date" name="start_date" value="{{ (form.start_date if form else '') }}">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Timeline / deadlines</label>
+        <input class="form-control" name="timeline" value="{{ (form.timeline if form else '') }}">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label d-block">Docs requested</label>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_sow"   name="docs_requested" value="SOW" checked>
+          <label class="form-check-label" for="doc_sow">SOW</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_hld"   name="docs_requested" value="HLD" checked>
+          <label class="form-check-label" for="doc_hld">HLD</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_lld"   name="docs_requested" value="LLD" checked>
+          <label class="form-check-label" for="doc_lld">LLD</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_runbook" name="docs_requested" value="Runbook" checked>
+          <label class="form-check-label" for="doc_runbook">Runbook</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_pdg"   name="docs_requested" value="PDG" checked>
+          <label class="form-check-label" for="doc_pdg">PDG (Project Definition Guide)</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_loe"   name="docs_requested" value="LOE/WBS" checked>
+          <label class="form-check-label" for="doc_loe">LOE / WBS</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_atp"   name="docs_requested" value="ATP" checked>
+          <label class="form-check-label" for="doc_atp">ATP (Acceptance Test Plan)</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="doc_adopt" name="docs_requested" value="Adoption Plan" checked>
+          <label class="form-check-label" for="doc_adopt">Adoption Plan</label>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Stakeholders / 3rd parties</label>
+        <textarea class="form-control" name="stakeholders" rows="2">{{ (form.stakeholders if form else '') }}</textarea>
+      </div>
+    </div>
+  </fieldset>
+
+  <button class="btn btn-primary">Save</button>
+
+    <script id="CheckboxRadioBridge">
+(function () {
+  function fireAll(el){
+    if(!el) return;
+    try { el.click(); } catch(e){}
+    try { el.dispatchEvent(new Event('input',  {bubbles:true})); } catch(e){}
+    try { el.dispatchEvent(new Event('change', {bubbles:true})); } catch(e){}
+  }
+  function hideNode(n){
+    if (!n) return;
+    var box = n.closest('.form-check, .form-group, div, fieldset');
+    if (box) box.classList.add('d-none'); else n.style.display = 'none';
+  }
+  function hook(field){
+    var cb  = document.getElementById(field); // new checkbox (id must be the field name)
+    if (!cb) return;
+
+    // Try to find legacy radios by name or common ids
+    var yes = document.querySelector('input[type="radio"][name="'+field+'"][value="yes"]')
+          || document.getElementById(field+"_yes");
+    var no  = document.querySelector('input[type="radio"][name="'+field+'"][value="no"]')
+          || document.getElementById(field+"_no");
+
+    // If radios exist, hide their visible containers
+    hideNode(yes); hideNode(no);
+
+    function sync(){
+      var checked = !!cb.checked;
+      if (yes && no){
+        // Mirror state and fire the SAME event path listeners were wired to
+        yes.checked = checked;
+        no.checked  = !checked;
+        fireAll(checked ? yes : no);
+      } else {
+        // Fallback: if there are no radios, at least emit change on the checkbox itself
+        fireAll(cb);
+      }
+    }
+
+    // Initial sync on load and wire future changes
+    cb.addEventListener('change', sync);
+    // Run after DOM is ready so other listeners are attached
+    if (document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', sync);
+    } else {
+      sync();
+    }
+  }
+
+  // Bridge these fields (add more names here later if you convert them)
+  ["gpu_required","ad_required","fslogix_required","use_github_save"].forEach(hook);
+})();
+</script>
+    
+</form>
+
+<!-- Version badge -->
+<div style="position: fixed; right: 10px; bottom: 8px; font-size: 12px; color: #6c757d;">
+  Form v1.7.0
+</div>
+
+<!-- Conditional UI & Auto-calcs -->
+<script>
+(function () {
+  // Helpers
+  function el(id){return document.getElementById(id);}
+  function num(id, fallback=0){ const e=el(id); const v=parseFloat(e?.value); return isNaN(v)?fallback:v; }
+  function setText(id,v){ const e=el(id); if(e){ e.textContent = v; } }
+
+  // Default start date = ~1 month from today (30 days) if empty
+  (function setDefaultStartDate(){
+    const input = el("start_date");
+    if (!input || input.value) return;
+    const d = new Date(); d.setDate(d.getDate() + 30);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    input.value = `${yyyy}-${mm}-${dd}`;
+  })();
+
+  function toggleExistingVDI(){
+    const r = document.querySelector('input[name="existing_vdi"]:checked');
+    const show = r && r.value === "Yes";
+    const grp = document.getElementById("existing_vdi_pain_group");
+    if (grp) grp.style.display = show ? "" : "none";
+  }
+
+  function toggleRequiredApps(){
+    const appvol = document.getElementById("va_appvol");
+    const show = !!(appvol && appvol.checked);
+    const grp = document.getElementById("required_apps_group");
+    if (grp) grp.style.display = show ? "" : "none";
+  }
+
+  function toggleStorageGroups(){
+    const t = el("storage_type")?.value || "";
+    document.querySelectorAll(".vsan-only").forEach(x => x.style.display = (t === "vSAN" ? "" : "none"));
+    document.querySelectorAll(".non-vsan-only").forEach(x => x.style.display = (t && t !== "vSAN" ? "" : "none"));
+  }
+
+  function toggleMFA(){
+    const r = document.querySelector('input[name="mfa_required"]:checked');
+    const show = r && r.value === "Yes";
+    const grp = document.getElementById("mfa_solution_group");
+    if (grp) grp.style.display = show ? "" : "none";
+  }
+
+  function toggleGPU(){
+  const cb = document.getElementById('gpu_required');
+  let show = false;
+  if (cb) {
+    show = !!cb.checked;
+  } else {
+    const r = document.querySelector('input[name="gpu_required"]:checked');
+    show = !!(r && String(r.value).toLowerCase() === 'yes');
+  }
+  const wrap = document.getElementById('gpu_details');
+  if (wrap) wrap.style.display = show ? '' : 'none';
+}
+// vSAN capacity for Instant Clones (GB)
+  function computeVSAN(){
+    if ((el("storage_type")?.value || "") !== "vSAN"){ setText("vsan_total_gb", "—"); return; }
+    const N          = num("concurrent_users");
+    const images     = num("num_images", 1);
+    const vmMem      = num("vm_ram_gb", 8);
+    const baseImg    = num("base_image_gb", 40);
+    const vsanFactor = num("vsan_policy_factor", 2.0);
+    const delta      = num("delta_gb", 6);
+    const overhead   = num("per_vm_overhead_gb", 1);
+    const growth     = num("growth_factor", 1.10);
+
+    const perVMWritable = delta + vmMem + overhead;
+    const replicas      = images * baseImg;
+    const raw           = (N * perVMWritable) + replicas;
+    const total         = raw * vsanFactor * growth;
+
+    setText("vsan_total_gb", Math.ceil(total).toLocaleString());
+  }
+
+  // Users per host (density)
+  function computeDensity(){
+    const cores   = num("host_cpu_cores");
+    const hostMem = num("host_ram_gb");
+    const vmvCPU  = num("vm_vcpu", 2);
+    const vmMem   = num("vm_ram_gb", 8);
+
+    const ratio     = num("vcpu_to_pcpu", 4);
+    const headroom  = num("mem_headroom_pct", 0.20);
+    const esxiOH    = num("esxi_overhead_gb", 8);
+    const gpuCap    = num("gpu_sessions_cap", 0);
+
+    const cpuCap  = Math.floor((cores * ratio) / vmvCPU);
+    const usable  = (hostMem * (1 - headroom)) - esxiOH;
+    const memCap  = Math.floor(usable / vmMem);
+
+    let d = Math.min(cpuCap, memCap);
+    if (gpuCap > 0) d = Math.min(d, gpuCap);
+    setText("per_host_density", (isFinite(d) && d>=0) ? String(d) : "—");
+  }
+
+  // Region % enable/disable and sum to 100
+  function regionToggleEnable(e) {
+    const key = e.target.id.replace("reg_", "");
+    const pct = document.getElementById(`reg_${key}_pct`);
+    if (!pct) return;
+    pct.disabled = !e.target.checked;
+    if (!e.target.checked) pct.value = "";
+    sumRegions();
+  }
+
+  function sumRegions() {
+    const inputs = document.querySelectorAll(".region-pct:not([disabled])");
+    let total = 0;
+    inputs.forEach(i => {
+      const v = parseFloat(i.value);
+      if (!isNaN(v)) total += v;
+    });
+    const totEl = document.getElementById("region_total");
+    if (totEl) totEl.textContent = String(Math.round(total));
+    const err = document.getElementById("region_error");
+    if (err) err.style.display = (Math.round(total) === 100 ? "none" : "");
+    return Math.round(total);
+  }
+
+  function attachRegionHandlers() {
+    document.querySelectorAll(".region-check").forEach(cb => {
+      cb.addEventListener("change", regionToggleEnable);
+    });
+    document.querySelectorAll(".region-pct").forEach(inp => {
+      inp.addEventListener("input", sumRegions);
+    });
+    sumRegions();
+  }
+
+  // Dynamic use case fields
+  function renderUseCaseFields() {
+    const n = parseInt(document.getElementById("num_personas")?.value || "0", 10);
+    const container = document.getElementById("secondary_use_cases_container");
+    if (!container) return;
+    container.innerHTML = "";
+    if (n <= 1) return; // only main
+    for (let i = 2; i <= n; i++) {
+      const div = document.createElement("div");
+      div.className = "mb-2";
+      div.innerHTML = `<input class="form-control" name="secondary_use_case_${i}" placeholder="Secondary use case ${i}">`;
+      container.appendChild(div);
+    }
+  }
+
+  // Block submit if region total != 100
+  function guardSubmitForRegions() {
+    const form = document.getElementById("presales-form");
+    if (!form) return;
+    form.addEventListener("submit", function (e) {
+      const total = sumRegions();
+      if (total !== 100) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById("region_error")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  }
+
+  const watched = [
+    "storage_type",
+    "concurrent_users","num_images","vm_ram_gb","base_image_gb","vsan_policy_factor",
+    "delta_gb","per_vm_overhead_gb","growth_factor",
+    "host_cpu_cores","host_ram_gb","vm_vcpu","vcpu_to_pcpu","mem_headroom_pct","esxi_overhead_gb","gpu_sessions_cap"
+  ];
+
+  function recalc(){
+    toggleExistingVDI();
+    toggleRequiredApps();
+    toggleStorageGroups();
+    toggleMFA();
+    toggleGPU();
+    computeVSAN();
+    computeDensity();
+  }
+
+  function attach(){
+    watched.forEach(id => { const e = el(id); if (e) e.addEventListener("input", recalc); });
+
+    document.querySelectorAll('input[name="existing_vdi"]').forEach(r => r.addEventListener("change", toggleExistingVDI));
+    document.querySelectorAll('input[name="mfa_required"]').forEach(r => r.addEventListener("change", toggleMFA));
+    document.querySelectorAll('input[name="gpu_required"]').forEach(r => r.addEventListener("change", toggleGPU));
+    document.querySelectorAll('.va-check').forEach(c => c.addEventListener("change", toggleRequiredApps));
+    document.getElementById("num_personas")?.addEventListener("input", renderUseCaseFields);
+
+    attachRegionHandlers();
+    guardSubmitForRegions();
+
+    renderUseCaseFields();
+    recalc();
+  }
+
+  // Safety defaults if tunables are absent
+  if (!el("mem_headroom_pct")) {
+    const hidden = document.createElement("div");
+    hidden.innerHTML = `
+      <input type="hidden" id="mem_headroom_pct" value="0.20">
+      <input type="hidden" id="esxi_overhead_gb" value="8">
+      <input type="hidden" id="gpu_sessions_cap" value="0">
+    `;
+    document.body.appendChild(hidden);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", attach);
+  } else {
+    attach();
+  }
+})();
+</script>
+
+{% endblock %}
