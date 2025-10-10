@@ -1,193 +1,67 @@
+<!-- templates/base.html -->
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}VDI Tools{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-      .req-asterisk { color: #dc3545; margin-left: 2px; }
-      .placeholder-helper { opacity: 0.95; }
-    </style>
-  </head>
-
-  <body class="bg-light" style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
-    <!-- Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('index') }}">WWT Markdown</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav me-auto">
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'presales' %}active{% endif %}" href="{{ url_for('presales') }}">Presales Discovery</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'pdg' %}active{% endif %}" href="{{ url_for('pdg') }}">Project Definition Guide</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'predeploy' %}active{% endif %}" href="{{ url_for('predeploy') }}">Pre-Deployment Guide</a>
-            </li>
-
-            {% if has_endpoint('history') %}
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">History</a>
-            </li>
-            {% endif %}
-          </ul>
-        </div>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}App{% endblock %}</title>
+  <!-- Bootstrap 5 -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous">
+  {% block head %}{% endblock %}
+  <style>
+    body { padding-bottom: 4rem; }
+    .version-badge { position: fixed; right: 10px; bottom: 8px; font-size: 12px; color: #6c757d; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg bg-body-tertiary mb-4">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="{{ url_for('index') }}">VDI DocGen</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
+              aria-controls="nav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div id="nav" class="collapse navbar-collapse">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('presales.presales_new') }}">Presales form</a>
+          </li>
+        </ul>
       </div>
-    </nav>
+    </div>
+  </nav>
 
-    <main class="container">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+  <main class="container">
+    {% with msgs = get_flashed_messages(with_categories=True) %}
+      {% if msgs %}
+        <div class="mb-3">
+          {% for category, message in msgs %}
+            {% set cls = 'alert-success' if category in ['success', 'ok'] else 'alert-danger' if category in ['error','danger'] else 'alert-info' %}
+            <div class="alert {{ cls }} alert-dismissible fade show" role="alert">
               {{ message }}
-              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
           {% endfor %}
-        {% endif %}
-      {% endwith %}
-      {% block content %}{% endblock %}
-    </main>
+        </div>
+      {% endif %}
+    {% endwith %}
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block content %}{% endblock %}
+  </main>
 
-    <!-- Required-field asterisks -->
-    <script>
-      (function () {
-        function markRequired(root) {
-          const fields = root.querySelectorAll('input[required], select[required], textarea[required]');
-          fields.forEach(function (el) {
-            let label = null;
-            if (el.id) {
-              label = root.querySelector('label[for="' + el.id + '"]');
-            }
-            if (!label) {
-              let p = el.closest('.col-md-12, .col-md-8, .col-md-6, .col-md-4, .mb-3, .form-group, fieldset, .row, div');
-              while (p && !label) {
-                label = p.querySelector('label.form-label') || p.querySelector('label');
-                if (label) break;
-                p = p.parentElement;
-              }
-            }
-            if (label && !label.dataset.requiredDecorated) {
-              const span = document.createElement('span');
-              span.className = 'req-asterisk';
-              span.textContent = ' *';
-              label.appendChild(span);
-              label.dataset.requiredDecorated = '1';
-            }
-          });
-        }
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => markRequired(document));
-        else markRequired(document);
-      })();
-    </script>
+  <div class="version-badge">
+    <!-- You can render a version from config/env if you want -->
+    UI v1.7.0
+  </div>
 
-    <!-- Smart placeholders -->
-    <script>
-      (function () {
-        const NUM_HINT   = 'e.g., 250';
-        const GB_HINT    = 'e.g., 512';
-        const URL_HINT   = 'https://your-instance.example.com/...';
-        const DATE_HINT  = 'e.g., 2025-10-20';
-        const PCT_HINT   = 'e.g., 20';
-        const FACTOR_HINT= 'e.g., 1.10';
-
-        function setIfEmptyPlaceholder(el, text) {
-          if (!el || el.hasAttribute('placeholder')) return;
-          el.setAttribute('placeholder', text);
-          el.classList.add('placeholder-helper');
-        }
-
-        function ensureSelectPrompt(sel) {
-          if (!sel || sel.dataset.selectDecorated) return;
-          const first = sel.options[0];
-          const looksPrompt = first && (first.disabled || /select/i.test(first.text) || first.value === '');
-          if (!looksPrompt) {
-            const opt = document.createElement('option');
-            opt.textContent = 'Select...';
-            opt.value = '';
-            opt.disabled = true;
-            opt.selected = !sel.value;
-            sel.insertBefore(opt, sel.firstChild);
-          }
-          sel.dataset.selectDecorated = '1';
-        }
-
-        function nameOrId(el) {
-          return (el.name || '') + ' ' + (el.id || '');
-        }
-
-        function applySmartPlaceholder(el) {
-          const key = nameOrId(el).toLowerCase();
-          if (el.type === 'radio' || el.type === 'checkbox' || el.type === 'button' || el.type === 'submit') return;
-
-          if (key.includes('url') || key.includes('salesforce')) { setIfEmptyPlaceholder(el, URL_HINT); return; }
-          if (key.includes('company'))   { setIfEmptyPlaceholder(el, 'e.g., Centene Corporation'); return; }
-          if (key.includes('customer'))  { setIfEmptyPlaceholder(el, 'e.g., Jane Smith'); return; }
-          if (key.includes('contact'))   { setIfEmptyPlaceholder(el, 'e.g., john.doe@company.com'); return; }
-
-          if (key.includes('concurrent')){ setIfEmptyPlaceholder(el, NUM_HINT); return; }
-          if (key.includes('total_users')){ setIfEmptyPlaceholder(el, NUM_HINT); return; }
-          if (key.includes('num_images')){ setIfEmptyPlaceholder(el, 'e.g., 3'); return; }
-
-          if (key.includes('host_cpu_cores')) { setIfEmptyPlaceholder(el, 'e.g., 64'); return; }
-          if (key.includes('host_ram_gb'))    { setIfEmptyPlaceholder(el, GB_HINT); return; }
-          if (key.includes('vm_vcpu'))        { setIfEmptyPlaceholder(el, 'e.g., 2'); return; }
-          if (key.includes('vm_ram_gb'))      { setIfEmptyPlaceholder(el, 'e.g., 8'); return; }
-          if (key.includes('vcpu_to_pcpu'))   { setIfEmptyPlaceholder(el, 'e.g., 4'); return; }
-
-          if (key.includes('base_image_gb'))      { setIfEmptyPlaceholder(el, 'e.g., 40'); return; }
-          if (key.includes('delta_gb'))           { setIfEmptyPlaceholder(el, 'e.g., 6'); return; }
-          if (key.includes('per_vm_overhead_gb')) { setIfEmptyPlaceholder(el, 'e.g., 1'); return; }
-          if (key.includes('growth_factor'))      { setIfEmptyPlaceholder(el, FACTOR_HINT); return; }
-          if (key.includes('vsan_policy_factor')) { setIfEmptyPlaceholder(el, 'e.g., 2.0'); return; }
-
-          if (key.includes('gpu_sessions_cap')) { setIfEmptyPlaceholder(el, 'e.g., 16'); return; }
-
-          if (key.match(/region_pct_|_pct\b|percent/)) { setIfEmptyPlaceholder(el, PCT_HINT); return; }
-
-          if (key.includes('start_date')) { setIfEmptyPlaceholder(el, DATE_HINT); return; }
-          if (key.includes('timeline'))   { setIfEmptyPlaceholder(el, 'e.g., Pilot by Nov 15; Prod by Dec 5'); return; }
-
-          if (key.includes('platform'))       { setIfEmptyPlaceholder(el, 'e.g., vSphere 8.0.3'); return; }
-          if (key.includes('storage_type'))   { setIfEmptyPlaceholder(el, 'e.g., vSAN'); return; }
-          if (key.includes('mfa_solution'))   { setIfEmptyPlaceholder(el, 'e.g., Duo, Okta Verify'); return; }
-          if (key.includes('remote_access'))  { setIfEmptyPlaceholder(el, 'e.g., UAG via Internet'); return; }
-          if (key.includes('endpoint_types')) { setIfEmptyPlaceholder(el, 'e.g., Windows, macOS, IGEL'); return; }
-
-          if (key.includes('main_use_cases')) { setIfEmptyPlaceholder(el, 'e.g., Task workers, call center'); return; }
-          if (key.includes('secondary_use_case')) { setIfEmptyPlaceholder(el, 'e.g., Power users need 16GB RAM'); return; }
-
-          if (/_gb\b/.test(key)) { setIfEmptyPlaceholder(el, GB_HINT); return; }
-          if (/\bcount|\bnum|\bcores|\bsessions|\busers/.test(key)) { setIfEmptyPlaceholder(el, NUM_HINT); return; }
-
-          if (el.type === 'url') { setIfEmptyPlaceholder(el, URL_HINT); return; }
-        }
-
-        function decorate(root) {
-          const inputs = root.querySelectorAll('input, textarea, select');
-          inputs.forEach(function(el) {
-            if (el.tagName.toLowerCase() === 'select') {
-              ensureSelectPrompt(el);
-            } else {
-              applySmartPlaceholder(el);
-            }
-          });
-        }
-
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', function () { decorate(document); });
-        } else {
-          decorate(document);
-        }
-      })();
-    </script>
-  </body>
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+    crossorigin="anonymous"></script>
+  {% block scripts %}{% endblock %}
+</body>
 </html>
