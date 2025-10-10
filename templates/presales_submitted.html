@@ -1,275 +1,267 @@
 {% extends "base.html" %}
-{% block title %}Presales Submission{% endblock %}
+{% block title %}Submission Complete{% endblock %}
 {% block content %}
 
-<h1 class="mb-3">Presales Submission</h1>
+{% macro yesno(v) -%}
+  {%- if v is string -%}{%- if v|lower in ['yes','true','on','1','checked'] -%}Yes{%- else -%}No{%- endif -%}
+  {%- else -%}{%- if v -%}Yes{%- else -%}No{%- endif -%}{%- endif -%}
+{%- endmacro %}
 
-{% if data.persist_result %}
-  <div class="alert alert-info py-2">{{ data.persist_result }}</div>
-{% endif %}
-
-<div class="mb-3 d-flex gap-2 flex-wrap">
-  <a class="btn btn-secondary" href="{{ url_for('index') }}">Home</a>
-  <a class="btn btn-primary" href="{{ url_for('presales') }}">Start another</a>
-
-  <!-- Download package -->
-  <form method="post" action="{{ url_for('presales_package') }}" class="d-inline">
-    <input type="hidden" name="payload" value='{{ data | tojson | safe }}'>
-    <button class="btn btn-success">Download Document Package (.zip)</button>
-  </form>
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h3 mb-0">{{ what or "Submission" }} saved</h1>
+  <span class="text-muted">Submitted {{ now.strftime('%Y-%m-%d %H:%M UTC') }}</span>
 </div>
 
-<div class="row g-4">
-  <div class="col-lg-6">
-    <!-- Customer -->
-    <div class="card">
-      <div class="card-header">Customer</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-5">Company</dt><dd class="col-sm-7">{{ data.company_name }}</dd>
-          <dt class="col-sm-5">Primary contact</dt><dd class="col-sm-7">{{ data.customer_name }}</dd>
+<div class="mb-4">
+  <a class="btn btn-primary me-2" href="{{ url_for('presales_zip', submit_id=submit_id) }}">
+    Download all requested docs (ZIP)
+  </a>
 
-          {% if data.sf_opportunity_name %}
-            <dt class="col-sm-5">SF Opportunity</dt>
-            <dd class="col-sm-7">
-              {{ data.sf_opportunity_name }}
-              {% if data.sf_opportunity_url %}
-                <div>
-                  <a href="{{ data.sf_opportunity_url }}" target="_blank" rel="noopener">Open in Salesforce</a>
-                </div>
-              {% endif %}
-            </dd>
-          {% endif %}
+  {% if docx_missing and docx_missing|length > 0 %}
+    <div class="small text-muted mt-2">
+      Requested but not found on server: {{ docx_missing|join(', ') }}
+    </div>
+  {% endif %}
 
-          {% if data.ir_number %}
-            <dt class="col-sm-5">IR number</dt><dd class="col-sm-7">{{ data.ir_number }}</dd>
-          {% endif %}
+  <a class="btn btn-outline-secondary ms-2" href="{{ url_for('history') }}">History</a>
+  <a class="btn btn-link ms-1" href="{{ url_for('presales') }}">Back to Presales form</a>
+</div>
 
-          {% if data.voc %}
-            <dt class="col-sm-5">Voice of the Customer</dt>
-            <dd class="col-sm-7"><pre class="mb-0" style="white-space:pre-wrap">{{ data.voc }}</pre></dd>
-          {% endif %}
-
-          <dt class="col-sm-5">Submitted (UTC)</dt><dd class="col-sm-7">{{ data.submitted_utc }}</dd>
-        </dl>
+<!-- 0) Customer Info -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Customer Info</legend>
+  <div class="row g-3">
+    <div class="col-md-6"><div class="form-label">Company name</div><div class="form-control-plaintext">{{ data.get('company_name') or '—' }}</div></div>
+    <div class="col-md-6"><div class="form-label">Customer name (primary contact)</div><div class="form-control-plaintext">{{ data.get('customer_name') or '—' }}</div></div>
+    <div class="col-md-6"><div class="form-label">Salesforce Opportunity name</div><div class="form-control-plaintext">{{ data.get('sf_opportunity_name') or '—' }}</div></div>
+    <div class="col-md-12">
+      <div class="form-label">Salesforce Opportunity URL</div>
+      <div class="form-control-plaintext">
+        {% set u = data.get('sf_opportunity_url') %}
+        {% if u and (u.startswith('http://') or u.startswith('https://')) %}
+          <a href="{{u}}" target="_blank" rel="noopener">{{u}}</a>
+        {% else %}—{% endif %}
       </div>
     </div>
-
-    <!-- Users & Scope -->
-    <div class="card mt-3">
-      <div class="card-header">Users & Scope</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Total users</dt><dd class="col-sm-6">{{ data.total_users or '—' }}</dd>
-          <dt class="col-sm-6">Concurrent users</dt><dd class="col-sm-6">{{ data.concurrent_users or '—' }}</dd>
-          <dt class="col-sm-6">Deployment type</dt><dd class="col-sm-6">{{ data.deployment_type or '—' }}</dd>
-          <dt class="col-sm-6">Datacenters (count)</dt><dd class="col-sm-6">{{ data.num_datacenters or '—' }}</dd>
-          <dt class="col-sm-6">Datacenters (where)</dt><dd class="col-sm-6">{{ data.datacenters_detail or '—' }}</dd>
-        </dl>
-
-        {% if data.location_mix %}
-          <hr>
-          <h6 class="mt-2">Regional user mix</h6>
-          <table class="table table-sm mb-0">
-            <thead><tr><th>Region</th><th class="text-end">%</th></tr></thead>
-            <tbody>
-              {% set region_labels = {
-                'US':'Continental US','US_HI':'US – HI','US_AK':'US – AK',
-                'CAN':'Canada','LATAM':'LATAM','EMEA':'EMEA',
-                'APAC':'APAC','INDIA':'India','ANZ':'ANZ','OTHER':'Other'
-              } %}
-              {% for key, pct in data.location_mix.items() %}
-                <tr>
-                  <td>{{ region_labels.get(key, key) }}</td>
-                  <td class="text-end">{{ pct }}%</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        {% endif %}
-
-        {% if data.use_cases_list and data.use_cases_list|length > 0 %}
-          <hr>
-          <h6 class="mt-2">Use cases</h6>
-          <ul class="mb-0">
-            {% for uc in data.use_cases_list %}
-              <li><strong>{{ uc.label }}:</strong> {{ uc.text }}</li>
-            {% endfor %}
-          </ul>
-        {% endif %}
-      </div>
+    <div class="col-md-4">
+      <div class="form-label">Existing VDI in environment?</div>
+      <div class="form-control-plaintext">{{ yesno(data.get('existing_vdi')) }}</div>
     </div>
-
-    <!-- Access & Identity -->
-    <div class="card mt-3">
-      <div class="card-header">Access & Identity</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Remote access</dt><dd class="col-sm-6">{{ data.remote_access or '—' }}</dd>
-          <dt class="col-sm-6">MFA required</dt><dd class="col-sm-6">{{ data.mfa_required or '—' }}</dd>
-          {% if data.mfa_required == 'Yes' and data.mfa_solution %}
-            <dt class="col-sm-6">MFA solution</dt><dd class="col-sm-6">{{ data.mfa_solution }}</dd>
-          {% endif %}
-          <dt class="col-sm-6">Smart card authentication</dt><dd class="col-sm-6">{{ data.smartcard or '—' }}</dd>
-          <dt class="col-sm-6">IdP / WS1 Access</dt><dd class="col-sm-6">{{ data.idp_provider or '—' }}</dd>
-        </dl>
-      </div>
-    </div>
-
-    <!-- Endpoints -->
-    <div class="card mt-3">
-      <div class="card-header">Endpoints</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Provision endpoints</dt><dd class="col-sm-6">{{ data.endpoint_provisioning or '—' }}</dd>
-          <dt class="col-sm-6">Endpoint types</dt><dd class="col-sm-6">{{ data.endpoint_types or '—' }}</dd>
-          <dt class="col-sm-6">Thin client mgmt</dt><dd class="col-sm-6">{{ data.thin_client_mgmt or '—' }}</dd>
-        </dl>
-      </div>
+    {% if yesno(data.get('existing_vdi')) == 'Yes' %}
+      <div class="col-12"><div class="form-label">If yes, top pain points</div><div class="form-control-plaintext">{{ data.get('existing_vdi_pain') or '—' }}</div></div>
+    {% endif %}
+    <div class="col-12">
+      <div class="form-label">Voice of the Customer (VoC)</div>
+      <div class="form-control-plaintext">{{ data.get('voc') or '—' }}</div>
     </div>
   </div>
+</fieldset>
 
-  <div class="col-lg-6">
-    <!-- Image & Apps -->
-    <div class="card">
-      <div class="card-header">Image & Applications</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Base images</dt><dd class="col-sm-6">{{ data.num_images or '—' }}</dd>
-          <dt class="col-sm-6">Gold image</dt><dd class="col-sm-6">{{ data.gold_image_source or '—' }}</dd>
-          <dt class="col-sm-6">Profile mgmt</dt>
-          <dd class="col-sm-6">
-            {% if data.profile_mgmt %}{{ data.profile_mgmt | join(', ') }}{% else %}—{% endif %}
-          </dd>
-          <dt class="col-sm-6">Virtual apps</dt>
-          <dd class="col-sm-6">
-            {% if data.virtual_apps %}{{ data.virtual_apps | join(', ') }}{% else %}—{% endif %}
-          </dd>
-          <dt class="col-sm-6">App packaging by WWT</dt><dd class="col-sm-6">{{ data.wwt_app_packaging or '—' }}</dd>
-        </dl>
-        {% if data.required_apps %}
-          <hr>
-          <h6 class="mt-2">Required applications</h6>
-          <pre class="mb-0" style="white-space:pre-wrap">{{ data.required_apps }}</pre>
-        {% endif %}
+<!-- 1) Users & Scope -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Users & Scope</legend>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="form-label">Total users</div><div class="form-control-plaintext">{{ data.get('total_users') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">Concurrent users (peak)</div><div class="form-control-plaintext">{{ data.get('concurrent_users') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label"># of datacenters/regions</div><div class="form-control-plaintext">{{ data.get('num_datacenters') or '—' }}</div></div>
+    <div class="col-12"><div class="form-label">Datacenters/regions (where)</div><div class="form-control-plaintext">{{ data.get('datacenters_detail') or '—' }}</div></div>
+
+    <div class="col-md-4"><div class="form-label">Deployment type</div><div class="form-control-plaintext">{{ data.get('deployment_type') or '—' }}</div></div>
+
+    <div class="col-12">
+      <div class="form-label">User locations (regional mix)</div>
+      <div class="row">
+        {% for key,label in [('US','Continental US'),('US_HI','US – HI'),('US_AK','US – AK'),('CAN','Canada'),('LATAM','LATAM'),('EMEA','EMEA'),('APAC','APAC'),('INDIA','India'),('ANZ','ANZ'),('OTHER','Other')] %}
+          <div class="col-md-3 mb-2">
+            <div class="small">{{ label }}</div>
+            <div class="form-control-plaintext">
+              {% set ck = data.get('region_ck_' ~ key) %}
+              {% set pct = data.get('region_pct_' ~ key) %}
+              {{ 'Yes' if ck else 'No' }}{% if pct %} — {{ pct }}%{% endif %}
+            </div>
+          </div>
+        {% endfor %}
       </div>
     </div>
 
-    <!-- Graphics / GPU -->
-    <div class="card mt-3">
-      <div class="card-header">Graphics / GPU</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">GPU required</dt><dd class="col-sm-6">{{ data.gpu_required or '—' }}</dd>
-          {% if data.gpu_required == 'Yes' %}
-            <dt class="col-sm-6">GPU users</dt><dd class="col-sm-6">{{ data.gpu_users or '—' }}</dd>
-            <dt class="col-sm-6">VRAM per user (GB)</dt><dd class="col-sm-6">{{ data.gpu_vram_per_user or '—' }}</dd>
-            <dt class="col-sm-6">GPU use case</dt><dd class="col-sm-6">{{ data.gpu_use_case or '—' }}</dd>
-          {% endif %}
-        </dl>
-      </div>
-    </div>
-
-    <!-- Directory & Core Services -->
-    <div class="card mt-3">
-      <div class="card-header">Directory & Core Services</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Existing AD?</dt><dd class="col-sm-6">{{ data.ad_exists or '—' }}</dd>
-          <dt class="col-sm-6">Domains / trusts</dt><dd class="col-sm-6">{{ data.num_domains or '—' }}</dd>
-          <dt class="col-sm-6">VDI domain</dt><dd class="col-sm-6">{{ data.vd_domain_name or '—' }}</dd>
-          <dt class="col-sm-6">Core servers domain</dt><dd class="col-sm-6">{{ data.core_domain_name or '—' }}</dd>
-        </dl>
-      </div>
-    </div>
-
-    <!-- Platform & Infra -->
-    <div class="card mt-3">
-      <div class="card-header">Platform & Infra</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Platform</dt><dd class="col-sm-6">{{ data.platform or '—' }}</dd>
-          <dt class="col-sm-6">General compute cluster</dt><dd class="col-sm-6">{{ data.general_compute_cluster or '—' }}</dd>
-
-          <dt class="col-sm-6">Host CPU cores</dt><dd class="col-sm-6">{{ data.host_cpu_cores or '—' }}</dd>
-          <dt class="col-sm-6">Host RAM (GB)</dt><dd class="col-sm-6">{{ data.host_ram_gb or '—' }}</dd>
-
-          <dt class="col-sm-6">VM vCPU</dt><dd class="col-sm-6">{{ data.vm_vcpu or '—' }}</dd>
-          <dt class="col-sm-6">VM RAM (GB)</dt><dd class="col-sm-6">{{ data.vm_ram_gb or '—' }}</dd>
-          <dt class="col-sm-6">vCPU:pCPU</dt><dd class="col-sm-6">1:{{ data.vcpu_to_pcpu or '4' }}</dd>
-
-          <dt class="col-sm-6">Storage type</dt><dd class="col-sm-6">{{ data.storage_type or '—' }}</dd>
-          {% if data.storage_type and data.storage_type != 'vSAN' %}
-            <dt class="col-sm-6">Storage vendor/model</dt><dd class="col-sm-6">{{ data.storage_vendor_model or '—' }}</dd>
-            <dt class="col-sm-6">Protocol</dt><dd class="col-sm-6">{{ data.storage_protocol or '—' }}</dd>
-            <dt class="col-sm-6">Usable capacity (GB)</dt><dd class="col-sm-6">{{ data.storage_usable_gb or '—' }}</dd>
-          {% endif %}
-
-          {% if data.vsan_total_gb is not none %}
-            <dt class="col-sm-6">vSAN IC capacity (GB)</dt><dd class="col-sm-6">{{ "{:,}".format(data.vsan_total_gb) }}</dd>
-          {% endif %}
-          {% if data.per_host_density is not none %}
-            <dt class="col-sm-6">Users per host (est.)</dt><dd class="col-sm-6">{{ data.per_host_density }}</dd>
-          {% endif %}
-
-          <dt class="col-sm-6">Load balancer</dt><dd class="col-sm-6">{{ data.load_balancer or '—' }}</dd>
-        </dl>
-      </div>
-    </div>
-
-    <!-- Operations & Delivery -->
-    <div class="card mt-3">
-      <div class="card-header">Operations & Delivery</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Operations staffing</dt><dd class="col-sm-6">{{ data.ogs_staffing or '—' }}</dd>
-          <dt class="col-sm-6">Monitoring</dt><dd class="col-sm-6">{{ data.monitoring_stack or '—' }}</dd>
-          <dt class="col-sm-6">Local printing</dt><dd class="col-sm-6">{{ data.local_printing or '—' }}</dd>
-          <dt class="col-sm-6">USB/mass storage</dt><dd class="col-sm-6">{{ data.usb_redirection or '—' }}</dd>
-
-          <!-- Onboarding time -->
-          {% if data.onboarding_time_value %}
-            <dt class="col-sm-6">Onboarding time (per user)</dt>
-            <dd class="col-sm-6">
-              {{ data.onboarding_time_value }} {{ data.onboarding_time_unit or '' }}
-            </dd>
-          {% endif %}
-
-          <dt class="col-sm-6">Delivery model</dt><dd class="col-sm-6">{{ data.delivery_model or '—' }}</dd>
-          <dt class="col-sm-6">Target start date</dt><dd class="col-sm-6">{{ data.start_date or '—' }}</dd>
-          <dt class="col-sm-6">Timeline/deadlines</dt><dd class="col-sm-6">{{ data.timeline or '—' }}</dd>
-        </dl>
-
-        <hr>
-        <h6 class="mt-2">Docs requested</h6>
-        <p class="mb-2">
-          {% if data.docs_requested and data.docs_requested|length > 0 %}
-            {{ data.docs_requested | join(', ') }}
-          {% else %}—{% endif %}
-        </p>
-
-        {% if data.training_required and data.training_required|length > 0 %}
-          <h6>Training required</h6>
-          <p class="mb-2">{{ data.training_required | join(', ') }}</p>
-        {% endif %}
-
-        {% if data.kt_expectations %}
-          <h6>KT expectations</h6>
-          <pre class="mb-0" style="white-space:pre-wrap">{{ data.kt_expectations }}</pre>
-        {% endif %}
-
-        {% if data.stakeholders %}
-          <hr>
-          <h6>Stakeholders / 3rd parties</h6>
-          <pre class="mb-0" style="white-space:pre-wrap">{{ data.stakeholders }}</pre>
-        {% endif %}
-      </div>
-    </div>
+    <div class="col-md-4"><div class="form-label"># of distinct personas/use cases</div><div class="form-control-plaintext">{{ data.get('num_personas') or '—' }}</div></div>
+    <div class="col-12"><div class="form-label">Main use case</div><div class="form-control-plaintext">{{ data.get('main_use_cases') or '—' }}</div></div>
+    {% for i in range(2, 21) %}
+      {% set k = 'secondary_use_case_' ~ i %}
+      {% if data.get(k) %}
+      <div class="col-12"><div class="form-label">Secondary use case {{ i }}</div><div class="form-control-plaintext">{{ data.get(k) }}</div></div>
+      {% endif %}
+    {% endfor %}
   </div>
-</div>
+</fieldset>
 
-<div class="mt-4">
-  <a class="btn btn-outline-secondary" href="{{ url_for('presales') }}">Start another</a>
-</div>
+<!-- 2) Graphics / GPU -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Graphics / GPU</legend>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="form-label">GPU Required?</div><div class="form-control-plaintext">{{ yesno(data.get('gpu_required')) }}</div></div>
+    {% if yesno(data.get('gpu_required')) == 'Yes' %}
+      <div class="col-md-4"><div class="form-label">GPU users (estimate)</div><div class="form-control-plaintext">{{ data.get('gpu_users') or '—' }}</div></div>
+      <div class="col-md-4"><div class="form-label">Target GPU profile / VRAM per user (GB)</div><div class="form-control-plaintext">{{ data.get('gpu_vram_per_user') or '—' }}</div></div>
+      <div class="col-12"><div class="form-label">GPU use case</div><div class="form-control-plaintext">{{ data.get('gpu_use_case') or '—' }}</div></div>
+    {% endif %}
+  </div>
+</fieldset>
+
+<!-- 3) Image & Applications -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Image & Applications</legend>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="form-label"># of base images</div><div class="form-control-plaintext">{{ data.get('num_images') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">Gold image provided by customer?</div><div class="form-control-plaintext">{{ data.get('gold_image_source') or '—' }}</div></div>
+
+    <div class="col-md-4"><div class="form-label">Profile management</div>
+      <div class="form-control-plaintext">
+        {% set pm = data.get('profile_mgmt_list') or data.get('profile_mgmt') %}
+        {% if pm %}{{ (pm if pm is string else ', '.join(pm)) }}{% else %}—{% endif %}
+      </div>
+    </div>
+
+    <div class="col-md-4"><div class="form-label">Virtual apps?</div>
+      <div class="form-control-plaintext">
+        {% set va = data.get('virtual_apps_list') or data.get('virtual_apps') %}
+        {% if va %}{{ (va if va is string else ', '.join(va)) }}{% else %}—{% endif %}
+      </div>
+    </div>
+
+    {% set va_list = data.get('virtual_apps_list') or [] %}
+    {% if 'App Volumes' in va_list or data.get('required_apps') %}
+      <div class="col-12"><div class="form-label">Required applications</div><div class="form-control-plaintext">{{ data.get('required_apps') or '—' }}</div></div>
+    {% endif %}
+
+    <div class="col-md-4"><div class="form-label">WWT responsible for app packaging?</div><div class="form-control-plaintext">{{ yesno(data.get('wwt_app_packaging')) }}</div></div>
+  </div>
+</fieldset>
+
+<!-- 4) Access & Identity -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Access & Identity</legend>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="form-label">Remote access required?</div><div class="form-control-plaintext">{{ yesno(data.get('remote_access')) }}</div></div>
+    <div class="col-md-4"><div class="form-label">MFA required?</div><div class="form-control-plaintext">{{ yesno(data.get('mfa_required')) }}</div></div>
+    {% if yesno(data.get('mfa_required')) == 'Yes' %}
+      <div class="col-md-4"><div class="form-label">Existing MFA solution</div><div class="form-control-plaintext">{{ data.get('mfa_solution') or '—' }}</div></div>
+    {% endif %}
+    <div class="col-md-4"><div class="form-label">Smart card authentication?</div><div class="form-control-plaintext">{{ yesno(data.get('smartcard')) }}</div></div>
+    <div class="col-md-8"><div class="form-label">Workspace ONE Access or 3rd-party IdP</div><div class="form-control-plaintext">{{ data.get('idp_provider') or '—' }}</div></div>
+  </div>
+</fieldset>
+
+<!-- 5) Endpoints -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Endpoints</legend>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="form-label">Provision/configure endpoints?</div><div class="form-control-plaintext">{{ yesno(data.get('endpoint_provisioning')) }}</div></div>
+    <div class="col-md-8"><div class="form-label">Endpoint types</div><div class="form-control-plaintext">{{ data.get('endpoint_types') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">Thin client management required?</div><div class="form-control-plaintext">{{ data.get('thin_client_mgmt') or '—' }}</div></div>
+  </div>
+</fieldset>
+
+<!-- 6) Directory & Core Services -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Directory & Core Services</legend>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="form-label">Existing AD forest/domains?</div><div class="form-control-plaintext">{{ data.get('ad_exists') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label"># of domains / trusts</div><div class="form-control-plaintext">{{ data.get('num_domains') or '—' }}</div></div>
+    <div class="col-md-6"><div class="form-label">Domain name for virtual desktops</div><div class="form-control-plaintext">{{ data.get('vd_domain_name') or '—' }}</div></div>
+    <div class="col-md-6"><div class="form-label">Separate domain for core servers?</div><div class="form-control-plaintext">{{ data.get('core_domain_name') or '—' }}</div></div>
+  </div>
+</fieldset>
+
+<!-- 7) Platform & Infra -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Platform & Infra</legend>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="form-label">Hypervisor/platform</div><div class="form-control-plaintext">{{ data.get('platform') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">General compute cluster available for core components?</div><div class="form-control-plaintext">{{ yesno(data.get('general_compute_cluster')) }}</div></div>
+
+    <div class="col-md-3"><div class="form-label">Host CPU cores</div><div class="form-control-plaintext">{{ data.get('host_cpu_cores') or '—' }}</div></div>
+    <div class="col-md-3"><div class="form-label">Host RAM (GB)</div><div class="form-control-plaintext">{{ data.get('host_ram_gb') or '—' }}</div></div>
+    <div class="col-md-3"><div class="form-label"># of hosts (cluster)</div><div class="form-control-plaintext">{{ data.get('hosts_count') or '—' }}</div></div>
+    <div class="col-md-3"><div class="form-label">VM vCPU</div><div class="form-control-plaintext">{{ data.get('vm_vcpu') or '—' }}</div></div>
+    <div class="col-md-3"><div class="form-label">VM RAM (GB)</div><div class="form-control-plaintext">{{ data.get('vm_ram_gb') or '—' }}</div></div>
+    <div class="col-md-3"><div class="form-label">vCPU : pCPU ratio</div><div class="form-control-plaintext">{{ data.get('vcpu_to_pcpu') or '—' }}</div></div>
+
+    <div class="col-md-3"><div class="form-label">Storage type</div><div class="form-control-plaintext">{{ data.get('storage_type') or '—' }}</div></div>
+
+    {% if (data.get('storage_type') or '').strip() == 'vSAN' %}
+      <div class="col-md-3"><div class="form-label">Base image size (GB)</div><div class="form-control-plaintext">{{ data.get('base_image_gb') or '—' }}</div></div>
+      <div class="col-md-3"><div class="form-label">vSAN policy factor</div><div class="form-control-plaintext">{{ data.get('vsan_policy_factor') or '—' }}</div></div>
+      <div class="col-12">
+        <details>
+          <summary>Advanced vSAN & density tunables</summary>
+          <div class="row g-3 mt-2">
+            <div class="col-md-3"><div class="form-label">IC delta per user (GB)</div><div class="form-control-plaintext">{{ data.get('delta_gb') or '—' }}</div></div>
+            <div class="col-md-3"><div class="form-label">Per-VM overhead (GB)</div><div class="form-control-plaintext">{{ data.get('per_vm_overhead_gb') or '—' }}</div></div>
+            <div class="col-md-3"><div class="form-label">Growth/cushion factor</div><div class="form-control-plaintext">{{ data.get('growth_factor') or '—' }}</div></div>
+            <div class="col-md-3"><div class="form-label">Mem headroom (%)</div><div class="form-control-plaintext">{{ data.get('mem_headroom_pct') or '—' }}</div></div>
+            <div class="col-md-3"><div class="form-label">ESXi overhead (GB)</div><div class="form-control-plaintext">{{ data.get('esxi_overhead_gb') or '—' }}</div></div>
+            <div class="col-md-3"><div class="form-label">GPU sessions cap (per host)</div><div class="form-control-plaintext">{{ data.get('gpu_sessions_cap') or '—' }}</div></div>
+          </div>
+        </details>
+      </div>
+    {% else %}
+      {% if data.get('storage_type') %}
+        <div class="col-md-4"><div class="form-label">Storage vendor/model</div><div class="form-control-plaintext">{{ data.get('storage_vendor_model') or '—' }}</div></div>
+        <div class="col-md-4"><div class="form-label">Protocol</div><div class="form-control-plaintext">{{ data.get('storage_protocol') or '—' }}</div></div>
+        <div class="col-md-4"><div class="form-label">Usable capacity (GB)</div><div class="form-control-plaintext">{{ data.get('storage_usable_gb') or '—' }}</div></div>
+      {% endif %}
+    {% endif %}
+
+    <div class="col-md-4"><div class="form-label">Load balancer</div><div class="form-control-plaintext">{{ data.get('load_balancer') or '—' }}</div></div>
+  </div>
+</fieldset>
+
+<!-- 8) Operations & Enablement -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Operations & Enablement</legend>
+  <div class="row g-3">
+    <div class="col-md-6"><div class="form-label">Operations staffing</div><div class="form-control-plaintext">{{ data.get('ogs_staffing') or '—' }}</div></div>
+    <div class="col-md-6"><div class="form-label">Monitoring</div><div class="form-control-plaintext">{{ data.get('monitoring_stack') or '—' }}</div></div>
+    <div class="col-md-12"><div class="form-label">Training required</div>
+      <div class="form-control-plaintext">
+        {% set tr = data.get('training_required_list') or data.get('training_required') %}
+        {% if tr %}{{ (tr if tr is string else ', '.join(tr)) }}{% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="form-label">Typical onboarding time (per user)</div>
+      <div class="form-control-plaintext">
+        {% set v = data.get('onboarding_time_value') %}
+        {% set u = data.get('onboarding_time_unit') %}
+        {% if v or u %}{{ v or '—' }} {{ u or '' }}{% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="col-md-12"><div class="form-label">Knowledge Transfer (KT) expectations</div><div class="form-control-plaintext">{{ data.get('kt_expectations') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">Runbook required?</div><div class="form-control-plaintext">{{ yesno(data.get('runbook_required')) }}</div></div>
+    <div class="col-md-4"><div class="form-label">Adoption Services needed?</div><div class="form-control-plaintext">{{ yesno(data.get('adoption_services')) }}</div></div>
+    <div class="col-md-4"><div class="form-label">HA/DR in-scope?</div><div class="form-control-plaintext">{{ yesno(data.get('ha_dr')) }}</div></div>
+  </div>
+</fieldset>
+
+<!-- 9) Logistics & Delivery Model -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Logistics & Delivery Model</legend>
+  <div class="row g-3">
+    <div class="col-md-8"><div class="form-label">Delivery model</div><div class="form-control-plaintext">{{ data.get('delivery_model') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">Target start date</div><div class="form-control-plaintext">{{ data.get('start_date') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">Timeline / deadlines</div><div class="form-control-plaintext">{{ data.get('timeline') or '—' }}</div></div>
+
+    <div class="col-md-8">
+      <div class="form-label">Docs requested</div>
+      <div class="form-control-plaintext">
+        {% set dr = data.get('docs_requested_list') or data.get('docs_requested') %}
+        {% if dr %}{{ (dr if dr is string else ', '.join(dr)) }}{% else %}—{% endif %}
+      </div>
+    </div>
+
+    <div class="col-12"><div class="form-label">Stakeholders / 3rd parties</div><div class="form-control-plaintext">{{ data.get('stakeholders') or '—' }}</div></div>
+  </div>
+</fieldset>
 
 {% endblock %}

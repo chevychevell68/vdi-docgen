@@ -17,7 +17,7 @@
   </div>
 {%- endmacro %}
 
-<form method="post" id="presales-form">
+<form method="post" action="{{ url_for('presales_submit') }}" id="presales-form">
   <!-- 0) Customer Info -->
   <fieldset class="border p-3 mb-4">
     <legend>Customer Info</legend>
@@ -84,7 +84,6 @@
         <input class="form-control" name="datacenters_detail" value="{{ (form.datacenters_detail if form else '') }}" placeholder="Phoenix, Dallas">
       </div>
 
-      <!-- Deployment type near datacenter questions -->
       <div class="col-md-4">
         <label class="form-label">Deployment type</label>
         <select class="form-select" name="deployment_type" aria-label="Deployment type">
@@ -95,10 +94,8 @@
         </select>
       </div>
 
-      <!-- Region checklist with % -->
       <div class="col-12">
         <label class="form-label d-block">User locations (regional mix)</label>
-
         <div class="row g-2 align-items-center">
           {% set regions = [
             ('US', 'Continental US'),
@@ -112,7 +109,6 @@
             ('ANZ', 'ANZ'),
             ('OTHER', 'Other')
           ] %}
-
           {% for key, label in regions %}
             <div class="col-md-3">
               <div class="form-check">
@@ -126,7 +122,8 @@
                        class="form-control region-pct"
                        id="reg_{{key}}_pct" name="region_pct_{{key}}"
                        value="{{ (form['region_pct_' ~ key] if form and form['region_pct_' ~ key] else '') }}"
-                       placeholder="%" {% if not (form and form['region_ck_' ~ key]) %}disabled{% endif %}>
+                       placeholder="%"
+                       {% if not (form and form['region_ck_' ~ key]) %}disabled{% endif %}>
                 <span class="input-group-text">%</span>
               </div>
             </div>
@@ -147,13 +144,11 @@
         <input type="number" class="form-control" id="num_personas" name="num_personas" min="1" value="{{ (form.num_personas if form else '') }}" placeholder="e.g., 3">
       </div>
 
-      <!-- Dynamic use case inputs -->
       <div class="col-12" id="use_case_fields">
         <label class="form-label">Use case details</label>
         <div class="mb-2">
           <input class="form-control" name="main_use_cases" id="main_use_cases" placeholder="Main use case" value="{{ (form.main_use_cases if form else '') }}">
         </div>
-        <!-- Secondary fields injected by JS -->
         <div id="secondary_use_cases_container"></div>
       </div>
     </div>
@@ -165,24 +160,28 @@
 
     {{ yes_checkbox('gpu_required', 'GPU Required?', form.gpu_required) }}
 
-    <!-- GPU detail fields: hidden unless GPU required = Yes -->
     <div id="gpu_details" style="{% if form and (form.gpu_required in ['Yes','yes', True, 'true', '1', 'on', 'checked']) %}display:block{% else %}display:none{% endif %};">
       <div class="row g-3 mt-1">
         <div class="col-md-4">
           <label class="form-label">GPU users (estimate)</label>
-          <input type="number" class="form-control" name="gpu_users" min="0" value="{{ (form.gpu_users if form else '') }}" placeholder="e.g., 50">
+          <input type="number" class="form-control" name="gpu_users" min="0"
+                 placeholder="e.g., 50"
+                 value="{{ (form.gpu_users if form else '') }}">
         </div>
         <div class="col-md-4">
           <label class="form-label">Target GPU profile / VRAM per user (GB)</label>
-          <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5" value="{{ (form.gpu_vram_per_user if form else '') }}" placeholder="e.g., 8">
+          <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5"
+                 placeholder="e.g., 8"
+                 value="{{ (form.gpu_vram_per_user if form else '') }}">
         </div>
         <div class="col-12">
           <label class="form-label">GPU use case</label>
-          <input class="form-control" name="gpu_use_case" value="{{ (form.gpu_use_case if form else '') }}" placeholder="3D/CAD, imaging, video editing, ML inferencing…">
+          <input class="form-control" name="gpu_use_case"
+                 placeholder="3D/CAD, imaging, video editing, ML inferencing…"
+                 value="{{ (form.gpu_use_case if form else '') }}">
         </div>
       </div>
     </div>
-    <!-- /#gpu_details -->
   </fieldset>
 
   <!-- 3) Image & Applications -->
@@ -191,7 +190,9 @@
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label"># of base images</label>
-        <input type="number" class="form-control" id="num_images" name="num_images" min="1" value="{{ (form.num_images if form else '1') }}">
+        <input type="number" class="form-control" id="num_images" name="num_images" min="1"
+               placeholder="e.g., 1"
+               value="{{ (form.num_images if form else '1') }}">
       </div>
       <div class="col-md-4">
         <label class="form-label">Gold image provided by customer?</label>
@@ -207,7 +208,6 @@
         </div>
       </div>
 
-      <!-- Profile mgmt checkboxes -->
       <div class="col-md-4">
         <label class="form-label d-block">Profile management</label>
         <div class="form-check">
@@ -220,7 +220,6 @@
         </div>
       </div>
 
-      <!-- Virtual apps checkboxes -->
       <div class="col-md-4">
         <label class="form-label d-block">Virtual apps?</label>
         <div class="form-check">
@@ -342,7 +341,6 @@
         {{ yes_checkbox('general_compute_cluster', 'General compute cluster available for core components?', form.general_compute_cluster) }}
       </div>
 
-      <!-- Host sizing -->
       <div class="col-md-3">
         <label class="form-label">{{ req('Host CPU cores') }}</label>
         <input type="number" class="form-control" id="host_cpu_cores" name="host_cpu_cores" min="1" required aria-required="true" value="{{ (form.host_cpu_cores if form else '') }}" placeholder="e.g., 64">
@@ -356,7 +354,6 @@
         <input type="number" class="form-control" name="hosts_count" min="1" value="{{ (form.hosts_count if form else '') }}" placeholder="e.g., 6">
       </div>
 
-      <!-- VM persona sizing -->
       <div class="col-md-3">
         <label class="form-label">{{ req('VM vCPU') }}</label>
         <input type="number" class="form-control" id="vm_vcpu" name="vm_vcpu" min="1" value="{{ (form.vm_vcpu if form else '2') }}" required aria-required="true" placeholder="e.g., 2">
@@ -366,7 +363,6 @@
         <input type="number" class="form-control" id="vm_ram_gb" name="vm_ram_gb" min="1" value="{{ (form.vm_ram_gb if form else '8') }}" required aria-required="true" placeholder="e.g., 8">
       </div>
 
-      <!-- vCPU:pCPU ratio -->
       <div class="col-md-3">
         <label class="form-label">vCPU : pCPU ratio</label>
         <select class="form-select" id="vcpu_to_pcpu" name="vcpu_to_pcpu" aria-label="vCPU to pCPU ratio">
@@ -376,7 +372,6 @@
         </select>
       </div>
 
-      <!-- Storage -->
       <div class="col-md-3">
         <label class="form-label">Storage type</label>
         <select class="form-select" name="storage_type" id="storage_type" aria-label="Storage type">
@@ -387,10 +382,9 @@
         </select>
       </div>
 
-      <!-- vSAN calc inputs -->
       <div class="col-md-3 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">Base image size (GB)</label>
-        <input type="number" class="form-control" id="base_image_gb" name="base_image_gb" value="{{ (form.base_image_gb if form else '40') }}" min="1">
+        <input type="number" class="form-control" id="base_image_gb" name="base_image_gb" value="{{ (form.base_image_gb if form else '40') }}" min="1" placeholder="e.g., 40">
       </div>
       <div class="col-md-3 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">vSAN policy factor</label>
@@ -401,7 +395,6 @@
         </select>
       </div>
 
-      <!-- Advanced tunables -->
       <div class="col-12 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
         <details>
           <summary>Advanced vSAN & density tunables</summary>
@@ -434,7 +427,6 @@
         </details>
       </div>
 
-      <!-- Read-only results -->
       <div class="col-md-4 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">vSAN capacity for Instant Clones (GB)</label>
         <div class="form-control-plaintext fw-bold" id="vsan_total_gb">—</div>
@@ -444,7 +436,6 @@
         <div class="form-control-plaintext fw-bold" id="per_host_density">—</div>
       </div>
 
-      <!-- External array fields -->
       <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
         <label class="form-label">Storage vendor/model</label>
         <input class="form-control" name="storage_vendor_model" value="{{ (form.storage_vendor_model if form else '') }}" placeholder="e.g., Pure X50R3">
@@ -458,7 +449,6 @@
         <input type="number" class="form-control" name="storage_usable_gb" min="1" value="{{ (form.storage_usable_gb if form else '') }}" placeholder="e.g., 100000">
       </div>
 
-      <!-- Load balancer -->
       <div class="col-md-4">
         <label class="form-label">Load balancer</label>
         <select class="form-select" name="load_balancer" id="load_balancer">
@@ -508,37 +498,6 @@
           <option {{ 'selected' if (form and form.monitoring_stack=='Other') else '' }}>Other</option>
           <option {{ 'selected' if (form and form.monitoring_stack=='None') else '' }}>None</option>
         </select>
-      </div>
-
-      <div class="col-md-12">
-        <label class="form-label d-block">Training required</label>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" id="train_admin" name="training_required" value="Admin" checked>
-          <label class="form-check-label" for="train_admin">Admin</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" id="train_helpdesk" name="training_required" value="Helpdesk" checked>
-          <label class="form-check-label" for="train_helpdesk">Helpdesk</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" id="train_enduser" name="training_required" value="End-user" checked>
-          <label class="form-check-label" for="train_enduser">End-user</label>
-        </div>
-      </div>
-
-      <!-- NEW: Typical onboarding time (per user) -->
-      <div class="col-md-6">
-        <label class="form-label">Typical onboarding time (per user)</label>
-        <div class="input-group">
-          <input type="number" class="form-control" name="onboarding_time_value" min="0"
-                 value="{{ (form.onboarding_time_value if form else '') }}" placeholder="e.g., 2">
-          <select class="form-select" name="onboarding_time_unit" style="max-width: 10rem;">
-            <option value="" {{ 'selected' if (form and form.onboarding_time_unit=='') else '' }}>Select unit…</option>
-            <option {{ 'selected' if (form and form.onboarding_time_unit=='hours') else '' }}>hours</option>
-            <option {{ 'selected' if (form and form.onboarding_time_unit=='days') else '' }}>days</option>
-          </select>
-        </div>
-        <div class="form-text">Estimate the hands-on time to fully onboard one user.</div>
       </div>
 
       <div class="col-md-12">
@@ -630,22 +589,19 @@
   <button class="btn btn-primary">Save</button>
 </form>
 
-<!-- Version badge -->
 <div style="position: fixed; right: 10px; bottom: 8px; font-size: 12px; color: #6c757d;">
-  Form v1.8.0 (polish)
+  Form v1.8.1b
 </div>
 
-<!-- Conditional UI & Auto-calcs -->
 <script>
 (function () {
-  // ------- Helpers -------
   function el(id){ return document.getElementById(id); }
   function num(id, fallback=0){ const e=el(id); const v=parseFloat(e?.value); return isNaN(v)?fallback:v; }
   function setText(id,v){ const e=el(id); if(e){ e.textContent = v; } }
   function getBoolByIdOrRadio(field){
     const cb = el(field);
-    if (cb) return !!cb.checked; // checkbox path
-    const r = document.querySelector(`input[name="${field}"]:checked`); // radio fallback
+    if (cb) return !!cb.checked;
+    const r = document.querySelector(`input[name="${field}"]:checked`);
     return !!(r && String(r.value).toLowerCase() === 'yes');
   }
 
@@ -660,7 +616,6 @@
     input.value = `${yyyy}-${mm}-${dd}`;
   })();
 
-  // ------- Conditional togglers (support checkbox OR radios) -------
   function toggleExistingVDI(){
     const show = getBoolByIdOrRadio('existing_vdi');
     const grp  = el('existing_vdi_pain_group');
@@ -691,7 +646,6 @@
     document.querySelectorAll(".non-vsan-only").forEach(x => x.style.display = (t && t !== "vSAN" ? "" : "none"));
   }
 
-  // ------- Calcs -------
   function computeVSAN(){
     if ((el("storage_type")?.value || "") !== "vSAN"){ setText("vsan_total_gb", "—"); return; }
     const N          = num("concurrent_users");
@@ -726,7 +680,6 @@
     setText("per_host_density", (isFinite(d) && d>=0) ? String(d) : "—");
   }
 
-  // ------- Regions helpers -------
   function regionToggleEnable(e) {
     const key = e.target.id.replace("reg_", "");
     const pct = el(`reg_${key}_pct`);
@@ -750,7 +703,6 @@
     sumRegions();
   }
 
-  // ------- Dynamic fields -------
   function renderUseCaseFields() {
     const n = parseInt(el("num_personas")?.value || "0", 10);
     const container = el("secondary_use_cases_container");
@@ -778,7 +730,6 @@
     });
   }
 
-  // ------- Wire-up -------
   const watched = [
     "storage_type",
     "concurrent_users","num_images","vm_ram_gb","base_image_gb","vsan_policy_factor",
@@ -798,26 +749,20 @@
 
   function attach(){
     watched.forEach(id => el(id)?.addEventListener("input", recalc));
-
-    // Conditional blocks: support checkbox OR radios
     document.querySelectorAll('input[name="existing_vdi"]').forEach(r => r.addEventListener("change", toggleExistingVDI));
     document.querySelectorAll('input[name="mfa_required"]').forEach(r => r.addEventListener("change", toggleMFA));
     document.querySelectorAll('input[name="gpu_required"]').forEach(r => r.addEventListener("change", toggleGPU));
     el('existing_vdi')?.addEventListener('change', toggleExistingVDI);
     el('mfa_required')?.addEventListener('change', toggleMFA);
     el('gpu_required')?.addEventListener('change', toggleGPU);
-
     document.querySelectorAll('.va-check').forEach(c => c.addEventListener("change", toggleRequiredApps));
     el("num_personas")?.addEventListener("input", renderUseCaseFields);
-
     attachRegionHandlers();
     guardSubmitForRegions();
-
     renderUseCaseFields();
-    recalc(); // initial state
+    recalc();
   }
 
-  // Safety defaults if tunables are absent
   if (!el("mem_headroom_pct")) {
     const hidden = document.createElement("div");
     hidden.innerHTML = [
