@@ -14,6 +14,8 @@ from urllib.error import HTTPError, URLError
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
+# Application version (bump as needed)
+APP_VERSION = "2025.10.10-v4"
 
 # ---------- Jinja helpers ----------
 def _fmt_bool(v):
@@ -39,7 +41,7 @@ def inject_helpers():
         except Exception:
             return False
     # expose UTC ‘now’ so templates can call now.strftime(...)
-    return dict(has_endpoint=has_endpoint, now=dt.datetime.utcnow())
+    return dict(has_endpoint=has_endpoint, now=dt.datetime.utcnow(), app_version=APP_VERSION, output_dir=str(OUTPUT_DIR), docx_dir=str(DOCX_DIR), submit_dir=str(SUBMIT_DIR))
 
 # -------------------- Paths / Env --------------------
 OUTPUT_DIR   = Path(os.getenv("OUTPUT_DIR", "output"))
@@ -184,7 +186,7 @@ def _build_submission_zip(submit_id: str, filenames: list[str]) -> Path:
 # -------------------- Routes --------------------
 @app.get("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", storage_dir=str(SUBMIT_DIR), app_version=APP_VERSION)
 
 @app.get("/predeploy")
 def predeploy():

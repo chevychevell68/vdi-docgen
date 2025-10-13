@@ -20,7 +20,7 @@
       {% for r in rows %}
         <tr>
           <td class="text-nowrap">{{ r.submitted_at or r["submitted_at"] }}</td>
-          <td>{{ r.company_name or r["company_name"] }}</td>
+          <td class="text-nowrap"><a href="{{ url_for('presales_view', submit_id=r.id or r['id']) }}">{{ r.company_name or r['company_name'] }}</a></td>
           <td>
             {% set url = r.sf_url or r["sf_url"] %}
             {% set name = r.sf_op_name or r["sf_op_name"] %}

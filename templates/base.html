@@ -13,6 +13,7 @@
     {% block head %}{% endblock %}
   </head>
   <body>
+    
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
       <div class="container-fluid">
@@ -22,17 +23,18 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarsMain">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-            <li class="nav-item">
-              <!-- NOTE: app-level endpoint is 'presales' (NOT 'presales.presales_new') -->
-              <a class="nav-link" href="{{ url_for('presales') }}">Presales form</a>
-            </li>
-<a class="nav-link" href="{{ url_for('presales') }}">Presales</a>
-<a class="nav-link" href="{{ url_for('pdg_form') }}">PDG</a>
-<a class="nav-link" href="{{ url_for('history') }}">History</a>
+            {# Build Presales href safely #}
+            {% set presales_href =
+               (url_for('presales.presales_new') if has_endpoint('presales.presales_new')
+                else (url_for('presales') if has_endpoint('presales') else url_for('index'))) %}
+            <li class="nav-item"><a class="nav-link" href="{{ presales_href }}">Presales</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('pdg_form') }}">PDG</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('history') }}">History</a></li>
           </ul>
         </div>
       </div>
     </nav>
+
 
     <!-- Main container -->
     <main class="container">

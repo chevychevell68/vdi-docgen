@@ -114,16 +114,16 @@
               <div class="form-check">
                 <input class="form-check-input region-check" type="checkbox"
                        id="reg_{{key}}" name="region_ck_{{key}}"
-                       {% if form and form['region_ck_' ~ key] %}checked{% endif %}>
+                       {% if (form and form['region_ck_' ~ key]) or (not form and key == 'US') %}checked{% endif %}>
                 <label class="form-check-label" for="reg_{{key}}">{{ label }}</label>
               </div>
               <div class="input-group input-group-sm mt-1">
                 <input type="number" min="0" max="100" step="1"
                        class="form-control region-pct"
                        id="reg_{{key}}_pct" name="region_pct_{{key}}"
-                       value="{{ (form['region_pct_' ~ key] if form and form['region_pct_' ~ key] else '') }}"
+                       value="{{ (form['region_pct_' ~ key] if form and form['region_pct_' ~ key] else (100 if key == 'US' else '')) }}"
                        placeholder="%"
-                       {% if not (form and form['region_ck_' ~ key]) %}disabled{% endif %}>
+                       {% if not ((form and form['region_ck_' ~ key]) or (not form and key == 'US')) %}disabled{% endif %}>
                 <span class="input-group-text">%</span>
               </div>
             </div>
@@ -132,6 +132,7 @@
 
         <div class="mt-2">
           <span class="badge text-bg-secondary">Total: <span id="region_total">0</span>%</span>
+          <div class="mt-2" id="region_users_summary"></div>
           <small class="text-muted ms-2">Must equal 100%.</small>
           <div id="region_error" class="text-danger small mt-1" style="display:none;">
             Regional mix must total 100%.
@@ -614,7 +615,37 @@
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
     input.value = `${yyyy}-${mm}-${dd}`;
-  })();
+  
+  // --- Users per region live summary (form) ---
+  function computeUsersByRegion() {
+    const total = parseInt((document.querySelector('input[name="total_users"]')?.value || "0"), 10) || 0;
+    const keys = ["US","US_HI","US_AK","CAN","LATAM","EMEA","APAC","INDIA","ANZ","OTHER"];
+    const out = []; let sum = 0;
+    keys.forEach(k => {
+      const checked = document.querySelector(`#reg_${k}`)?.checked;
+      const pctVal = parseFloat(document.querySelector(`#reg_${k}_pct`)?.value || "0") || 0;
+      if (checked && pctVal > 0) { const n = Math.round(total * (pctVal/100)); sum += n; out.push([k, pctVal, n]); }
+    });
+    return { total, rows: out, sum };
+  }
+  function renderUsersByRegion() {
+    const t = document.getElementById("region_users_summary"); if (!t) return;
+    const { total, rows, sum } = computeUsersByRegion();
+    if (!total || rows.length === 0) { t.innerHTML = ""; return; }
+    let html = '<div class="small text-muted">Estimated users per region:</div>';
+    html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-2" style="max-width:520px">';
+    html += '<thead class="table-light"><tr><th>Region</th><th class="text-end">% Mix</th><th class="text-end">Users</th></tr></thead><tbody>';
+    rows.forEach(([k, pct, n]) => { html += `<tr><td>${k}</td><td class="text-end">${pct}%</td><td class="text-end">${n.toLocaleString()}</td></tr>`; });
+    html += `<tr class="table-light"><th class="text-end" colspan="2">Total</th><th class="text-end">${sum.toLocaleString()}</th></tr>`;
+    html += '</tbody></table></div>'; t.innerHTML = html;
+  }
+  document.addEventListener('input', (e) => {
+    if (!e.target) return;
+    if (e.target.matches('.region-pct') || e.target.matches('.region-check') || e.target.name === 'total_users') { renderUsersByRegion(); }
+  });
+  document.addEventListener('DOMContentLoaded', renderUsersByRegion);
+
+})();
 
   function toggleExistingVDI(){
     const show = getBoolByIdOrRadio('existing_vdi');
@@ -778,7 +809,54 @@
   } else {
     attach();
   }
+
+  // --- Users per region live summary (form) ---
+  function computeUsersByRegion() {
+    const total = parseInt((document.querySelector('input[name="total_users"]')?.value || "0"), 10) || 0;
+    const keys = ["US","US_HI","US_AK","CAN","LATAM","EMEA","APAC","INDIA","ANZ","OTHER"];
+    const out = []; let sum = 0;
+    keys.forEach(k => {
+      const checked = document.querySelector(`#reg_${k}`)?.checked;
+      const pctVal = parseFloat(document.querySelector(`#reg_${k}_pct`)?.value || "0") || 0;
+      if (checked && pctVal > 0) { const n = Math.round(total * (pctVal/100)); sum += n; out.push([k, pctVal, n]); }
+    });
+    return { total, rows: out, sum };
+  }
+  function renderUsersByRegion() {
+    const t = document.getElementById("region_users_summary"); if (!t) return;
+    const { total, rows, sum } = computeUsersByRegion();
+    if (!total || rows.length === 0) { t.innerHTML = ""; return; }
+    let html = '<div class="small text-muted">Estimated users per region:</div>';
+    html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-2" style="max-width:520px">';
+    html += '<thead class="table-light"><tr><th>Region</th><th class="text-end">% Mix</th><th class="text-end">Users</th></tr></thead><tbody>';
+    rows.forEach(([k, pct, n]) => { html += `<tr><td>${k}</td><td class="text-end">${pct}%</td><td class="text-end">${n.toLocaleString()}</td></tr>`; });
+    html += `<tr class="table-light"><th class="text-end" colspan="2">Total</th><th class="text-end">${sum.toLocaleString()}</th></tr>`;
+    html += '</tbody></table></div>'; t.innerHTML = html;
+  }
+  document.addEventListener('input', (e) => {
+    if (!e.target) return;
+    if (e.target.matches('.region-pct') || e.target.matches('.region-check') || e.target.name === 'total_users') { renderUsersByRegion(); }
+  });
+  document.addEventListener('DOMContentLoaded', renderUsersByRegion);
+
 })();
 </script>
 
 {% endblock %}
+
+
+      <!-- External access with partner/contractor laptops -->
+      <div class="row align-items-center mb-2">
+        <div class="col-sm-7">
+          <label class="form-check-label fw-medium">
+            <input class="form-check-input me-2" type="checkbox" name="endpoints_ext_partner_laptops"
+                   {% if form and form['endpoints_ext_partner_laptops'] %}checked{% endif %}>
+            External access with partner/contractor laptops
+          </label>
+        </div>
+        <div class="col-sm-5">
+          <input type="text" class="form-control form-control-sm" name="endpoints_ext_partner_details"
+                 placeholder="Notes (e.g., VPN/VDI only, restrictions)"
+                 value="{{ form['endpoints_ext_partner_details'] if form and form['endpoints_ext_partner_details'] else '' }}">
+        </div>
+      </div>

@@ -28,3 +28,14 @@ This changelog summarizes all code cleanup and route alignment updates performed
 ---
 **All behavior and endpoints are preserved exactly.**
 Only readability, maintainability, and route alignment were improved.
+
+
+## 2025-10-10
+- Navbar updated: add **Presales | PDG | History**.
+- History page: **Company** links to submitted view.
+- Presales Submitted: title changed to **Presales Data**.
+- Added **PDG Template** download and **Upload PDG** buttons on Presales Submitted.
+- Implemented PDG upload flow (`/presales/upload-pdg/<id>` GET, `/presales/upload-pdg` POST) and `templates/pdg_upload.html`.
+- Fixed Jinja escaping bug in History template.
+- Added **APP_VERSION** and display on Home.
+- Home now shows storage locations: `submit_dir` and `docx_dir`.
