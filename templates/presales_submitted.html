@@ -7,60 +7,96 @@
   {%- else -%}{%- if v -%}Yes{%- else -%}No{%- endif -%}{%- endif -%}
 {%- endmacro %}
 
+{# Helper: build a safe download URL; prefer /download/<sid>/<filename> if available #}
+{% macro dl_link(filename) -%}
+  {%- if has_endpoint('download_deliverable') and ctx and ctx.sid -%}
+    {{ url_for('download_deliverable', submit_id=ctx.sid, filename=filename) }}
+  {%- elif has_endpoint('download_docx') -%}
+    {{ url_for('download_docx', name=filename) }}
+  {%- else -%}
+    {{ '/download/' ~ (ctx.sid if ctx and ctx.sid else submit_id) ~ '/' ~ filename }}
+  {%- endif -%}
+{%- endmacro %}
+
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h1 class="h3 mb-0">Presales Data</h1>
   <span class="text-muted">Submitted {{ now.strftime('%Y-%m-%d %H:%M UTC') }}</span>
 </div>
 
 <div class="mb-4">
+  {# All-in-one ZIP #}
   <a class="btn btn-primary me-2" href="{{ url_for('presales_zip', submit_id=submit_id) }}">
-    Download all requested docs (ZIP)
+    All Docs (.zip)
   </a>
-  <a class="btn btn-outline-secondary me-2" href="{{ url_for('download_docx', name='PDG.docx') }}">PDG Tmpl</a>
-  {% if has_endpoint('presales_upload_pdg') %}
-    <a class="btn btn-outline-primary" href="{{ url_for('presales_upload_pdg', submit_id=submit_id) }}">Upload PDG</a>
+
+  {# Individual document buttons from ctx.deliverables if present #}
+  {% if ctx and ctx.deliverables and ctx.deliverables|length > 0 %}
+    {% for d in ctx.deliverables %}
+      <a class="btn btn-outline-secondary me-2 mb-2" href="{{ dl_link(d.filename) }}">
+        {{ d.title or d.filename }}
+      </a>
+    {% endfor %}
+  {% elif docx_available and docx_available|length > 0 %}
+    {% for f in docx_available %}
+      <a class="btn btn-outline-secondary me-2 mb-2" href="{{ dl_link(f.name) }}">
+        {{ f.name }}
+      </a>
+    {% endfor %}
   {% endif %}
 
+  {# Always render a PDG Template button (even if not listed), to avoid dead/no-op links #}
+  <a class="btn btn-outline-success me-2 mb-2" href="{{ dl_link('PDG.docx') }}">
+    PDG Template
+  </a>
+
+  {# Optional: PDG upload if route exists #}
+  {% if has_endpoint('presales_upload_pdg') %}
+    <a class="btn btn-outline-primary mb-2" href="{{ url_for('presales_upload_pdg', submit_id=submit_id) }}">
+      Upload PDG
+    </a>
+  {% endif %}
+
+  {# Missing files note #}
   {% if docx_missing and docx_missing|length > 0 %}
     <div class="small text-muted mt-2">
       Requested but not found on server: {{ docx_missing|join(', ') }}
     </div>
+  {% endif %}
 
-<div class="card mb-4">
-  <div class="card-body">
-    <h2 class="h5 mb-3">Summary</h2>
-    <div class="row g-3">
-      <div class="col-md-4"><div class="text-muted small">Company</div><div class="fw-medium">{{ data.get('company_name') or '—' }}</div></div>
-      <div class="col-md-4"><div class="text-muted small">Total Users</div><div class="fw-medium">{{ data.get('total_users') or '—' }}</div></div>
-      <div class="col-md-4"><div class="text-muted small">Concurrent Peak</div><div class="fw-medium">{{ data.get('concurrent_users') or '—' }}</div></div>
-    </div>
-    <div class="mt-3">
-      <div class="text-muted small mb-1">Users per region (from regional mix):</div>
-      <div class="table-responsive">
-        <table class="table table-sm table-bordered mb-0" style="max-width:620px">
-          <thead class="table-light"><tr><th>Region</th><th class="text-end">% Mix</th><th class="text-end">Users</th></tr></thead>
-          <tbody>
-            {% set _regions = ['US','US_HI','US_AK','CAN','LATAM','EMEA','APAC','INDIA','ANZ','OTHER'] %}
-            {% set _total = (data.get('total_users') or 0) | int %}
-            {% set _sum = 0 %}
-            {% for rk in _regions %}
-              {% set pct = (data.get('region_pct_' ~ rk) or 0) | int %}
-              {% set ck = data.get('region_ck_' ~ rk) %}
-              {% if ck and pct > 0 %}
-                {% set n = (_total * pct // 100) %}
-                {% set _sum = _sum + n %}
-                <tr><td>{{ rk }}</td><td class="text-end">{{ pct }}%</td><td class="text-end">{{ "{:,}".format(n) }}</td></tr>
-              {% endif %}
-            {% endfor %}
-            <tr class="table-light"><th class="text-end" colspan="2">Total</th><th class="text-end">{{ "{:,}".format(_sum) }}</th></tr>
-          </tbody>
-        </table>
+  {# Summary card #}
+  <div class="card mb-4 mt-3">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Summary</h2>
+      <div class="row g-3">
+        <div class="col-md-4"><div class="text-muted small">Company</div><div class="fw-medium">{{ data.get('company_name') or '—' }}</div></div>
+        <div class="col-md-4"><div class="text-muted small">Total Users</div><div class="fw-medium">{{ data.get('total_users') or '—' }}</div></div>
+        <div class="col-md-4"><div class="text-muted small">Concurrent Peak</div><div class="fw-medium">{{ data.get('concurrent_users') or '—' }}</div></div>
+      </div>
+      <div class="mt-3">
+        <div class="text-muted small mb-1">Users per region (from regional mix):</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered mb-0" style="max-width:620px">
+            <thead class="table-light"><tr><th>Region</th><th class="text-end">% Mix</th><th class="text-end">Users</th></tr></thead>
+            <tbody>
+              {% set _regions = ['US','US_HI','US_AK','CAN','LATAM','EMEA','APAC','INDIA','ANZ','OTHER'] %}
+              {% set _total = (data.get('total_users') or 0) | int %}
+              {% set _sum = 0 %}
+              {% for rk in _regions %}
+                {% set pct = (data.get('region_pct_' ~ rk) or 0) | int %}
+                {% set ck = data.get('region_ck_' ~ rk) %}
+                {% if ck and pct > 0 %}
+                  {% set n = (_total * pct // 100) %}
+                  {% set _sum = _sum + n %}
+                  <tr><td>{{ rk }}</td><td class="text-end">{{ pct }}%</td><td class="text-end">{{ "{:,}".format(n) }}</td></tr>
+                {% endif %}
+              {% endfor %}
+              <tr class="table-light"><th class="text-end" colspan="2">Total</th><th class="text-end">{{ "{:,}".format(_sum) }}</th></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
-</div>
-
-  {% endif %}
 
   <a class="btn btn-outline-secondary ms-2" href="{{ url_for('history') }}">History</a>
   <a class="btn btn-link ms-1" href="{{ url_for('presales') }}">Back to Presales form</a>
@@ -256,69 +292,4 @@
   </div>
 </fieldset>
 
-<!-- 8) Operations & Enablement -->
-<fieldset class="border p-3 mb-4 rounded-2">
-  <legend class="float-none w-auto px-2">Operations & Enablement</legend>
-  <div class="row g-3">
-    <div class="col-md-6"><div class="form-label">Operations staffing</div><div class="form-control-plaintext">{{ data.get('ogs_staffing') or '—' }}</div></div>
-    <div class="col-md-6"><div class="form-label">Monitoring</div><div class="form-control-plaintext">{{ data.get('monitoring_stack') or '—' }}</div></div>
-    <div class="col-md-12"><div class="form-label">Training required</div>
-      <div class="form-control-plaintext">
-        {% set tr = data.get('training_required_list') or data.get('training_required') %}
-        {% if tr %}{{ (tr if tr is string else ', '.join(tr)) }}{% else %}—{% endif %}
-      </div>
-    </div>
-    <div class="col-md-6">
-      <div class="form-label">Typical onboarding time (per user)</div>
-      <div class="form-control-plaintext">
-        {% set v = data.get('onboarding_time_value') %}
-        {% set u = data.get('onboarding_time_unit') %}
-        {% if v or u %}{{ v or '—' }} {{ u or '' }}{% else %}—{% endif %}
-      </div>
-    </div>
-    <div class="col-md-12"><div class="form-label">Knowledge Transfer (KT) expectations</div><div class="form-control-plaintext">{{ data.get('kt_expectations') or '—' }}</div></div>
-    <div class="col-md-4"><div class="form-label">Runbook required?</div><div class="form-control-plaintext">{{ yesno(data.get('runbook_required')) }}</div></div>
-    <div class="col-md-4"><div class="form-label">Adoption Services needed?</div><div class="form-control-plaintext">{{ yesno(data.get('adoption_services')) }}</div></div>
-    <div class="col-md-4"><div class="form-label">HA/DR in-scope?</div><div class="form-control-plaintext">{{ yesno(data.get('ha_dr')) }}</div></div>
-  </div>
-</fieldset>
-
-<!-- 9) Logistics & Delivery Model -->
-<fieldset class="border p-3 mb-4 rounded-2">
-  <legend class="float-none w-auto px-2">Logistics & Delivery Model</legend>
-  <div class="row g-3">
-    <div class="col-md-8"><div class="form-label">Delivery model</div><div class="form-control-plaintext">{{ data.get('delivery_model') or '—' }}</div></div>
-    <div class="col-md-4"><div class="form-label">Target start date</div><div class="form-control-plaintext">{{ data.get('start_date') or '—' }}</div></div>
-    <div class="col-md-4"><div class="form-label">Timeline / deadlines</div><div class="form-control-plaintext">{{ data.get('timeline') or '—' }}</div></div>
-
-    <div class="col-md-8">
-      <div class="form-label">Docs requested</div>
-      <div class="form-control-plaintext">
-        {% set dr = data.get('docs_requested_list') or data.get('docs_requested') %}
-        {% if dr %}{{ (dr if dr is string else ', '.join(dr)) }}{% else %}—{% endif %}
-      </div>
-    </div>
-
-    <div class="col-12"><div class="form-label">Stakeholders / 3rd parties</div><div class="form-control-plaintext">{{ data.get('stakeholders') or '—' }}</div></div>
-  </div>
-</fieldset>
-
 {% endblock %}
-
-
-      <div class="table-responsive mt-2">
-        <table class="table table-sm table-bordered">
-          <thead class="table-light"><tr><th>Item</th><th class="text-end">Value</th><th>Notes</th></tr></thead>
-          <tbody>
-
-      <tr>
-        <td>External access with partner/contractor laptops</td>
-        <td class="text-end">
-          {% if data.get('endpoints_ext_partner_laptops') %}Yes{% else %}No{% endif %}
-        </td>
-        <td>{{ data.get('endpoints_ext_partner_details') or '—' }}</td>
-      </tr>
-
-          </tbody>
-        </table>
-      </div>
