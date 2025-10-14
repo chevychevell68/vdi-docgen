@@ -1,0 +1,170 @@
+├─ .env.example
+├─ .github
+├─ .gitignore
+├─ .vscode
+├─ CHANGELOG.md
+├─ MANIFEST.md
+├─ Procfile
+├─ README-APP-ARCHITECTURE.md
+├─ README-APPLY.txt
+├─ README.md
+├─ app.py
+├─ backup-pre-docgen-refactor-2025-10-13.zip
+├─ backups
+├─ data
+├─ doc_templates
+├─ fields.csv
+├─ generate.py
+├─ generated
+├─ intake.sample.yaml
+├─ output
+├─ output-docx
+├─ presales
+├─ questionnaire.md
+├─ requirements.txt
+├─ schema.yaml
+├─ snapshot-20251010-042150.zip
+├─ styles
+├─ submissions
+├─ templates
+├─ wsgi.py
+├─ wsgi_flex.py
+└─ .github/
+   ├─ workflows
+   └─ workflows/
+      ├─ build-docx-from-build-branch.yml
+      ├─ make-reference.yml
+      ├─ pandoc-docx.yml
+└─ .vscode/
+   ├─ settings.json
+└─ backups/
+   ├─ presales-form
+   └─ presales-form/
+      ├─ presales_form-20251010-022515.html
+└─ data/
+   ├─ entries.jsonl
+└─ doc_templates/
+   ├─ adoption_plan.md.j2
+   ├─ atp.md.j2
+   ├─ hld.md.j2
+   ├─ lld.md.j2
+   ├─ loe.md.j2
+   ├─ pdg.md.j2
+   ├─ runbook.md.j2
+   ├─ sow.md.j2
+   ├─ wbs.md.j2
+└─ generated/
+   ├─ submissions
+└─ output/
+   ├─ .gittest
+   ├─ deliverables
+   ├─ exports
+   ├─ submissions
+   ├─ uploads
+   └─ deliverables/
+      ├─ AsBuilt.md
+      ├─ HLD.md
+      ├─ LLD.md
+      ├─ PDG.md
+      ├─ SOW.md
+      ├─ intake-058c4ed8762844c2a97f357f33706d88.md
+      ├─ intake-2020c3794e874a569f21ab162be5f2da.md
+      ├─ intake-2f89b0a9429f46b3ae8bd3aa9d103acb.md
+      ├─ intake-950cb1208221405dae1215c9d82ce6e4.md
+      ├─ intake-ae0a26a8d28849c3b994d19020229958.md
+      ├─ intake-bdf5bcbf0aab4058b8a263eb4bdbec1d.md
+      ├─ intake.md
+      ├─ intake.resolved.yaml
+   └─ exports/
+      ├─ submissions
+      └─ submissions/
+         ├─ presales-2020c3794e874a569f21ab162be5f2da.zip
+         ├─ presales-2f89b0a9429f46b3ae8bd3aa9d103acb.zip
+         ├─ presales-950cb1208221405dae1215c9d82ce6e4.zip
+         ├─ presales-bdf5bcbf0aab4058b8a263eb4bdbec1d.zip
+   └─ submissions/
+      ├─ ae0a26a8d28849c3b994d19020229958.json
+      ├─ bdf5bcbf0aab4058b8a263eb4bdbec1d.json
+└─ output-docx/
+   ├─ AsBuilt.docx
+   ├─ HLD.docx
+   ├─ LLD.docx
+   ├─ PDG.docx
+   ├─ SOW.docx
+└─ presales/
+   ├─ __init__.py
+   ├─ __pycache__
+   ├─ init.py
+   ├─ routes.py
+└─ styles/
+   ├─ reference.docx
+   ├─ reference.docx.txt
+└─ submissions/
+   ├─ 058c4ed8762844c2a97f357f33706d88.json
+   ├─ 2020c3794e874a569f21ab162be5f2da.json
+   ├─ 2f89b0a9429f46b3ae8bd3aa9d103acb.json
+   ├─ 950cb1208221405dae1215c9d82ce6e4.json
+└─ templates/
+   ├─ app.py
+   ├─ asbuilt.md.j2
+   ├─ base.html
+   ├─ blueprints
+   ├─ checklist.html
+   ├─ checklist.md
+   ├─ docs
+   ├─ form.html
+   ├─ forms
+   ├─ history.html
+   ├─ hld.md.j2
+   ├─ home.html
+   ├─ index.html
+   ├─ lld.md.j2
+   ├─ manage_fields.html
+   ├─ pdg.md.j2
+   ├─ pdg_form.html
+   ├─ pdg_results.html
+   ├─ pdg_scope.html
+   ├─ pdg_upload.html
+   ├─ predeploy.html
+   ├─ presales_export.md
+   ├─ presales_form.html
+   ├─ presales_form.html.bak
+   ├─ presales_form.html.bak2
+   ├─ presales_form.html.bak_cleanradios
+   ├─ presales_form.html.bak_exactcol_fix
+   ├─ presales_form.html.bak_gpu_clean
+   ├─ presales_form.html.bak_gpu_fix
+   ├─ presales_form.html.bak_jsfix
+   ├─ presales_results.html
+   ├─ presales_submitted.html
+   ├─ presales_submitted_defensive.html
+   ├─ questionnaire.md
+   ├─ results.html
+   ├─ services
+   ├─ snippets
+   ├─ sow.md.j2
+   └─ blueprints/
+      ├─ history.py
+      ├─ outputs.py
+      ├─ presales.py
+      ├─ rescue_outputs.py
+   └─ docs/
+      ├─ asbuilt.md.j2
+      ├─ atp.md.j2
+      ├─ hld.md.j2
+      ├─ lld.md.j2
+      ├─ loe.md.j2
+      ├─ sow.md.j2
+      ├─ wbs.md.j2
+   └─ forms/
+      ├─ predeploy.html
+      ├─ presales.html
+   └─ services/
+      ├─ docgen.py
+      ├─ schema.py
+      ├─ wbs.py
+   └─ snippets/
+      ├─ dem.md.j2
+      ├─ fslogix.md.j2
+      ├─ uag_external.md.j2
+      ├─ uag_internal.md.j2

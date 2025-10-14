@@ -1,0 +1,90 @@
+
+Title: Statement of Work
+Customer: {{ ctx.project.customer }}
+Project: {{ ctx.project.name }}
+Date: {{ now.isoformat() }}
+
+1. Introduction and Objectives
+This Statement of Work (SOW) defines the scope, approach, deliverables, assumptions, schedule, acceptance criteria, and responsibilities for the implementation of a Horizon pod and related services for {{ ctx.project.customer }}. This project aims to deliver a stable, secure, and scalable virtual desktop infrastructure in accordance with the design requirements gathered in the presales engagement.
+
+2. Voice of the Customer
+{{ ctx.project.voice_of_customer | default("No explicit voice of customer provided in the presales submission.") }}
+
+3. Scope of Work
+3.1 In Scope
+- Horizon components deployment and configuration as indicated in the presales submission:
+  - Connection Servers: {{ ctx.horizon.components.connection_servers }} (replicas: {{ ctx.horizon.components.replicas }})
+  - Unified Access Gateways: {{ ctx.horizon.components.uag }}
+  - TrueSSO Enrollment Servers: {{ ctx.horizon.components.enrollment_servers }}
+  - App Volumes Managers: {{ ctx.horizon.components.appvol_managers }}
+- Identity integration:
+  - Active Directory domain: {{ ctx.identity.ad_domain }}
+  - TrueSSO: {{ "enabled" if ctx.identity.truesso else "disabled" }}
+  - External IdP: {% if ctx.identity.external_idp.enabled %}enabled ({{ ctx.identity.external_idp.provider }}){% else %}disabled{% endif %}
+- Endpoints and Access Requirements:
+  - Contractor/partner laptop access: {{ "allowed" if ctx.endpoints.contractor_partner_access else "not allowed" }}
+- Networking and Load Balancing:
+  - F5 present: {{ "yes" if ctx.networking.f5 else "no" }}
+  - Subnets: {{ ctx.networking.subnets or "not specified" }}
+- Storage:
+  - Type: {{ ctx.storage.type }}
+  - Policy: {{ ctx.storage.policy }}
+- Horizon features to configure:
+  - Instant Clone: {{ "enabled" if ctx.horizon.features.instant_clone else "disabled" }}
+  - FSLogix: {{ "enabled" if ctx.horizon.features.fslogix else "disabled" }}
+  - DEM: {{ "enabled" if ctx.horizon.features.dem else "disabled" }}
+
+3.2 Out of Scope
+{{ ctx.out_of_scope | default("No explicit out-of-scope items provided. Any item not listed as in-scope is considered out-of-scope.") }}
+
+3.3 Assumptions
+{{ ctx.assumptions | default("No explicit assumptions provided.") }}
+
+4. Deliverables
+- Configured Horizon pod components as listed
+- Functional identity integration and access policies
+- App Volumes configuration and attach policies
+- Documentation set:
+  - High-Level Design (HLD)
+  - Low-Level Design (LLD)
+  - Runbook or as-built notes, as appropriate
+  - WBS and change records
+- Knowledge transfer session and handoff materials
+
+5. Schedule and Change Windows
+- Maintenance window: {{ ctx.project.maintenance_window or "not specified" }}
+- CAB review required: {{ "yes" if ctx.project.cab.required else "no" }}
+- CAB window: {{ (ctx.project.cab.start ~ " to " ~ ctx.project.cab.end) if ctx.project.cab.required else "n/a" }}
+- Target timeline notes: {{ ctx.timeline or "not specified" }}
+
+6. Roles and Responsibilities
+6.1 Customer
+- Provide required access to systems and facilities
+- Supply valid certificates and DNS changes when required
+- Participate in CAB, testing, and acceptance
+- Provide SMEs for identity, networking, and security
+
+6.2 Integrator
+- Implement Horizon components and features as scoped
+- Coordinate with customer teams for integration and certificates
+- Produce documentation and runbooks
+- Lead validation and knowledge transfer
+
+7. Acceptance Criteria
+- Connection Servers deployed and reachable; replication healthy
+- UAGs deployed and externally accessible via F5 VIPs (if applicable)
+- TrueSSO functional for targeted user groups
+- App Volumes Managers operational with agreed attach policies
+- Golden image finalized and Horizon Agent validated for target pools
+- User login success and application launch tests passed
+- Documentation delivered and KT completed
+
+8. Risks and Constraints
+{{ ctx.risks | default("No explicit risks provided.") }}
+{{ ctx.constraints | default("") }}
+
+9. Commercial Terms and Change Control
+Any work beyond the scope defined herein is subject to change control. Schedule adjustments are subject to CAB approvals where applicable. Commercial terms are governed by the master agreement and applicable order forms.
+
+10. Sign-off
+Customer acceptance is confirmed upon completion of acceptance criteria and delivery of all stated artifacts.

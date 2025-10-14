@@ -1,0 +1,16 @@
+
+Title: Project Definition Guide (PDG)
+Customer: {{ ctx.project.customer }}
+Project: {{ ctx.project.name }}
+Date: {{ now.isoformat() }}
+
+1. Business Context
+- Drivers and objectives: {{ ctx.project.voice_of_customer or "see SOW section 2" }}
+
+2. Scope, Assumptions, and Constraints
+- Scope summary: see SOW
+- Assumptions: {{ ctx.assumptions or "n/a" }}
+- Constraints: {{ ctx.constraints or "n/a" }}
+
+3. Stakeholders & R&R
+- Customer SMEs, Integrator roles, decision-makers

@@ -1,0 +1,19 @@
+
+Title: Acceptance Test Plan (ATP)
+Customer: {{ ctx.project.customer }}
+Project: {{ ctx.project.name }}
+Date: {{ now.isoformat() }}
+
+1. Test Scope
+Validates the acceptance criteria stated in the SOW.
+
+2. Test Cases (examples)
+- Internal login via Connection Server succeeds
+- External login via UAG through F5 VIP succeeds
+- TrueSSO login for target AD group succeeds
+- App Volumes app attach and detach behavior as expected
+- Golden image pool provisioning
+
+3. Entry/Exit Criteria
+- Entry: Environments built and configured
+- Exit: All critical tests passed

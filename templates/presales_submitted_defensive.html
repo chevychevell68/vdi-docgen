@@ -1,0 +1,53 @@
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Presales Submitted</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 1.25rem; }
+      h1 { margin: 0 0 0.5rem 0; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 0.75rem 1rem; }
+      a { text-decoration: none; }
+      .zip { font-weight: 600; }
+      .muted { color: #666; font-size: 0.9rem; }
+      .warn { color: #b00; }
+    </style>
+  </head>
+  <body>
+    <h1>Submission Complete</h1>
+    {% set _sid = sid if sid is defined else (submission.sid if submission is defined and submission.sid is defined else "") %}
+    {% if not _sid %}<p class="warn">Warning: sid not provided to template.</p>{% endif %}
+    <p class="muted">Submission ID: <code>{{ _sid }}</code></p>
+
+    {% set _ctx = ctx if ctx is defined else (submission.ctx if submission is defined and submission.ctx is defined else None) %}
+    {% if not _ctx %}
+      <p class="warn">This view wasn't passed a <code>ctx</code>. The new download links require it.
+      If you're using a legacy history route, update it to load <code>generated/submissions/&lt;sid&gt;-ctx.json</code> and pass <code>ctx=...</code> into <code>render_template</code>.
+      For now, we'll default to showing all deliverables.</p>
+    {% endif %}
+
+    {% set sel = (_ctx.deliverables if _ctx else {
+      'sow': True, 'hld': True, 'lld': True, 'runbook': True, 'pdg': True,
+      'loe_wbs': True, 'atp': True, 'adoption_plan': True
+    }) %}
+
+    <p><a class="zip" href="/outputs/{{ _sid }}/bundle.zip">⬇️ Download All (ZIP)</a></p>
+
+    <div class="grid">
+      {% if sel.sow %}<div class="card"><a href="/outputs/{{ _sid }}/sow.docx">SOW (DOCX)</a></div>{% endif %}
+      {% if sel.hld %}<div class="card"><a href="/outputs/{{ _sid }}/hld.docx">HLD (DOCX)</a></div>{% endif %}
+      {% if sel.lld %}<div class="card"><a href="/outputs/{{ _sid }}/lld.docx">LLD (DOCX)</a></div>{% endif %}
+      {% if sel.runbook %}<div class="card"><a href="/outputs/{{ _sid }}/runbook.docx">Runbook (DOCX)</a></div>{% endif %}
+      {% if sel.pdg %}<div class="card"><a href="/outputs/{{ _sid }}/pdg.docx">PDG (DOCX)</a></div>{% endif %}
+      {% if sel.loe_wbs %}
+        <div class="card"><a href="/outputs/{{ _sid }}/loe.docx">LOE (DOCX)</a></div>
+        <div class="card"><a href="/outputs/{{ _sid }}/wbs.xlsx">WBS (XLSX)</a></div>
+      {% endif %}
+      {% if sel.atp %}<div class="card"><a href="/outputs/{{ _sid }}/atp.docx">ATP (DOCX)</a></div>{% endif %}
+      {% if sel.adoption_plan %}<div class="card"><a href="/outputs/{{ _sid }}/adoption_plan.docx">Adoption Plan (DOCX)</a></div>{% endif %}
+    </div>
+  </body>
+</html>

@@ -1,0 +1,87 @@
+
+Title: Low-Level Design (LLD)
+Customer: {{ ctx.project.customer }}
+Project: {{ ctx.project.name }}
+Date: {{ now.isoformat() }}
+
+1. Purpose
+This Low-Level Design (LLD) provides the detailed configuration for components in the Horizon environment, including hostnames, ports, certificates, policies, and integration specifics.
+
+2. Reference Architecture
+See HLD for the high-level topology. This LLD binds configuration values and steps to each component.
+
+3. Server & Service Inventory
+| Component | Qty | Example Hostname Pattern | Notes |
+|---|---:|---|---|
+| Connection Server | {{ ctx.horizon.components.connection_servers }} | cs##.{{ ctx.identity.ad_domain or "example.local" }} | {{ ctx.horizon.components.replicas }} replicas |
+| UAG | {{ ctx.horizon.components.uag }} | uag##.{{ ctx.identity.ad_domain or "example.local" }} | Behind F5 VIP(s) if applicable |
+| TrueSSO Enrollment Server | {{ ctx.horizon.components.enrollment_servers }} | es##.{{ ctx.identity.ad_domain or "example.local" }} | Pairing for HA |
+| App Volumes Manager | {{ ctx.horizon.components.appvol_managers }} | avm##.{{ ctx.identity.ad_domain or "example.local" }} | DB-backed |
+
+4. Identity & TrueSSO
+- AD domain: {{ ctx.identity.ad_domain }}
+- TrueSSO: {{ "enabled" if ctx.identity.truesso else "disabled" }}
+- External IdP: {% if ctx.identity.external_idp.enabled %}{{ ctx.identity.external_idp.provider }}{% else %}disabled{% endif %}
+- Certificate templates and CA: <define per customer PKI>
+- Enrollment servers: pairing, CA connection strings, and KDC/proxy config.
+
+5. Certificates
+- Source: {{ ctx.security.cert_source }}
+- Required SANs per role (examples):
+  - CS: `cs*.{{ ctx.identity.ad_domain or "example.local" }}`
+  - UAG: external FQDN(s), VIP names
+  - AVM: admin/manager FQDNs
+- Renewal process and storage: <define>
+
+6. Networking & Ports
+- F5 present: {{ "yes" if ctx.networking.f5 else "no" }}
+- Subnets: {{ ctx.networking.subnets or "not specified" }}
+- Common ports (sample; tailor to policy):
+  - CS admin: 443
+  - Blast Extreme: 8443 (or via 443 on UAG)
+  - PCoIP: 4172 TCP/UDP (if applicable)
+  - App Volumes: 443
+  - AD/LDAP/Kerberos: per corporate standards
+- Firewall matrix is maintained as a separate table/runbook if required.
+
+7. Horizon Configuration
+- CS replication: {{ ctx.horizon.components.replicas }} replicas
+- Event DB: <connection string and DB name>
+- Global Entitlements: <if Cloud Pod Architecture is planned>
+- Features:
+  - Instant Clone: {{ "enabled" if ctx.horizon.features.instant_clone else "disabled" }}
+  - FSLogix: {{ "enabled" if ctx.horizon.features.fslogix else "disabled" }}
+  - DEM: {{ "enabled" if ctx.horizon.features.dem else "disabled" }}
+
+8. App Volumes
+- Managers: {{ ctx.horizon.components.appvol_managers }}
+- Database: <connection string>
+- Shares and mount paths: <define>
+- Datastore attach policy: <define standard>
+- Note on "Unattachable" datastore marking: If a datastore is marked unattachable in App Volumes, volumes will not be attached from that datastore during assignment, effectively draining it for maintenance or retirement scenarios.
+
+9. User Profiles (FSLogix/DEM)
+- FSLogix profile share: <UNC path>
+- Exclusions/Inclusions: <list>
+- DEM GPOs and config shares: <paths and policy links>
+
+10. Golden Image & Agents
+- Base OS image: <version/build>
+- Horizon Agent: <version>
+- App Volumes agent & DEM agent: <versions>
+- Image update/maintenance workflow: <steps>
+
+11. Monitoring & Logging
+- Event DB targets: <DB details>
+- Syslog/SIEM: {{ ctx.security.logging or "not specified" }}
+- Health: F5 monitors, Horizon pod health checks
+
+12. Backup & Restore
+- File shares and SQL restored by customer per scope; validation tasks included in WBS
+- Snapshot policy and rollback plan: <define>
+
+13. Validation Plan (Summary)
+- Login test matrix (internal + external via UAG)
+- App attach tests (App Volumes)
+- TrueSSO test (target AD groups)
+- Performance smoke tests
