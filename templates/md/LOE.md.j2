@@ -1,0 +1,17 @@
+<!-- LOE.md.j2 -->
+# Level of Effort (LOE) — High-Level Snapshot
+
+**Customer:** {{ data.customer_name|default("") }}
+**Date:** {{ data.__submitted_at__|default("") }}
+
+This LOE is a high-level estimate intended for solutions scoping. It is not a task plan.
+
+## Summary Table (Example)
+| Work Area | Role | Hours | Notes |
+|---|---|---:|---|
+| Discovery & Planning | Architect | {{ data.loe_discovery_hours|default(16) }} | Workshops, requirements |
+| Build & Config | Engineer | {{ data.loe_build_hours|default(40) }} | Horizon, UAG, Images |
+| Validation | Engineer | {{ data.loe_validation_hours|default(16) }} | Smoke tests, sign-off |
+| KT & Handover | Architect | {{ data.loe_kt_hours|default(8) }} | Knowledge transfer |
+
+> Replace the example numbers with your model; this table is intentionally simple for pasting into your solutions tool.

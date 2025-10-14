@@ -1,0 +1,25 @@
+<!-- PDG.md.j2 -->
+# Project Data Gathering (PDG) — Customer Questionnaire
+
+**Customer:** {{ data.customer_name|default("") }}
+**Date:** {{ data.__submitted_at__|default("") }}
+
+Please complete the following and return the filled PDG document.
+
+## Contact & Logistics
+- Primary Contact: {{ data.primary_contact|default("Name / Email / Phone") }}
+- Change Control Windows: {{ data.change_windows|default("TBD") }}
+- Access Requirements: {{ data.access_requirements|default("TBD") }}
+
+## Environment
+- AD Domain(s): {{ data.ad_domains|default("TBD") }}
+- vSphere Version: {{ data.vsphere_version|default("TBD") }}
+- Horizon Version: {{ data.horizon_version|default("TBD") }}
+
+## Networking
+- Subnets/VLANs: {{ data.network_vlans|default("TBD") }}
+- External Access: {{ data.external_access_details|default("TBD") }}
+
+## Images & Pools
+- Base Image Strategy: {{ data.image_strategy|default("TBD") }}
+- Applications: {{ data.app_list|default([])|join(", ") }}

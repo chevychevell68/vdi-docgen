@@ -44,20 +44,18 @@
     {% endfor %}
   {% endif %}
 
-  {# Always render a PDG Template button (even if not listed), to avoid dead/no-op links #}
+  {# PDG template always available #}
   <a class="btn btn-outline-success me-2 mb-2" href="{{ dl_link('PDG.docx') }}">
     PDG Template
   </a>
 
-  {# Optional: PDG upload if route exists #}
-  {% if has_endpoint('presales_upload_pdg') %}
-    <a class="btn btn-outline-primary mb-2" href="{{ url_for('presales_upload_pdg', submit_id=submit_id) }}">
-      Upload PDG
-    </a>
-  {% endif %}
+  {# PDG Upload button -> exists in patched app.py #}
+  <a class="btn btn-outline-primary mb-2" href="{{ url_for('presales_upload_pdg', submit_id=submit_id) }}">
+    Upload PDG
+  </a>
 
-  {# Missing files note #}
-  {% if docx_missing and docx_missing|length > 0 %}
+  {# Missing files note (show only if user actually requested docs) #}
+  {% if data.get('docs_requested_list') and docx_missing and docx_missing|length > 0 %}
     <div class="small text-muted mt-2">
       Requested but not found on server: {{ docx_missing|join(', ') }}
     </div>
@@ -80,17 +78,17 @@
             <tbody>
               {% set _regions = ['US','US_HI','US_AK','CAN','LATAM','EMEA','APAC','INDIA','ANZ','OTHER'] %}
               {% set _total = (data.get('total_users') or 0) | int %}
-              {% set _sum = 0 %}
+              {% set ns = namespace(sum=0) %}
               {% for rk in _regions %}
                 {% set pct = (data.get('region_pct_' ~ rk) or 0) | int %}
                 {% set ck = data.get('region_ck_' ~ rk) %}
                 {% if ck and pct > 0 %}
                   {% set n = (_total * pct // 100) %}
-                  {% set _sum = _sum + n %}
+                  {% set ns.sum = ns.sum + n %}
                   <tr><td>{{ rk }}</td><td class="text-end">{{ pct }}%</td><td class="text-end">{{ "{:,}".format(n) }}</td></tr>
                 {% endif %}
               {% endfor %}
-              <tr class="table-light"><th class="text-end" colspan="2">Total</th><th class="text-end">{{ "{:,}".format(_sum) }}</th></tr>
+              <tr class="table-light"><th class="text-end" colspan="2">Total</th><th class="text-end">{{ "{:,}".format(ns.sum) }}</th></tr>
             </tbody>
           </table>
         </div>
@@ -289,6 +287,53 @@
     {% endif %}
 
     <div class="col-md-4"><div class="form-label">Load balancer</div><div class="form-control-plaintext">{{ data.get('load_balancer') or '—' }}</div></div>
+  </div>
+</fieldset>
+
+<!-- 8) Operations & Enablement -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Operations & Enablement</legend>
+  <div class="row g-3">
+    <div class="col-md-6"><div class="form-label">Operations staffing</div><div class="form-control-plaintext">{{ data.get('ogs_staffing') or '—' }}</div></div>
+    <div class="col-md-6"><div class="form-label">Monitoring</div><div class="form-control-plaintext">{{ data.get('monitoring_stack') or '—' }}</div></div>
+    <div class="col-md-12"><div class="form-label">Training required</div>
+      <div class="form-control-plaintext">
+        {% set tr = data.get('training_required_list') or data.get('training_required') %}
+        {% if tr %}{{ (tr if tr is string else ', '.join(tr)) }}{% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="form-label">Typical onboarding time (per user)</div>
+      <div class="form-control-plaintext">
+        {% set v = data.get('onboarding_time_value') %}
+        {% set u = data.get('onboarding_time_unit') %}
+        {% if v or u %}{{ v or '—' }} {{ u or '' }}{% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="col-md-12"><div class="form-label">Knowledge Transfer (KT) expectations</div><div class="form-control-plaintext">{{ data.get('kt_expectations') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">Runbook required?</div><div class="form-control-plaintext">{{ yesno(data.get('runbook_required')) }}</div></div>
+    <div class="col-md-4"><div class="form-label">Adoption Services needed?</div><div class="form-control-plaintext">{{ yesno(data.get('adoption_services')) }}</div></div>
+    <div class="col-md-4"><div class="form-label">HA/DR in-scope?</div><div class="form-control-plaintext">{{ yesno(data.get('ha_dr')) }}</div></div>
+  </div>
+</fieldset>
+
+<!-- 9) Logistics & Delivery Model -->
+<fieldset class="border p-3 mb-4 rounded-2">
+  <legend class="float-none w-auto px-2">Logistics & Delivery Model</legend>
+  <div class="row g-3">
+    <div class="col-md-8"><div class="form-label">Delivery model</div><div class="form-control-plaintext">{{ data.get('delivery_model') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">Target start date</div><div class="form-control-plaintext">{{ data.get('start_date') or '—' }}</div></div>
+    <div class="col-md-4"><div class="form-label">Timeline / deadlines</div><div class="form-control-plaintext">{{ data.get('timeline') or '—' }}</div></div>
+
+    <div class="col-md-8">
+      <div class="form-label">Docs requested</div>
+      <div class="form-control-plaintext">
+        {% set dr = data.get('docs_requested_list') or data.get('docs_requested') %}
+        {% if dr %}{{ (dr if dr is string else ', '.join(dr)) }}{% else %}—{% endif %}
+      </div>
+    </div>
+
+    <div class="col-12"><div class="form-label">Stakeholders / 3rd parties</div><div class="form-control-plaintext">{{ data.get('stakeholders') or '—' }}</div></div>
   </div>
 </fieldset>
 

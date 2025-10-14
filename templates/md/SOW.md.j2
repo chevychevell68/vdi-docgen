@@ -1,0 +1,36 @@
+{% from _self import yesno %}
+<!-- SOW.md.j2 -->
+# Statement of Work (SOW)
+
+**Customer:** {{ data.customer_name|default("") }}
+**Project Title:** {{ data.project_title|default("VDI / Horizon Deployment") }}
+**Scope Version:** {{ data.scope_version|default("v1") }}
+**Date:** {{ data.__submitted_at__|default("") }}
+
+## 1. Scope
+- Platform: {{ data.platform|default("VMware Horizon") }}
+- Regions: {{ data.regions|default([])|join(", ") }}
+- Estimated Seats: {{ data.user_counts_total|default("") }}
+
+## 2. Assumptions
+- GPU Required: {{ yesno(data.gpu_required|default(false)) }}
+- External Access: {{ yesno(data.external_access|default(false)) }}
+- Image Management: {{ data.image_strategy|default("TBD") }}
+
+## 3. Deliverables
+- High-Level Design (HLD) document
+- Environment build and configuration
+- Knowledge transfer session
+
+## 4. Out of Scope
+- Items explicitly not covered by this engagement.
+
+## 5. Acceptance Criteria
+- Criteria mutually agreed upon by Customer and Provider.
+
+## 6. Schedule & Milestones
+- Start: {{ data.schedule_start|default("TBD") }}
+- End: {{ data.schedule_end|default("TBD") }}
+
+## 7. Pricing Summary (High-Level)
+- See LOE for effort estimates. Final pricing per commercial terms.

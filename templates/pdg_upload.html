@@ -1,15 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Upload PDG{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Upload Completed PDG</h1>
-<form method="POST" action="{{ url_for('presales_upload_pdg_post') }}" enctype="multipart/form-data" class="mb-4">
-  <input type="hidden" name="submit_id" value="{{ submit_id }}">
-  <div class="mb-3">
-    <label class="form-label">Choose PDG (.docx)</label>
-    <input class="form-control" type="file" name="file" accept=".docx" required>
-  </div>
-  <button class="btn btn-primary" type="submit">Upload</button>
-  <a class="btn btn-outline-secondary" href="{{ url_for('presales_view', submit_id=submit_id) }}">Cancel</a>
-</form>
-<p class="text-muted small">Template: <a href="{{ url_for('download_docx', name='PDG.docx') }}">Download PDG Tmpl</a></p>
+  <h1 class="h3 mb-3">Upload Completed PDG</h1>
+  <form method="post" enctype="multipart/form-data" class="card p-3">
+    <div class="mb-3">
+      <label for="pdg_file" class="form-label">PDG (.docx)</label>
+      <input class="form-control" type="file" id="pdg_file" name="pdg_file" accept=".docx" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Upload & Merge</button>
+    <a class="btn btn-link ms-2" href="{{ url_for('presales_view', submit_id=submit_id) }}">Cancel</a>
+  </form>
 {% endblock %}

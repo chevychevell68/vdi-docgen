@@ -1,0 +1,27 @@
+{% from _self import yesno %}
+<!-- HLD.md.j2 -->
+# High-Level Design (HLD)
+
+**Customer:** {{ data.customer_name|default("") }}
+**Date:** {{ data.__submitted_at__|default("") }}
+
+## 1. Architecture Overview
+- Platform: {{ data.platform|default("VMware Horizon") }}
+- Authentication: {{ data.auth_method|default("AD") }}
+- Broker/Connection Servers: {{ data.conn_servers|default(2) }}
+- UAGs: {{ data.uag_count|default(2) }}
+- vSphere Clusters: {{ data.vsphere_clusters|default(1) }}
+
+## 2. Network
+- VLANs/Subnets: {{ data.network_vlans|default("TBD") }}
+- Firewall: {{ data.firewall_notes|default("TBD") }}
+- External Access: {{ yesno(data.external_access|default(false)) }}
+
+## 3. Images & Pools
+- Base Image Strategy: {{ data.image_strategy|default("Golden Image") }}
+- Pool Types: {{ data.pool_types|default(["Instant Clones"])|join(", ") }}
+
+## 4. Dependencies
+- vCenter: {{ data.vcenter_version|default("TBD") }}
+- ESXi: {{ data.esxi_version|default("TBD") }}
+- Horizon: {{ data.horizon_version|default("TBD") }}

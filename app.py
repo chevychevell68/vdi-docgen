@@ -12,10 +12,16 @@ from flask import (
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
+# Optional dependency for PDG parsing (python-docx)
+try:
+    from docx import Document  # type: ignore
+except Exception:
+    Document = None  # We'll error nicely if upload used without this pkg
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 # Application version (bump as needed)
-APP_VERSION = "2025.10.10-v4"
+APP_VERSION = "2025.10.14-v6"
 
 # ---------- Jinja helpers ----------
 def _fmt_bool(v):
@@ -33,16 +39,6 @@ app.jinja_env.filters["fmt_bool"] = _fmt_bool
 app.jinja_env.filters["none_to_empty"] = _none_to_empty
 app.jinja_env.filters["lines"] = _lines
 
-@app.context_processor
-def inject_helpers():
-    def has_endpoint(name: str) -> bool:
-        try:
-            return name in current_app.view_functions
-        except Exception:
-            return False
-    # expose UTC ‘now’ so templates can call now.strftime(...)
-    return dict(has_endpoint=has_endpoint, now=dt.datetime.utcnow(), app_version=APP_VERSION, output_dir=str(OUTPUT_DIR), docx_dir=str(DOCX_DIR), submit_dir=str(SUBMIT_DIR))
-
 # -------------------- Paths / Env --------------------
 OUTPUT_DIR   = Path(os.getenv("OUTPUT_DIR", "output"))
 DELIV_DIR    = OUTPUT_DIR / "deliverables"
@@ -53,9 +49,34 @@ SUBMIT_DIR   = Path(os.getenv("SUBMIT_DIR", "submissions"))  # repo-local for Co
 for d in (OUTPUT_DIR, DELIV_DIR, DOCX_DIR, EXPORTS_DIR, SUBMIT_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
+# Known/expected DOCX deliverables (used for ctx + whitelisting)
+KNOWN_DOCS = [
+    "SOW.docx", "HLD.docx", "LLD.docx", "Runbook.docx",
+    "PDG.docx", "LOE-WBS.docx", "ATP.docx", "Adoption_Plan.docx",
+    # Historical names we may also emit
+    "LOE.docx", "WBS.docx"
+]
+
 GITHUB_TOKEN   = os.getenv("GITHUB_TOKEN", "").strip()
 DEFAULT_REPO   = os.getenv("DEFAULT_REPO", "").strip()  # e.g., "owner/repo"
 DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "main").strip()
+
+@app.context_processor
+def inject_helpers():
+    def has_endpoint(name: str) -> bool:
+        try:
+            return name in current_app.view_functions
+        except Exception:
+            return False
+    # expose UTC ‘now’ so templates can call now.strftime(...)
+    return dict(
+        has_endpoint=has_endpoint,
+        now=dt.datetime.utcnow(),
+        app_version=APP_VERSION,
+        output_dir=str(OUTPUT_DIR),
+        docx_dir=str(DOCX_DIR),
+        submit_dir=str(SUBMIT_DIR),
+    )
 
 # -------------------- GitHub helpers (optional) --------------------
 def github_get_file_sha(repo_owner: str, repo_name: str, path: str, branch: str):
@@ -183,6 +204,29 @@ def _build_submission_zip(submit_id: str, filenames: list[str]) -> Path:
                 z.write(fp, arcname=fn)
     return zip_path
 
+# ---- ctx helpers for template buttons ----
+def _build_ctx(submit_id: str, obj: dict | None) -> dict:
+    """Construct a minimal ctx expected by the template.
+    We include any KNOWN_DOCS present in DOCX_DIR, and prefer the originally requested docs if available.
+    """
+    # Prefer requested doc names when available
+    requested = (obj or {}).get("docs_requested_list") or []
+    # Map requested labels to filenames (like _map_requested_docx)
+    label_to_filename = {
+        "SOW": "SOW.docx", "HLD": "HLD.docx", "LLD": "LLD.docx", "Runbook": "Runbook.docx",
+        "PDG": "PDG.docx", "LOE/WBS": "LOE-WBS.docx", "ATP": "ATP.docx", "Adoption Plan": "Adoption_Plan.docx",
+    }
+    requested_files = [label_to_filename.get(lbl) for lbl in requested if lbl in label_to_filename]
+    present = {p.name for p in DOCX_DIR.glob("*.docx")}
+    # If there are requested files, intersect with present; else include any known present
+    candidates = [fn for fn in requested_files if fn in present] if requested_files else [fn for fn in KNOWN_DOCS if fn in present]
+    deliverables = [{"filename": n, "title": n.rsplit(".", 1)[0]} for n in candidates]
+    return {
+        "sid": submit_id,
+        "deliverables": deliverables,
+        "docx_dir": str(DOCX_DIR),
+    }
+
 # -------------------- Routes --------------------
 @app.get("/")
 def index():
@@ -200,7 +244,7 @@ def checklist():
 def questionnaire():
     return render_template("questionnaire.md")
 
-# ---- PDG (unchanged) ----
+# ---- PDG (unchanged quick MD render form) ----
 @app.get("/pdg")
 def pdg_form():
     return render_template("pdg_form.html")
@@ -230,6 +274,19 @@ def download_docx(name: str):
         flash("File not found.", "error")
         return redirect(url_for("history"))
     return send_file(path, as_attachment=True, download_name=name)
+
+# New: safe individual deliverable download used by the template helper
+@app.get("/download/<submit_id>/<path:filename>")
+def download_deliverable(submit_id: str, filename: str):
+    # Allow only known deliverables that actually exist in DOCX_DIR
+    if filename not in KNOWN_DOCS and not (DOCX_DIR / filename).exists():
+        flash("File not found.", "error")
+        return redirect(url_for("presales_view", submit_id=submit_id))
+    path = (DOCX_DIR / filename).resolve()
+    if not path.exists():
+        flash("File not found.", "error")
+        return redirect(url_for("presales_view", submit_id=submit_id))
+    return send_file(path, as_attachment=True, download_name=filename)
 
 # ---- Exports (general) ----
 @app.get("/exports")
@@ -282,6 +339,9 @@ def presales_view(submit_id):
     requested = obj.get("docs_requested_list") or []
     docx_available, docx_missing = _map_requested_docx(requested, DOCX_DIR)
 
+    # Build a ctx object for the template so individual buttons & links render
+    ctx = _build_ctx(submit_id, obj)
+
     return render_template(
         "presales_submitted.html",
         what="Presales",
@@ -289,6 +349,7 @@ def presales_view(submit_id):
         submit_id=submit_id,
         docx_available=docx_available,
         docx_missing=docx_missing,
+        ctx=ctx,  # <-- critical for the template buttons
     )
 
 @app.get("/presales/zip/<submit_id>")
@@ -299,6 +360,9 @@ def presales_zip(submit_id):
         return redirect(url_for("history"))
     requested = obj.get("docs_requested_list") or []
     have, _missing = _map_requested_docx(requested, DOCX_DIR)
+    # If nothing requested is available, zip up any known docs present
+    if not have:
+        have = [n for n in KNOWN_DOCS if (DOCX_DIR / n).exists()]
     if not have:
         flash("No requested Word documents available to zip.", "warning")
         return redirect(url_for("presales_view", submit_id=submit_id))
@@ -315,6 +379,139 @@ def presales_edit(submit_id):
         __getattr__ = dict.get
     f = _F(obj.copy())
     return render_template("presales_form.html", form=f, submit_id=submit_id)
+
+# ---- PDG Upload & Merge (.docx -> presales JSON) ----
+# Single endpoint handles GET (form) and POST (upload)
+@app.route("/presales/upload-pdg/<submit_id>", methods=["GET", "POST"])
+def presales_upload_pdg(submit_id):
+    obj = _load_submission(submit_id)
+    if not obj:
+        flash("Submission not found.", "error")
+        return redirect(url_for("history"))
+
+    if request.method == "GET":
+        return render_template("pdg_upload.html", submit_id=submit_id, data=obj)
+
+    # POST (upload)
+    if Document is None:
+        flash("python-docx is not installed on the server.", "error")
+        return redirect(url_for("presales_view", submit_id=submit_id))
+
+    f = request.files.get("pdg_file")
+    if not f or not f.filename.lower().endswith(".docx"):
+        flash("Please upload a .docx PDG file.", "error")
+        return redirect(url_for("presales_upload_pdg", submit_id=submit_id))
+
+    # Save uploaded PDG under submissions/<sid>/uploads
+    updir = SUBMIT_DIR / submit_id / "uploads"
+    updir.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    saved = updir / f"PDG-{stamp}.docx"
+    f.save(saved)
+
+    # Parse PDG
+    try:
+        parsed = _parse_pdg_docx(saved)
+    except Exception as e:
+        flash(f"Failed to parse PDG: {e}", "error")
+        return redirect(url_for("presales_view", submit_id=submit_id))
+
+    # Merge into presales data (fill blanks by default)
+    obj, n = _merge_pdg_into_presales(parsed, obj)
+    obj.setdefault("_pdg_uploads", [])
+    obj["_pdg_uploads"].append({
+        "path": str(saved),
+        "merged": n,
+        "at": dt.datetime.utcnow().isoformat()
+    })
+    _save_submission(obj)
+
+    if n == 0:
+        flash("PDG uploaded. No new fields detected to merge.", "warning")
+    else:
+        flash(f"PDG uploaded and merged {n} field(s) into presales data.", "success")
+
+    return redirect(url_for("presales_view", submit_id=submit_id))
+
+# ---- PDG parsing + mapping ----
+def _parse_pdg_docx(path: Path) -> dict:
+    import re
+    doc = Document(str(path))
+    out = {}
+
+    def norm_key(k: str) -> str:
+        k = (k or "").strip().lower()
+        k = re.sub(r"[^a-z0-9]+", "_", k).strip("_")
+        return k
+
+    # Tables: treat 2-col rows as key:value
+    for tbl in doc.tables:
+        for row in tbl.rows:
+            cells = [c.text.strip() for c in row.cells]
+            if len(cells) >= 2:
+                key, val = cells[0], cells[1]
+                if key and val:
+                    out[norm_key(key)] = val
+
+    # Paragraphs: "Key: Value"
+    for p in doc.paragraphs:
+        txt = (p.text or "").strip()
+        if ":" in txt:
+            key, val = txt.split(":", 1)
+            key = key.strip()
+            val = val.strip()
+            if key and val:
+                out[norm_key(key)] = val
+
+    return out
+
+# PDG normalized keys -> presales JSON fields
+_PDG_TO_PRESALES = {
+    # Customer info
+    "company": "company_name",
+    "company_name": "company_name",
+    "customer_name": "customer_name",
+    "primary_contact": "customer_name",
+    "sf_opportunity_name": "sf_opportunity_name",
+    "salesforce_opportunity_url": "sf_opportunity_url",
+    "salesforce_opportunity": "sf_opportunity_name",
+    # Users & scope
+    "total_users": "total_users",
+    "concurrent_users": "concurrent_users",
+    "num_datacenters": "num_datacenters",
+    "datacenters_regions_where": "datacenters_detail",
+    "deployment_type": "deployment_type",
+    "main_use_case": "main_use_cases",
+    # Identity / access
+    "mfa_required": "mfa_required",
+    "remote_access_required": "remote_access",
+    "idp": "idp_provider",
+    # GPUs
+    "gpu_required": "gpu_required",
+    "gpu_users": "gpu_users",
+    "gpu_vram_per_user_gb": "gpu_vram_per_user",
+    "gpu_use_case": "gpu_use_case",
+    # Platform
+    "platform": "platform",
+    "storage_type": "storage_type",
+    "load_balancer": "load_balancer",
+    # Logistics
+    "delivery_model": "delivery_model",
+    "start_date": "start_date",
+    "timeline_deadlines": "timeline",
+}
+
+def _merge_pdg_into_presales(pdg_fields: dict, obj: dict) -> tuple[dict, int]:
+    updated = 0
+    for k_norm, val in pdg_fields.items():
+        target = _PDG_TO_PRESALES.get(k_norm)
+        if not target:
+            continue
+        prev = obj.get(target)
+        if not prev or str(prev).strip() == "":  # fill blanks only
+            obj[target] = val
+            updated += 1
+    return obj, updated
 
 # ---- History (reads repo-local submissions/) ----
 @app.get("/history")
