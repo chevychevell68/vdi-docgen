@@ -1,61 +1,12 @@
+---
+title: "High-Level Design"
+author: "{{ company_name or customer_name or 'Customer' }}"
+subtitle: "{{ project_name or sf_opportunity_name or 'Opportunity' }}"
+date: "{{ now.strftime('%B %d, %Y') }}"
+---
 
-Title: High-Level Design (HLD)
-Customer: {{ ctx.project.customer }}
-Project: {{ ctx.project.name }}
-Date: {{ now.isoformat() }}
+# Executive Summary
 
-1. Overview
-This High-Level Design describes the target-state architecture for the Horizon environment for {{ ctx.project.customer }}. It focuses on logical components, integrations, and availability.
+This HLD covers **{{ project_name or sf_opportunity_name or 'Project' }}** for **{{ company_name or customer_name or 'Customer' }}**.
 
-2. Architecture Summary
-- Horizon Connection Servers: {{ ctx.horizon.components.connection_servers }} (replicas: {{ ctx.horizon.components.replicas }})
-- Unified Access Gateways: {{ ctx.horizon.components.uag }}
-- TrueSSO Enrollment Servers: {{ ctx.horizon.components.enrollment_servers }}
-- App Volumes Managers: {{ ctx.horizon.components.appvol_managers }}
-- Features: Instant Clone={{ ctx.horizon.features.instant_clone }}, FSLogix={{ ctx.horizon.features.fslogix }}, DEM={{ ctx.horizon.features.dem }}
-
-3. Identity and Access
-- Active Directory: {{ ctx.identity.ad_domain }}
-- TrueSSO: {{ "enabled" if ctx.identity.truesso else "disabled" }}
-- External IdP: {% if ctx.identity.external_idp.enabled %}enabled ({{ ctx.identity.external_idp.provider }}){% else %}disabled{% endif %}
-
-4. Networking and Load Balancing
-- F5 present: {{ "yes" if ctx.networking.f5 else "no" }}
-- Subnets: {{ ctx.networking.subnets or "not specified" }}
-- External access patterns:
-  - Via UAGs -> F5 VIPs -> Connection Servers (PCoIP/Blast)
-  - Authentication chained per security policy
-
-5. Storage Strategy
-- Storage type: {{ ctx.storage.type }}
-- Policy baseline: {{ ctx.storage.policy }} (high-level; see LLD for specifics)
-
-6. Availability and Resilience
-- CS replication: {{ ctx.horizon.components.replicas }} replicas
-- UAG distributed: {{ ctx.horizon.components.uag }} nodes (fronted by F5 if applicable)
-- App Volumes managers are multi-node for HA
-- Enrollment servers are paired for TrueSSO HA
-- Backups/restore strategy: as provided (file shares/SQL restored per scope)
-
-7. Security and Certificates
-- Certificate source: {{ ctx.security.cert_source }}
-- Logging target: {{ ctx.security.logging or "not specified" }}
-- Cipher posture: follow vendor best practices (see LLD for ports/ciphers)
-
-8. User Profiles & Endpoints
-- Users total: {{ ctx.users.total }}
-- Regional distribution:
-  - Continental US: {{ ctx.users.by_region.continental_us }}
-  - EMEA: {{ ctx.users.by_region.emea }}
-  - APAC: {{ ctx.users.by_region.apac }}
-  - LATAM: {{ ctx.users.by_region.latam }}
-- Contractor/partner endpoint access: {{ "allowed" if ctx.endpoints.contractor_partner_access else "not allowed" }}
-
-9. Monitoring & Observability
-- Event DB, syslog/SIEM integration targets (see LLD for specifics)
-- Health checks via F5 monitors and Horizon console
-
-10. Constraints, Assumptions, and Risks (Summary)
-- Assumptions: {{ ctx.assumptions or "n/a" }}
-- Constraints: {{ ctx.constraints or "n/a" }}
-- Risks: {{ ctx.risks or "n/a" }}
+...

@@ -11,9 +11,6 @@ from flask import (
 )
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
-import subprocess, shlex
-import re
-import shutil
 
 # Optional dependency for PDG parsing (python-docx)
 try:
@@ -21,21 +18,10 @@ try:
 except Exception:
     Document = None  # We'll error nicely if upload used without this pkg
 
-# Optional dependency for Jinja2 templating used in Pandoc flow
-try:
-    from jinja2 import Environment, FileSystemLoader, ChoiceLoader, DictLoader, select_autoescape, TemplateNotFound
-except Exception:
-    Environment = None  # We'll error nicely if generator is called without Jinja2
-
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 # Application version (bump as needed)
-APP_VERSION = "v1.2"
-
-# Feature flags / paths
-AUTO_GENERATE_DOCS = os.getenv("AUTO_GENERATE_DOCS", "false").lower() in {"1", "true", "yes", "on"}
-DOC_TEMPLATES_DIR = Path(os.getenv("DOC_TEMPLATES_DIR", "doc_templates"))
-PANDOC_REFERENCE_DOCX = Path(os.getenv("PANDOC_REFERENCE_DOCX", "")).resolve() if os.getenv("PANDOC_REFERENCE_DOCX") else None
+APP_VERSION = "2025.10.15-v1.2"
 
 # ---------- Jinja helpers ----------
 def _fmt_bool(v):
@@ -49,7 +35,6 @@ def _lines(s):
         return []
     return [line.rstrip() for line in str(s).splitlines()]
 
-# Register filters in Flask's env (for HTML templates)
 app.jinja_env.filters["fmt_bool"] = _fmt_bool
 app.jinja_env.filters["none_to_empty"] = _none_to_empty
 app.jinja_env.filters["lines"] = _lines
@@ -67,9 +52,9 @@ for d in (OUTPUT_DIR, DELIV_DIR, DOCX_DIR, EXPORTS_DIR, SUBMIT_DIR):
 # Known/expected DOCX deliverables (used for ctx + whitelisting)
 KNOWN_DOCS = [
     "SOW.docx", "HLD.docx", "LLD.docx", "Runbook.docx",
-    "PDG.docx", "LOE.docx", "WBS.docx", "ATP.docx", "Adoption_Plan.docx",
-    # Legacy combo label produced file name
-    "LOE-WBS.docx"
+    "PDG.docx", "LOE-WBS.docx", "ATP.docx", "Adoption_Plan.docx",
+    # Historical names we may also emit
+    "LOE.docx", "WBS.docx"
 ]
 
 GITHUB_TOKEN   = os.getenv("GITHUB_TOKEN", "").strip()
@@ -188,291 +173,55 @@ def _load_submission(submit_id: str):
     except Exception:
         return None
 
-# --------- New: Abbreviation helpers for filenames ---------
-def _initials(text: str, max_len: int) -> str:
-    if not text:
-        return ""
-    words = re.findall(r"[A-Za-z0-9]+", text)
-    uppers = "".join([c for c in text if c.isalpha() and c.isupper()])
-    cand = uppers[:max_len]
-    if cand:
-        return cand
-    return "".join(w[0] for w in words if w)[:max_len].upper()
-
-def _abbr_customer(name: str) -> str:
-    if not name:
-        return "CUST"
-    norm = name.strip()
-    # Common special cases
-    if re.search(r"\bPACAF\b|\bPacific\s+Air\s+Forces\b", norm, re.IGNORECASE):
-        return "PACAF"
-    if re.search(r"\bDiamondback\s+Energy\b", norm, re.IGNORECASE):
-        return "DBE"
-    code = _initials(norm, 8)
-    code = re.sub(r"[^A-Z0-9]", "", code) or "CUST"
-    return code
-
-def _abbr_project(text: str) -> str:
-    if not text:
-        return "PRJ"
-    t = text.strip()
-    tokens = []
-    for w in re.findall(r"[A-Za-z0-9]+", t):
-        wl = w.lower()
-        if wl.startswith("horizon"):
-            tokens.append("HZN")
-        elif wl in {"vcf", "vcloud", "cloudfoundation", "cloud-foundation"}:
-            tokens.append("VCF")
-        elif wl in {"deploy", "deployment", "impl", "implementation"}:
-            tokens.append("IMPL")
-        elif wl == "pod":
-            tokens.append("POD")
-        elif re.fullmatch(r"pod\\d+", wl):
-            tokens.append(w.upper())
-        else:
-            if len(w) <= 4 or w.isdigit():
-                tokens.append(w.upper())
-    base = "".join(tokens) or _initials(t, 10)
-    base = re.sub(r"[^A-Z0-9]", "", base)[:12]
-    return base or "PRJ"
-
-def _project_codes(ctx: dict) -> tuple[str, str, str]:
-    company = (ctx.get("company_name") or ctx.get("customer_name") or "").strip()
-    proj = (ctx.get("project_name") or ctx.get("sf_opportunity_name") or ctx.get("project") or "").strip()
-    cust_code = _abbr_customer(company)
-    proj_code = _abbr_project(proj)
-    return company, proj, f"{cust_code}-{proj_code}"
-
-def _safe_copy(src: Path, dst: Path):
-    try:
-        shutil.copy2(src, dst)
-    except Exception:
-        try:
-            if dst.exists():
-                dst.unlink()
-            os.link(src, dst)
-        except Exception:
-            pass
-
-# -------------------- Mapping + Zipping --------------------
-def _map_requested_docx(requested_labels, base_dir: Path, sid: str | None = None):
-    """Return (available, missing) for requested doc labels, ONLY from per-SID folder.
-       Treat 'LOE/WBS' as a request for *both* LOE and WBS; mark available if either exists.
-       Accepts either generic names (SOW.docx) or prefixed names (<cust>-<proj>-SOW.docx).
-    """
-    label_to_basenames = {
-        "SOW": ["SOW.docx"],
-        "HLD": ["HLD.docx"],
-        "LLD": ["LLD.docx"],
-        "Runbook": ["Runbook.docx"],
-        "PDG": ["PDG.docx"],
-        "LOE": ["LOE.docx"],
-        "WBS": ["WBS.docx"],
-        "LOE/WBS": ["LOE.docx", "WBS.docx"],
-        "ATP": ["ATP.docx"],
-        "Adoption Plan": ["Adoption_Plan.docx"],
+def _map_requested_docx(requested_labels, base_dir: Path):
+    label_to_filename = {
+        "SOW": "SOW.docx",
+        "HLD": "HLD.docx",
+        "LLD": "LLD.docx",
+        "Runbook": "Runbook.docx",
+        "PDG": "PDG.docx",
+        "LOE/WBS": "LOE-WBS.docx",
+        "ATP": "ATP.docx",
+        "Adoption Plan": "Adoption_Plan.docx",
     }
-    per_sid_dir = base_dir / sid if sid else None
-    present = set(p.name for p in per_sid_dir.glob("*.docx")) if per_sid_dir and per_sid_dir.exists() else set()
-
+    requested_fns = [label_to_filename.get(lbl) for lbl in requested_labels if lbl in label_to_filename]
     available, missing = [], []
-    for lbl in requested_labels:
-        basenames = label_to_basenames.get(lbl, [])
-        found_any = False
-        for bn in basenames:
-            # match either exact basename or any prefix-<bn>
-            if bn in present or any(n.endswith("-"+bn) or n.endswith("/"+bn) or n.endswith(bn) for n in present):
-                # add the best candidate: prefer prefixed; else generic
-                prefixed = [n for n in present if n.endswith("-"+bn)]
-                if prefixed:
-                    for n in prefixed:
-                        if n not in available:
-                            available.append(n)
-                    found_any = True
-                elif bn in present:
-                    if bn not in available:
-                        available.append(bn)
-                    found_any = True
-        if not found_any and basenames:
-            missing.append(basenames[0])
+    for fn in requested_fns:
+        if not fn:
+            continue
+        p = base_dir / fn
+        (available if p.exists() else missing).append(fn)
     return available, missing
 
 def _build_submission_zip(submit_id: str, filenames: list[str]) -> Path:
     export_root = EXPORTS_DIR / "submissions"
     export_root.mkdir(parents=True, exist_ok=True)
     zip_path = export_root / f"presales-{submit_id}.zip"
-    per_sid_dir = DOCX_DIR / submit_id
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
         for fn in filenames:
-            # filenames may be prefixed or generic
-            candidates = [per_sid_dir / fn]
-            # also try generic basename if given prefixed path
-            if "-" in fn and fn.split("-")[-1] in {"SOW.docx","HLD.docx","LOE.docx","WBS.docx","LLD.docx","Runbook.docx","PDG.docx","ATP.docx","Adoption_Plan.docx"}:
-                candidates.append(per_sid_dir / fn.split("-")[-1])
-            for fp in candidates:
-                if fp.exists():
-                    z.write(fp, arcname=fp.name)
-                    break
+            fp = DOCX_DIR / fn
+            if fp.exists():
+                z.write(fp, arcname=fn)
     return zip_path
 
 # ---- ctx helpers for template buttons ----
 def _build_ctx(submit_id: str, obj: dict | None) -> dict:
-    """Build doc-button context from per-SID folder.
-       Requested docs appear first, but we also append any other present DOCX so nothing is hidden.
-    """
     requested = (obj or {}).get("docs_requested_list") or []
-    per_sid_dir = DOCX_DIR / submit_id
-    present = [p.name for p in per_sid_dir.glob("*.docx")] if per_sid_dir.exists() else []
-
-    # requested first (filter from present by suffix matches)
-    order = []
-    suffixes = ["SOW.docx","HLD.docx","LOE.docx","WBS.docx","LLD.docx","Runbook.docx","PDG.docx","ATP.docx","Adoption_Plan.docx"]
-    want = []
-    for lbl in requested:
-        if lbl == "LOE/WBS":
-            want.extend(["LOE.docx","WBS.docx"])
-        else:
-            want.append(f"{lbl}.docx" if not lbl.endswith(".docx") else lbl)
-    for suf in want:
-        for n in present:
-            if n == suf or n.endswith("-"+suf):
-                if n not in order:
-                    order.append(n)
-    # then add any others
-    for n in present:
-        if n not in order:
-            order.append(n)
-
-    # expose codes too
-    company, proj, proj_id = _project_codes(obj or {})
-    deliverables = [{"filename": n, "title": n.rsplit(".", 1)[0]} for n in order]
+    label_to_filename = {
+        "SOW": "SOW.docx", "HLD": "HLD.docx", "LLD": "LLD.docx", "Runbook": "Runbook.docx",
+        "PDG": "PDG.docx", "LOE/WBS": "LOE-WBS.docx", "ATP": "ATP.docx", "Adoption Plan": "Adoption_Plan.docx",
+    }
+    requested_files = [label_to_filename.get(lbl) for lbl in requested if lbl in label_to_filename]
+    present = {p.name for p in DOCX_DIR.glob("*.docx")}
+    candidates = [fn for fn in requested_files if fn in present] if requested_files else [fn for fn in KNOWN_DOCS if fn in present]
+    deliverables = [{"filename": n, "title": n.rsplit(".", 1)[0]} for n in candidates]
     return {
         "sid": submit_id,
         "deliverables": deliverables,
         "docx_dir": str(DOCX_DIR),
-        "project_id": proj_id,
-        "project_name": proj,
-        "company_name": company,
     }
 
-# -------------------- Pandoc-based generator (uses doc_templates/, writes to per-SID) --------------------
-INLINE_TEMPLATES = {
-    # Fallbacks (only used if a file is missing in doc_templates/)
-    "sow.md.j2": "# SOW (fallback)\nProject: {{ project_name or sf_opportunity_name or 'Project' }}\nCustomer: {{ company_name or customer_name or 'Customer' }}\n",
-    "hld.md.j2": "# HLD (fallback)\nProject: {{ project_name or sf_opportunity_name or 'Project' }}\nCustomer: {{ company_name or customer_name or 'Customer' }}\n",
-    "loe.md.j2": "# LOE (fallback)\nProject: {{ project_name or sf_opportunity_name or 'Project' }}\nCustomer: {{ company_name or customer_name or 'Customer' }}\n",
-    "wbs.md.j2": "# WBS (fallback)\nProject: {{ project_name or sf_opportunity_name or 'Project' }}\nCustomer: {{ company_name or customer_name or 'Customer' }}\n",
-}
-
-def _pandoc_run(cmd: str, cwd: Path | None = None):
-    proc = subprocess.run(shlex.split(cmd), cwd=str(cwd) if cwd else None, capture_output=True, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(f"Command failed ({proc.returncode}): {cmd}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}")
-
-def _ensure_pandoc():
-    try:
-        _pandoc_run("pandoc --version")
-    except Exception as e:
-        raise RuntimeError("Pandoc is not installed or not on PATH.") from e
-
-def _jinja_env():
-    if Environment is None:
-        raise RuntimeError("Jinja2 is not installed. Please add it to requirements.txt.")
-    loaders = []
-    if DOC_TEMPLATES_DIR.exists():
-        loaders.append(FileSystemLoader(str(DOC_TEMPLATES_DIR)))
-    loaders.append(DictLoader(INLINE_TEMPLATES))
-
-    env = Environment(
-        loader=ChoiceLoader(loaders),
-        autoescape=select_autoescape(enabled_extensions=("html", "xml")),
-    )
-
-    # --- Register filters used inside doc_templates/*.md.j2 ---
-    # Primary names
-    env.filters["fmt_bool"] = _fmt_bool
-    env.filters["none_to_empty"] = _none_to_empty
-    env.filters["lines"] = _lines
-
-    # Common aliases
-    env.filters["format_bool"] = _fmt_bool
-    env.filters["fmtbool"] = _fmt_bool
-
-    # Also expose as globals
-    env.globals["fmt_bool"] = _fmt_bool
-    env.globals["format_bool"] = _fmt_bool
-    env.globals["fmtbool"] = _fmt_bool
-    env.globals["none_to_empty"] = _none_to_empty
-    env.globals["lines"] = _lines
-
-    return env
-
-def _render_md(tpl_name: str, ctx: dict) -> str:
-    env = _jinja_env()
-    try:
-        tpl = env.get_template(tpl_name)
-    except TemplateNotFound:
-        tpl = env.get_template(tpl_name)  # DictLoader fallback
-    # Ensure project_name preferred over SF opp in all templates
-    ctx = dict(ctx or {})
-    if "project_name" in ctx and ctx.get("project_name"):
-        pass
-    else:
-        # allow old field names to map
-        ctx["project_name"] = ctx.get("sf_opportunity_name") or ctx.get("project") or ""
-    # Also include project_id for convenience
-    _, _, proj_id = _project_codes(ctx)
-    ctx["project_id"] = proj_id
-    return tpl.render(**ctx, now=dt.datetime.utcnow())
-
-def _md_to_docx(md_text: str, out_docx: Path):
-    out_docx.parent.mkdir(parents=True, exist_ok=True)
-    tmp_md = out_docx.with_suffix(".tmp.md")
-    tmp_md.write_text(md_text, encoding="utf-8")
-    cmd = f"pandoc {shlex.quote(tmp_md.name)} -o {shlex.quote(out_docx.name)}"
-    if PANDOC_REFERENCE_DOCX and PANDOC_REFERENCE_DOCX.exists():
-        cmd += f" --reference-doc={shlex.quote(str(PANDOC_REFERENCE_DOCX))}"
-    _pandoc_run(cmd, cwd=out_docx.parent)
-    try:
-        tmp_md.unlink()
-    except Exception:
-        pass
-
-def _generate_one(outdir: Path, base_name: str, md_text: str, cust_code: str, proj_code: str):
-    # full name with prefix
-    prefixed = outdir / f"{cust_code}-{proj_code}-{base_name}"
-    _md_to_docx(md_text, prefixed)
-    # compatibility copy (SOW.docx, etc.) for existing UI
-    generic = outdir / base_name
-    _safe_copy(prefixed, generic)
-
-def _generate_phase1_docs_for_sid(ctx: dict, sid: str):
-    """Generate SOW/HLD/LOE (+ WBS if template exists) into output-docx/<SID>/ using Pandoc + doc_templates/.
-       Filenames use <cust>-<proj>-<DOC>.docx (plus generic copies).
-    """
-    _ensure_pandoc()
-    outdir = (DOCX_DIR / sid)
-    outdir.mkdir(parents=True, exist_ok=True)
-
-    company, proj, proj_id = _project_codes(ctx)
-    cust_code, proj_code = proj_id.split("-", 1)
-
-    sow_md = _render_md("sow.md.j2", ctx)
-    hld_md = _render_md("hld.md.j2", ctx)
-    loe_md = _render_md("loe.md.j2", ctx)
-
-    _generate_one(outdir, "SOW.docx", sow_md, cust_code, proj_code)
-    _generate_one(outdir, "HLD.docx", hld_md, cust_code, proj_code)
-    _generate_one(outdir, "LOE.docx", loe_md, cust_code, proj_code)
-
-    # WBS if template exists
-    try:
-        wbs_md = _render_md("wbs.md.j2", ctx)
-        _generate_one(outdir, "WBS.docx", wbs_md, cust_code, proj_code)
-    except Exception:
-        pass
-
-# -------------------- Routes --------------------
+# -------------------- Routes (unchanged from user's last file except history) --------------------
 @app.get("/")
 def index():
     return render_template("index.html", storage_dir=str(SUBMIT_DIR), app_version=APP_VERSION)
@@ -489,7 +238,6 @@ def checklist():
 def questionnaire():
     return render_template("questionnaire.md")
 
-# ---- PDG (unchanged quick MD render form) ----
 @app.get("/pdg")
 def pdg_form():
     return render_template("pdg_form.html")
@@ -503,7 +251,6 @@ def pdg_submit():
     html = render_template("pdg_results.html", **data, rendered_md=md)
     return html
 
-# ---- Downloads (MD/DOCX) ----
 @app.get("/download/md/<name>")
 def download_md(name: str):
     path = (DELIV_DIR / name).resolve()
@@ -514,46 +261,42 @@ def download_md(name: str):
 
 @app.get("/download/docx/<name>")
 def download_docx(name: str):
-    # Kept for backwards-compat, but per-SID is now the source of truth.
     path = (DOCX_DIR / name).resolve()
     if not path.exists():
         flash("File not found.", "error")
         return redirect(url_for("history"))
     return send_file(path, as_attachment=True, download_name=name)
 
-# New: per-SID deliverable download (authoritative)
 @app.get("/download/<submit_id>/<path:filename>")
 def download_deliverable(submit_id: str, filename: str):
-    path = (DOCX_DIR / submit_id / filename).resolve()
+    if filename not in KNOWN_DOCS and not (DOCX_DIR / filename).exists():
+        flash("File not found.", "error")
+        return redirect(url_for("presales_view", submit_id=submit_id))
+    path = (DOCX_DIR / filename).resolve()
     if not path.exists():
         flash("File not found.", "error")
         return redirect(url_for("presales_view", submit_id=submit_id))
     return send_file(path, as_attachment=True, download_name=filename)
 
-# ---- Exports (general) ----
 @app.get("/exports")
 def exports():
     zips = sorted(EXPORTS_DIR.glob("*.zip"))
     return render_template("exports.html", zips=[f.name for f in zips])
 
-# ---- Presales (form / submit / view / zip / edit) ----
 @app.get("/presales")
 def presales():
     return render_template("presales_form.html", form=request.form)
 
 @app.post("/presales/submit")
 def presales_submit():
-    # Capture full form data (will include 'project_name' if present in form)
     data = request.form.to_dict(flat=True)
     data["__submitted_at__"] = _now_str()
 
-    # Preserve multi-selects / checkboxes as lists
     data["docs_requested_list"] = request.form.getlist("docs_requested")
     data["profile_mgmt_list"] = request.form.getlist("profile_mgmt")
     data["virtual_apps_list"] = request.form.getlist("virtual_apps")
     data["training_required_list"] = request.form.getlist("training_required")
 
-    # Regions: capture all region flags & pct values that exist
     region_keys = [
         "US","US_HI","US_AK","CAN","LATAM","EMEA","APAC","INDIA","ANZ","OTHER"
     ]
@@ -561,14 +304,11 @@ def presales_submit():
         data[f"region_ck_{rk}"]  = request.form.get(f"region_ck_{rk}")
         data[f"region_pct_{rk}"] = request.form.get(f"region_pct_{rk}")
 
-    # Save JSON snapshot
     submit_id = _save_submission(data, data.get("_id"))
 
-    # Optional MD snapshot for audit/troubleshooting (not offered for download here)
     md = render_template("presales_export.md", data=data, **data, now=dt.datetime.utcnow())
     (DELIV_DIR / f"intake-{submit_id}.md").write_text(md, encoding="utf-8")
 
-    # Redirect to the results page
     return redirect(url_for("presales_view", submit_id=submit_id))
 
 @app.get("/presales/view/<submit_id>")
@@ -579,22 +319,8 @@ def presales_view(submit_id):
         return redirect(url_for("history"))
 
     requested = obj.get("docs_requested_list") or []
+    docx_available, docx_missing = _map_requested_docx(requested, DOCX_DIR)
 
-    # Auto-generate into per-SID folder if enabled and missing
-    if AUTO_GENERATE_DOCS:
-        per_sid_dir = DOCX_DIR / submit_id
-        any_present = per_sid_dir.exists() and any(per_sid_dir.glob("*.docx"))
-        if not any_present:
-            try:
-                _generate_phase1_docs_for_sid(obj, submit_id)
-                flash("Generated SOW/HLD/LOE (+WBS if template present) via Pandoc.", "success")
-            except Exception as e:
-                flash(f"Doc generation failed: {e}", "error")
-
-    # Compute availability only from per-SID folder
-    docx_available, docx_missing = _map_requested_docx(requested, DOCX_DIR, sid=submit_id)
-
-    # Build a ctx object for the template so individual buttons & links render
     ctx = _build_ctx(submit_id, obj)
 
     return render_template(
@@ -604,7 +330,7 @@ def presales_view(submit_id):
         submit_id=submit_id,
         docx_available=docx_available,
         docx_missing=docx_missing,
-        ctx=ctx,  # <-- critical for the template buttons
+        ctx=ctx,
     )
 
 @app.get("/presales/zip/<submit_id>")
@@ -614,16 +340,12 @@ def presales_zip(submit_id):
         flash("Submission not found.", "error")
         return redirect(url_for("history"))
     requested = obj.get("docs_requested_list") or []
-    have, _missing = _map_requested_docx(requested, DOCX_DIR, sid=submit_id)
-
-    # If nothing requested is available, zip up any known docs present for this SID
-    per_sid_dir = DOCX_DIR / submit_id
+    have, _missing = _map_requested_docx(requested, DOCX_DIR)
     if not have:
-        have = [n for n in (p.name for p in per_sid_dir.glob('*.docx'))]
+        have = [n for n in KNOWN_DOCS if (DOCX_DIR / n).exists()]
     if not have:
         flash("No requested Word documents available to zip.", "warning")
         return redirect(url_for("presales_view", submit_id=submit_id))
-
     zip_path = _build_submission_zip(submit_id, have)
     return send_file(zip_path, as_attachment=True, download_name=zip_path.name)
 
@@ -638,8 +360,6 @@ def presales_edit(submit_id):
     f = _F(obj.copy())
     return render_template("presales_form.html", form=f, submit_id=submit_id)
 
-# ---- PDG Upload & Merge (.docx -> presales JSON) ----
-# Single endpoint handles GET (form) and POST (upload)
 @app.route("/presales/upload-pdg/<submit_id>", methods=["GET", "POST"])
 def presales_upload_pdg(submit_id):
     obj = _load_submission(submit_id)
@@ -650,7 +370,6 @@ def presales_upload_pdg(submit_id):
     if request.method == "GET":
         return render_template("pdg_upload.html", submit_id=submit_id, data=obj)
 
-    # POST (upload)
     if Document is None:
         flash("python-docx is not installed on the server.", "error")
         return redirect(url_for("presales_view", submit_id=submit_id))
@@ -660,21 +379,18 @@ def presales_upload_pdg(submit_id):
         flash("Please upload a .docx PDG file.", "error")
         return redirect(url_for("presales_upload_pdg", submit_id=submit_id))
 
-    # Save uploaded PDG under submissions/<sid>/uploads
     updir = SUBMIT_DIR / submit_id / "uploads"
     updir.mkdir(parents=True, exist_ok=True)
-    stamp = dt.datetime.utcnow().strftime("%Y%m%d-%H%M-%S")
+    stamp = dt.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
     saved = updir / f"PDG-{stamp}.docx"
     f.save(saved)
 
-    # Parse PDG
     try:
         parsed = _parse_pdg_docx(saved)
     except Exception as e:
         flash(f"Failed to parse PDG: {e}", "error")
         return redirect(url_for("presales_view", submit_id=submit_id))
 
-    # Merge into presales data (fill blanks by default)
     obj, n = _merge_pdg_into_presales(parsed, obj)
     obj.setdefault("_pdg_uploads", [])
     obj["_pdg_uploads"].append({
@@ -691,7 +407,6 @@ def presales_upload_pdg(submit_id):
 
     return redirect(url_for("presales_view", submit_id=submit_id))
 
-# ---- PDG parsing + mapping ----
 def _parse_pdg_docx(path: Path) -> dict:
     import re
     doc = Document(str(path))
@@ -702,7 +417,6 @@ def _parse_pdg_docx(path: Path) -> dict:
         k = re.sub(r"[^a-z0-9]+", "_", k).strip("_")
         return k
 
-    # Tables: treat 2-col rows as key:value
     for tbl in doc.tables:
         for row in tbl.rows:
             cells = [c.text.strip() for c in row.cells]
@@ -711,7 +425,6 @@ def _parse_pdg_docx(path: Path) -> dict:
                 if key and val:
                     out[norm_key(key)] = val
 
-    # Paragraphs: "Key: Value"
     for p in doc.paragraphs:
         txt = (p.text or "").strip()
         if ":" in txt:
@@ -723,9 +436,7 @@ def _parse_pdg_docx(path: Path) -> dict:
 
     return out
 
-# PDG normalized keys -> presales JSON fields
 _PDG_TO_PRESALES = {
-    # Customer info
     "company": "company_name",
     "company_name": "company_name",
     "customer_name": "customer_name",
@@ -733,27 +444,22 @@ _PDG_TO_PRESALES = {
     "sf_opportunity_name": "sf_opportunity_name",
     "salesforce_opportunity_url": "sf_opportunity_url",
     "salesforce_opportunity": "sf_opportunity_name",
-    # Users & scope
     "total_users": "total_users",
     "concurrent_users": "concurrent_users",
     "num_datacenters": "num_datacenters",
     "datacenters_regions_where": "datacenters_detail",
     "deployment_type": "deployment_type",
     "main_use_case": "main_use_cases",
-    # Identity / access
     "mfa_required": "mfa_required",
     "remote_access_required": "remote_access",
     "idp": "idp_provider",
-    # GPUs
     "gpu_required": "gpu_required",
     "gpu_users": "gpu_users",
     "gpu_vram_per_user_gb": "gpu_vram_per_user",
     "gpu_use_case": "gpu_use_case",
-    # Platform
     "platform": "platform",
     "storage_type": "storage_type",
     "load_balancer": "load_balancer",
-    # Logistics
     "delivery_model": "delivery_model",
     "start_date": "start_date",
     "timeline_deadlines": "timeline",
@@ -766,12 +472,12 @@ def _merge_pdg_into_presales(pdg_fields: dict, obj: dict) -> tuple[dict, int]:
         if not target:
             continue
         prev = obj.get(target)
-        if not prev or str(prev).strip() == "":  # fill blanks only
+        if not prev or str(prev).strip() == "":
             obj[target] = val
             updated += 1
     return obj, updated
 
-# ---- History (reads repo-local submissions/) ----
+# ---- History (rows now include project_name and company/project are clickable in template) ----
 @app.get("/history")
 def history():
     rows = []
@@ -784,57 +490,19 @@ def history():
         rows.append({
             "id": obj.get("_id"),
             "company_name": (obj.get("company_name") or "—").strip(),
-            "sf_op_name": (obj.get("sf_opportunity_name") or "—").strip(),
-            "sf_url": (obj.get("sf_opportunity_url") or "").strip(),
+            "project_name": (obj.get("project_name") or obj.get("sf_opportunity_name") or "—").strip(),
             "submitted_at": (obj.get("__submitted_at__") or obj.get("_saved_at") or ""),
         })
+    # Default sort by submitted_at desc (string compare is fine for the stored format)
     rows.sort(key=lambda r: r.get("submitted_at",""), reverse=True)
     return render_template("history.html", rows=rows)
 
-# ---- Simple 404/500 ----
-@app.errorhandler(404)
-def not_found(_e):
-    return (
-        '<!doctype html><html><head><meta charset="utf-8"><title>Not Found</title>'
-        '<meta name="viewport" content="width=device-width, initial-scale=1"></head>'
-        '<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:2rem">'
-        "<h1>404 — Not Found</h1>"
-        f'<p><a href="{url_for("index")}">Go to Home</a></p>'
-        "</body></html>"
-    ), 404
-
-@app.errorhandler(500)
-def internal_error(_e):
-    return (
-        '<!doctype html><html><head><meta charset="utf-8"><title>Server Error</title>'
-        '<meta name="viewport" content="width=device-width, initial-scale=1"></head>'
-        '<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:2rem">'
-        "<h1>500 — Internal Server Error</h1>"
-        f'<p><a href="{url_for("index")}">Go to Home</a></p>'
-        "</body></html>"
-    ), 500
-
 # ---- Optional blueprint support (safe no-op if not present) ----
 try:
-    from presales import presales_bp  # if present, also exposes /tools/generate/<sid> etc.
+    from presales import presales_bp
     app.register_blueprint(presales_bp)
 except Exception:
     pass
-
-# ---- Built-in on-demand generation (per-SID authoritative) ----
-@app.route("/tools/generate/<submit_id>", methods=["GET", "POST"])
-def tools_generate_builtin(submit_id: str):
-    """Generate SOW/HLD/LOE (+ WBS if template exists) into output-docx/<SID>/ via Pandoc using doc_templates/, then return to /presales/view/<sid>."""
-    obj = _load_submission(submit_id)
-    if not obj:
-        flash("Submission not found.", "error")
-        return redirect(url_for("history"))
-    try:
-        _generate_phase1_docs_for_sid(obj, submit_id)
-        flash("Generated SOW/HLD/LOE (+WBS if template present) via Pandoc.", "success")
-    except Exception as e:
-        flash(f"Doc generation failed: {e}", "error")
-    return redirect(url_for("presales_view", submit_id=submit_id))
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))

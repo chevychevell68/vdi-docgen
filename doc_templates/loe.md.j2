@@ -1,14 +1,12 @@
+---
+title: "Level of Effort (LOE)"
+author: "{{ company_name or customer_name or 'Customer' }}"
+subtitle: "{{ project_name or sf_opportunity_name or 'Opportunity' }}"
+date: "{{ now.strftime('%B %d, %Y') }}"
+---
 
-Title: Level of Effort (LOE) Summary
-Customer: {{ ctx.project.customer }}
-Project: {{ ctx.project.name }}
-Date: {{ now.isoformat() }}
+# Overview
 
-This document summarizes the estimated effort aligned with the WBS. See the WBS spreadsheet for the authoritative task list.
+ROM estimate for **{{ project_name or sf_opportunity_name or 'Project' }}**.
 
-- Prepare: <hours>
-- Build: <hours>
-- Integrate: <hours>
-- Validate: <hours>
-- Cutover: <hours>
-- KT: <hours>
+...

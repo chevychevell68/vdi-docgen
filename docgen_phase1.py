@@ -1,5 +1,5 @@
-# docgen_phase1.py  (NEW, additive)
-import re, json, zipfile, uuid
+# docgen_phase1.py (additive module — no changes to app.py required)
+import re, json, zipfile
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -8,9 +8,10 @@ try:
     from docx import Document
     from docx.shared import Pt
 except Exception:
-    Document = None  # allows app to run even if python-docx isn't installed
+    Document = None  # App remains functional even without python-docx
 
-def _ts(): return datetime.now().strftime("%Y%m%d-%H%M")
+def _ts() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M")
 
 def _initials(text: str, max_len=5) -> str:
     if not text: return ""
@@ -46,7 +47,7 @@ def _normal_font(doc):
     f = style.font
     f.name, f.size = "Calibri", Pt(11)
 
-def _p(doc, text): 
+def _p(doc, text):
     p = doc.add_paragraph(text or "")
     for r in p.runs: r.bold = False
 
@@ -60,7 +61,7 @@ def _kv(doc, rows: List[Tuple[str,str]]):
     for i,(k,v) in enumerate(rows): t.cell(i,0).text, t.cell(i,1).text = k or "", v or ""
     doc.add_paragraph("")
 
-def _safe(ctx: Dict, key: str, default=""): 
+def _safe(ctx: Dict, key: str, default=""):
     v = ctx.get(key, default)
     return default if v is None else v
 
@@ -68,14 +69,15 @@ def generate_all(ctx: Dict, outdir: Path) -> Dict[str, Path]:
     """
     Create SOW/HLD/LOE docs into outdir using presales data in ctx.
     Returns map: {'SOW': path, 'HLD': path, 'LOE': path, 'ZIP': path}
-    No exceptions bubble out: if python-docx missing, returns empty map.
+    No exceptions bubble out: if python-docx missing, returns {}.
     """
-    if Document is None: return {}
+    if Document is None:
+        return {}
     outdir.mkdir(parents=True, exist_ok=True)
     cust_code, proj_code = abbr_customer(_safe(ctx,"customer_name","Customer")), abbr_project(_safe(ctx,"project_name","Project"))
     ts = _ts()
 
-    # --- SOW
+    # --- SOW (brief but compliant to your style)
     sow = outdir / f"{cust_code}_{proj_code}_SOW_{ts}.docx"
     doc = Document(); _normal_font(doc)
     _h(doc, f"Statement of Work\n{_safe(ctx,'project_name','Project')}\n{_safe(ctx,'customer_name','Customer')}")
@@ -83,19 +85,19 @@ def generate_all(ctx: Dict, outdir: Path) -> Dict[str, Path]:
     _p(doc, "This Statement of Work describes the services to design and deploy the Omnissa Horizon environment. Work is executed under the EPDIO framework (Engage, Plan, Design, Implement, Operate).")
     _h(doc, "Scope of Work")
     _p(doc, "\n".join([
-        f"Target users: {_safe(ctx,'user_count','(from presales)')}",
+        f"Target users: {_safe(ctx,'total_users', _safe(ctx,'user_count','(from presales)'))}",
         f"Regions: {_safe(ctx,'regions','(from presales)')}",
         f"GPU: {_safe(ctx,'gpu_required','No')}",
-        f"External access: {_safe(ctx,'external_access','(from presales)')}",
+        f"External access: {_safe(ctx,'remote_access', _safe(ctx,'external_access','(from presales)'))}",
         f"VCF domains: {_safe(ctx,'vcf_domains','(from presales)')}",
     ]))
     _h(doc, "EPDIO Phases"); _p(doc, "Engage / Plan / Design / Implement / Operate — see HLD & LLD for details.")
     _h(doc, "Deliverables"); _p(doc, "HLD, LLD, Implemented Horizon, ATP results, As-Built, KT")
     _h(doc, "Acceptance Criteria"); _p(doc, "ATP executed successfully; configuration aligns with approved LLD.")
-    _kv(doc, [("Customer", _safe(ctx,"customer_name")),("Project", _safe(ctx,"project_name")),("User Count", str(_safe(ctx,"user_count","")))])
+    _kv(doc, [("Customer", _safe(ctx,"customer_name")),("Project", _safe(ctx,"project_name")),("User Count", str(_safe(ctx,'user_count', '')))])
     doc.save(sow)
 
-    # --- HLD (brief)
+    # --- HLD (basic conceptual/logical/physical)
     hld = outdir / f"{cust_code}_{proj_code}_HLD_{ts}.docx"
     doc = Document(); _normal_font(doc)
     _h(doc, f"High-Level Design\n{_safe(ctx,'project_name')}\n{_safe(ctx,'customer_name')}")
@@ -104,7 +106,7 @@ def generate_all(ctx: Dict, outdir: Path) -> Dict[str, Path]:
     _h(doc, "Physical"); _p(doc, f"VCF workload domains: {_safe(ctx,'vcf_domains','(from presales)')}; Regions: {_safe(ctx,'regions','(from presales)')}.")
     doc.save(hld)
 
-    # --- LOE (high level)
+    # --- LOE (EPDIO high-level with roles)
     loe = outdir / f"{cust_code}_{proj_code}_LOE_{ts}.docx"
     doc = Document(); _normal_font(doc)
     _h(doc, f"Level of Effort (LOE)\n{_safe(ctx,'project_name')}\n{_safe(ctx,'customer_name')}")
@@ -114,9 +116,9 @@ def generate_all(ctx: Dict, outdir: Path) -> Dict[str, Path]:
     _p(doc, f"Total Estimated Hours: {sum(hours.values())}")
     doc.save(loe)
 
-    # --- zip
+    # --- Bundle
     zip_path = outdir / f"{cust_code}_{proj_code}_Phase1_{ts}.zip"
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for p in (sow,hld,loe): zf.write(p, arcname=p.name)
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        for p in (sow,hld,loe): z.write(p, arcname=p.name)
 
     return {"SOW": sow, "HLD": hld, "LOE": loe, "ZIP": zip_path}

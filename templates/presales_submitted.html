@@ -18,87 +18,121 @@
   {%- endif -%}
 {%- endmacro %}
 
+{# Fixed-label button resolver. Prefer prefixed (endswith) matches FIRST, then exact. #}
+{% macro doc_href(pretty_label) -%}
+  {%- set suffix_map = {
+    'SOW': 'SOW.docx',
+    'HLD': 'HLD.docx',
+    'LLD': 'LLD.docx',
+    'Runbook': 'Runbook.docx',
+    'LOE': 'LOE.docx',
+    'WBS': 'WBS.docx',
+    'ATP': 'ATP.docx',
+    'Adoption Plan': 'Adoption_Plan.docx',
+    'PDG Template': 'PDG.docx'
+  } -%}
+  {%- set target = suffix_map.get(pretty_label, pretty_label ~ '.docx') -%}
+
+  {%- set ns = namespace(match='') -%}
+  {%- if ctx and ctx.deliverables -%}
+    {# 1) endswith match for prefixed names like PACAF-XYZ-SOW.docx #}
+    {%- for d in ctx.deliverables -%}
+      {%- if not ns.match and d.filename and (d.filename|lower).endswith('-' ~ (target|lower)) -%}
+        {%- set ns.match = d.filename -%}
+      {%- endif -%}
+    {%- endfor -%}
+    {# 2) exact match as fallback (plain SOW.docx in root) #}
+    {%- if not ns.match -%}
+      {%- for d in ctx.deliverables -%}
+        {%- if not ns.match and d.filename == target -%}
+          {%- set ns.match = d.filename -%}
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endif -%}
+  {%- endif -%}
+  {%- if ns.match -%}{{ dl_link(ns.match) }}{%- else -%}{{ '' }}{%- endif -%}
+{%- endmacro %}
+
 <div class="d-flex align-items-center justify-content-between mb-3">
-  <h1 class="h3 mb-0">Presales Data</h1>
+  <div>
+    <h1 class="h3 mb-1">Presales Data</h1>
+    <div class="text-muted small">
+      <strong>Company:</strong> {{ (data.get('company_name') or '—')|upper }}
+      {% if data.get('project_name') %} | <strong>Project:</strong> {{ data.get('project_name') }}{% endif %}
+    </div>
+  </div>
   <span class="text-muted">Submitted {{ now.strftime('%Y-%m-%d %H:%M UTC') }}</span>
 </div>
 
 <div class="mb-4">
-  {# All-in-one ZIP #}
-  <a class="btn btn-primary me-2" href="{{ url_for('presales_zip', submit_id=submit_id) }}">
-    All Docs (.zip)
-  </a>
+  <a class="btn btn-primary me-2" href="{{ url_for('presales_zip', submit_id=submit_id) }}">All Docs (.zip)</a>
 
-  {# Individual document buttons from ctx.deliverables if present #}
-  {% if ctx and ctx.deliverables and ctx.deliverables|length > 0 %}
-    {% for d in ctx.deliverables %}
-      <a class="btn btn-outline-secondary me-2 mb-2" href="{{ dl_link(d.filename) }}">
-        {{ d.title or d.filename }}
-      </a>
-    {% endfor %}
-  {% elif docx_available and docx_available|length > 0 %}
-    {% for f in docx_available %}
-      <a class="btn btn-outline-secondary me-2 mb-2" href="{{ dl_link(f.name) }}">
-        {{ f.name }}
-      </a>
-    {% endfor %}
+  {% if has_endpoint('tools_generate') %}
+    <a class="btn btn-warning me-2" href="{{ url_for('tools_generate', submit_id=submit_id) }}">Regenerate Docs</a>
+  {% else %}
+    <a class="btn btn-warning me-2" href="{{ '/tools/generate/' ~ submit_id }}">Regenerate Docs</a>
   {% endif %}
 
-  {# PDG template always available #}
-  <a class="btn btn-outline-success me-2 mb-2" href="{{ dl_link('PDG.docx') }}">
-    PDG Template
-  </a>
+  {% set labels = ['SOW','HLD','LLD','Runbook','LOE','WBS','ATP','Adoption Plan'] %}
+  {% for label in labels %}
+    {% set href = doc_href(label) %}
+    {% if href %}
+      <a class="btn btn-outline-secondary me-2 mb-2" href="{{ href }}">{{ label }}</a>
+    {% endif %}
+  {% endfor %}
 
-  {# PDG Upload button -> exists in patched app.py #}
-  <a class="btn btn-outline-primary mb-2" href="{{ url_for('presales_upload_pdg', submit_id=submit_id) }}">
-    Upload PDG
-  </a>
+  {% set pdg_href = doc_href('PDG Template') %}
+  {% if pdg_href %}
+    <a class="btn btn-outline-success me-2 mb-2" href="{{ pdg_href }}">PDG Template</a>
+  {% endif %}
+  <a class="btn btn-outline-primary mb-2" href="{{ url_for('presales_upload_pdg', submit_id=submit_id) }}">Upload PDG</a>
 
-  {# Missing files note (show only if user actually requested docs) #}
   {% if data.get('docs_requested_list') and docx_missing and docx_missing|length > 0 %}
     <div class="small text-muted mt-2">
       Requested but not found on server: {{ docx_missing|join(', ') }}
     </div>
   {% endif %}
+</div>
 
-  {# Summary card #}
-  <div class="card mb-4 mt-3">
-    <div class="card-body">
-      <h2 class="h5 mb-3">Summary</h2>
-      <div class="row g-3">
-        <div class="col-md-4"><div class="text-muted small">Company</div><div class="fw-medium">{{ data.get('company_name') or '—' }}</div></div>
-        <div class="col-md-4"><div class="text-muted small">Total Users</div><div class="fw-medium">{{ data.get('total_users') or '—' }}</div></div>
-        <div class="col-md-4"><div class="text-muted small">Concurrent Peak</div><div class="fw-medium">{{ data.get('concurrent_users') or '—' }}</div></div>
-      </div>
-      <div class="mt-3">
-        <div class="text-muted small mb-1">Users per region (from regional mix):</div>
-        <div class="table-responsive">
-          <table class="table table-sm table-bordered mb-0" style="max-width:620px">
-            <thead class="table-light"><tr><th>Region</th><th class="text-end">% Mix</th><th class="text-end">Users</th></tr></thead>
-            <tbody>
-              {% set _regions = ['US','US_HI','US_AK','CAN','LATAM','EMEA','APAC','INDIA','ANZ','OTHER'] %}
-              {% set _total = (data.get('total_users') or 0) | int %}
-              {% set ns = namespace(sum=0) %}
-              {% for rk in _regions %}
-                {% set pct = (data.get('region_pct_' ~ rk) or 0) | int %}
-                {% set ck = data.get('region_ck_' ~ rk) %}
-                {% if ck and pct > 0 %}
-                  {% set n = (_total * pct // 100) %}
-                  {% set ns.sum = ns.sum + n %}
-                  <tr><td>{{ rk }}</td><td class="text-end">{{ pct }}%</td><td class="text-end">{{ "{:,}".format(n) }}</td></tr>
-                {% endif %}
-              {% endfor %}
-              <tr class="table-light"><th class="text-end" colspan="2">Total</th><th class="text-end">{{ "{:,}".format(ns.sum) }}</th></tr>
-            </tbody>
-          </table>
-        </div>
+{# ---------------------- RESTORED FULL SUBMITTED CONTENT ---------------------- #}
+
+<!-- Summary card -->
+<div class="card mb-4 mt-3">
+  <div class="card-body">
+    <h2 class="h5 mb-3">Summary</h2>
+    <div class="row g-3">
+      <div class="col-md-4"><div class="text-muted small">Company</div><div class="fw-medium">{{ data.get('company_name') or '—' }}</div></div>
+      <div class="col-md-4"><div class="text-muted small">Total Users</div><div class="fw-medium">{{ data.get('total_users') or '—' }}</div></div>
+      <div class="col-md-4"><div class="text-muted small">Concurrent Peak</div><div class="fw-medium">{{ data.get('concurrent_users') or '—' }}</div></div>
+    </div>
+    <div class="mt-3">
+      <div class="text-muted small mb-1">Users per region (from regional mix):</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered mb-0" style="max-width:620px">
+          <thead class="table-light"><tr><th>Region</th><th class="text-end">% Mix</th><th class="text-end">Users</th></tr></thead>
+          <tbody>
+            {% set _regions = ['US','US_HI','US_AK','CAN','LATAM','EMEA','APAC','INDIA','ANZ','OTHER'] %}
+            {% set _total = (data.get('total_users') or 0) | int %}
+            {% set ns = namespace(sum=0) %}
+            {% for rk in _regions %}
+              {% set pct = (data.get('region_pct_' ~ rk) or 0) | int %}
+              {% set ck = data.get('region_ck_' ~ rk) %}
+              {% if ck and pct > 0 %}
+                {% set n = (_total * pct // 100) %}
+                {% set ns.sum = ns.sum + n %}
+                <tr><td>{{ rk }}</td><td class="text-end">{{ pct }}%</td><td class="text-end">{{ "{:,}".format(n) }}</td></tr>
+              {% endif %}
+            {% endfor %}
+            <tr class="table-light"><th class="text-end" colspan="2">Total</th><th class="text-end">{{ "{:,}".format(ns.sum) }}</th></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
-
-  <a class="btn btn-outline-secondary ms-2" href="{{ url_for('history') }}">History</a>
-  <a class="btn btn-link ms-1" href="{{ url_for('presales') }}">Back to Presales form</a>
 </div>
+
+<a class="btn btn-outline-secondary ms-2" href="{{ url_for('history') }}">History</a>
+<a class="btn btn-link ms-1" href="{{ url_for('presales') }}">Back to Presales form</a>
 
 <!-- 0) Customer Info -->
 <fieldset class="border p-3 mb-4 rounded-2">
@@ -138,7 +172,6 @@
     <div class="col-md-4"><div class="form-label">Concurrent users (peak)</div><div class="form-control-plaintext">{{ data.get('concurrent_users') or '—' }}</div></div>
     <div class="col-md-4"><div class="form-label"># of datacenters/regions</div><div class="form-control-plaintext">{{ data.get('num_datacenters') or '—' }}</div></div>
     <div class="col-12"><div class="form-label">Datacenters/regions (where)</div><div class="form-control-plaintext">{{ data.get('datacenters_detail') or '—' }}</div></div>
-
     <div class="col-md-4"><div class="form-label">Deployment type</div><div class="form-control-plaintext">{{ data.get('deployment_type') or '—' }}</div></div>
 
     <div class="col-12">

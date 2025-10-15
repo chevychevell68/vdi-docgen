@@ -1,43 +1,122 @@
 {% extends "base.html" %}
-{% block title %}Submission History{% endblock %}
+{% block title %}History{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">Presales Submissions</h1>
 
-{% if not rows %}
-  <div class="alert alert-info">No submissions yet. Fill out the <a href="{{ url_for('presales') }}">Presales form</a>.</div>
-{% else %}
-  <div class="table-responsive">
-    <table class="table table-sm align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>Submitted</th>
-          <th>Company</th>
-          <th>Salesforce Opportunity</th>
-          <th class="text-nowrap">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h3 mb-0">Submissions History</h1>
+  <span class="text-muted">v1.2 — sortable & filterable</span>
+</div>
+
+<div class="row g-2 mb-3">
+  <div class="col-md-4">
+    <label class="form-label">Search (Company or Project)</label>
+    <input id="searchAll" type="text" class="form-control" placeholder="Type to search…">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Filter by Company</label>
+    <input id="searchCompany" type="text" class="form-control" placeholder="Company name…">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Filter by Project</label>
+    <input id="searchProject" type="text" class="form-control" placeholder="Project name…">
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table id="histTable" class="table table-striped table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th role="button" data-col="company" aria-sort="none">Company</th>
+        <th role="button" data-col="project" aria-sort="none">Project</th>
+        <th role="button" data-col="submitted" aria-sort="descending">Submitted</th>
+      </tr>
+    </thead>
+    <tbody>
       {% for r in rows %}
+        {% set href = url_for('presales_view', submit_id=r.id) %}
         <tr>
-          <td class="text-nowrap">{{ r.submitted_at or r["submitted_at"] }}</td>
-          <td class="text-nowrap"><a href="{{ url_for('presales_view', submit_id=r.id or r['id']) }}">{{ r.company_name or r['company_name'] }}</a></td>
-          <td>
-            {% set url = r.sf_url or r["sf_url"] %}
-            {% set name = r.sf_op_name or r["sf_op_name"] %}
-            {% if url %}
-              <a href="{{ url }}" target="_blank" rel="noopener">{{ name }}</a>
-            {% else %}
-              {{ name }}
-            {% endif %}
-          </td>
-          <td class="text-nowrap">
-            <a class="btn btn-sm btn-primary" href="{{ url_for('presales_view', submit_id=r.id or r['id']) }}">View / Print</a>
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('presales_edit', submit_id=r.id or r['id']) }}">Edit</a>
-          </td>
+          <td data-key="company"><a href="{{ href }}">{{ r.company_name or '—' }}</a></td>
+          <td data-key="project"><a href="{{ href }}">{{ r.project_name or '—' }}</a></td>
+          <td data-key="submitted"><a href="{{ href }}">{{ r.submitted_at or '' }}</a></td>
         </tr>
       {% endfor %}
-      </tbody>
-    </table>
-  </div>
-{% endif %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+(function(){
+  const table = document.getElementById('histTable');
+  const tbody = table.querySelector('tbody');
+  const headers = table.querySelectorAll('thead th[role="button"]');
+  const inputAll = document.getElementById('searchAll');
+  const inputCompany = document.getElementById('searchCompany');
+  const inputProject = document.getElementById('searchProject');
+
+  function normalize(s){ return (s || '').toLowerCase(); }
+
+  function rowMatchesFilters(tr){
+    const company = normalize(tr.querySelector('td[data-key="company"]').innerText);
+    const project = normalize(tr.querySelector('td[data-key="project"]').innerText);
+    const submitted = normalize(tr.querySelector('td[data-key="submitted"]').innerText);
+
+    const qAll = normalize(inputAll.value);
+    const qCo  = normalize(inputCompany.value);
+    const qPr  = normalize(inputProject.value);
+
+    const allHit = !qAll || company.includes(qAll) || project.includes(qAll) || submitted.includes(qAll);
+    const coHit  = !qCo || company.includes(qCo);
+    const prHit  = !qPr || project.includes(qPr);
+
+    return allHit && coHit && prHit;
+  }
+
+  function applyFilters(){
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.forEach(tr => {
+      tr.style.display = rowMatchesFilters(tr) ? '' : 'none';
+    });
+  }
+
+  function sortBy(colKey, ascending){
+    const rows = Array.from(tbody.querySelectorAll('tr')).filter(tr => tr.style.display !== 'none');
+    rows.sort((a,b) => {
+      const av = a.querySelector(`td[data-key="${colKey}"]`).innerText.trim().toLowerCase();
+      const bv = b.querySelector(`td[data-key="${colKey}"]`).innerText.trim().toLowerCase();
+      if (av < bv) return ascending ? -1 : 1;
+      if (av > bv) return ascending ? 1 : -1;
+      return 0;
+    });
+    rows.forEach(tr => tbody.appendChild(tr));
+  }
+
+  function clearAriaSortExcept(th){
+    headers.forEach(h => { if (h !== th) h.setAttribute('aria-sort','none'); });
+  }
+
+  headers.forEach(th => {
+    th.addEventListener('click', () => {
+      const current = th.getAttribute('aria-sort') || 'none';
+      let nextAsc = true;
+      if (current === 'none' || current === 'ascending') {
+        nextAsc = current !== 'ascending'; // flip to descending if already ascending
+      } else {
+        nextAsc = true; // if was descending, go to ascending
+      }
+      th.setAttribute('aria-sort', nextAsc ? 'ascending' : 'descending');
+      clearAriaSortExcept(th);
+      sortBy(th.dataset.col, nextAsc);
+    });
+  });
+
+  [inputAll, inputCompany, inputProject].forEach(inp => {
+    inp.addEventListener('input', applyFilters);
+  });
+
+  // Initial filter & default sort on Submitted (descending)
+  applyFilters();
+  sortBy('submitted', false);
+})();
+</script>
+
 {% endblock %}

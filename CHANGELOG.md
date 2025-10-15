@@ -1,41 +1,22 @@
-# CHANGELOG
+# Changelog
 
-## Overview
-This changelog summarizes all code cleanup and route alignment updates performed during this session.
+All notable changes to this project will be documented in this file.
 
-### app.py
-- Registered the `presales` blueprint (wrapped in safe `try/except` so it’s optional).
-- `/pdg` now renders the actual `pdg_form.html` instead of a placeholder.
-- Added `has_endpoint()` context helper for template safety.
-- Grouped helper sections (filters, constants, routes, error handlers).
-- Normalized file I/O, whitespace, and path checks for downloads.
-- **No behavior or logic changes** — all endpoints function as before.
+## v1.2.1 — 2025-10-15
 
-### presales/__init__.py
-- Explicitly exposes the `presales_bp` blueprint.
-- Imports its routes cleanly.
-- No functional changes.
+### Added
+- History table: sortable columns, global search, and per-column filters.
+- Company and Project both clickable (link to `/presales/view/<id>`).
 
-### presales/routes.py
-- Updated to use the main `presales_form.html` template.
-- Keeps the same POST success behavior and redirect.
+### Changed
+- Document titles and filenames now use **Company** and **Project** consistently.
+- Submission page buttons show product names (SOW/HLD/LOE/etc.) instead of raw filenames.
 
-### generate.py
-- Reformatted and standardized YAML + Jinja rendering.
-- Explicit UTF‑8 handling and simplified comments.
-- No change in generation logic or output.
+### Fixed
+- Button label/file-name mismatch on submission page.
+- Template variables for titles normalized to prevent Pandoc YAML header parsing issues.
 
----
-**All behavior and endpoints are preserved exactly.**
-Only readability, maintainability, and route alignment were improved.
-
-
-## 2025-10-10
-- Navbar updated: add **Presales | PDG | History**.
-- History page: **Company** links to submitted view.
-- Presales Submitted: title changed to **Presales Data**.
-- Added **PDG Template** download and **Upload PDG** buttons on Presales Submitted.
-- Implemented PDG upload flow (`/presales/upload-pdg/<id>` GET, `/presales/upload-pdg` POST) and `templates/pdg_upload.html`.
-- Fixed Jinja escaping bug in History template.
-- Added **APP_VERSION** and display on Home.
-- Home now shows storage locations: `submit_dir` and `docx_dir`.
+## v1.2 — 2025-10-15
+- Major cleanup to doc generation; Pandoc + Jinja flow standardized.
+- PDG ingest (optional) flow: map PDG fields to presales JSON; merge only blanks.
+- Safer download routing; optional GitHub mirroring for submissions.
