@@ -1,5 +1,71 @@
 {% extends "base.html" %}
-{% block title %}History{% endblock %}
+{% block title %}History
+<script>
+(function(){
+  var table = document.getElementById('histTable') || document.querySelector('table');
+  if (!table) return;
+  var thead = table.tHead && table.tHead.rows[0];
+  var tbody = table.tBodies && table.tBodies[0];
+  if (!thead || !tbody) return;
+
+  // locate status column index
+  var statusIdx = -1;
+  for (var i=0;i<thead.cells.length;i++){
+    var th = thead.cells[i];
+    var key = (th.getAttribute('data-key')||'').toLowerCase();
+    var txt = (th.textContent||'').trim().toLowerCase();
+    if (key==='status' || txt==='status'){ statusIdx=i; break; }
+  }
+  if (statusIdx<0) return;
+
+  // populate dropdown from table values (client-side backup)
+  var sel = document.getElementById('filterStatus');
+  if (sel){
+    var seen = new Set();
+    Array.prototype.slice.call(tbody.rows).forEach(function(r){
+      var c = r.cells[statusIdx];
+      if (!c) return;
+      var v = (c.textContent||'').trim();
+      if (v) seen.add(v);
+    });
+    var existing = new Set(Array.prototype.slice.call(sel.options).map(function(o){return o.value;}));
+    Array.prototype.slice.call(Array.from(seen).sort()).forEach(function(v){
+      if (!existing.has(v)){
+        var opt = document.createElement('option'); opt.value=v; opt.textContent=v; sel.appendChild(opt);
+      }
+    });
+    sel.addEventListener('change', function(){
+      var want = (sel.value||'').toLowerCase();
+      Array.prototype.slice.call(tbody.rows).forEach(function(r){
+        var cell = r.cells[statusIdx];
+        var have = (cell && cell.textContent || '').trim().toLowerCase();
+        r.style.display = (!want || have === want) ? '' : 'none';
+      });
+    });
+  }
+
+  // standalone sorter for Status header (without touching your existing code)
+  var thStatus = thead.cells[statusIdx];
+  if (thStatus){
+    thStatus.style.cursor='pointer';
+    var asc = true;
+    thStatus.addEventListener('click', function(){
+      var rows = Array.prototype.slice.call(tbody.rows);
+      rows.sort(function(a,b){
+        var A = (a.cells[statusIdx]?.textContent||'').trim().toLowerCase();
+        var B = (b.cells[statusIdx]?.textContent||'').trim().toLowerCase();
+        if (A<B) return asc ? -1 : 1;
+        if (A>B) return asc ? 1 : -1;
+        return 0;
+      });
+      asc = !asc;
+      rows.forEach(function(r){ tbody.appendChild(r); });
+    });
+  }
+})();
+</script>
+
+{% endblock %}
 {% block content %}
 
 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -20,6 +86,20 @@
     <label class="form-label">Filter by Project</label>
     <input id="searchProject" type="text" class="form-control" placeholder="Project name…">
   </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Filter by Status</label>
+    <select id="filterStatus" class="form-select">
+      <option value="">All statuses</option>
+      {# Server-side population to avoid empty dropdown #}
+      {% if rows %}
+        {% set _st = rows | map(attribute='status') | list %}
+        {% for s in (_st | unique | sort) %}
+          {% if s %}<option value="{{ s }}">{{ s }}</option>{% endif %}
+        {% endfor %}
+      {% endif %}
+    </select>
+  </div>
 </div>
 
 <div class="table-responsive">
@@ -28,7 +108,8 @@
       <tr>
         <th role="button" data-col="company" aria-sort="none">Company</th>
         <th role="button" data-col="project" aria-sort="none">Project</th>
-        <th role="button" data-col="submitted" aria-sort="descending">Submitted</th>
+        <th data-key="status" role="button" aria-sort="none">Status</th>
+<th role="button" data-col="submitted" aria-sort="descending">Submitted</th>
       </tr>
     </thead>
     <tbody>
@@ -37,7 +118,7 @@
         <tr>
           <td data-key="company"><a href="{{ href }}">{{ r.company_name or '—' }}</a></td>
           <td data-key="project"><a href="{{ href }}">{{ r.project_name or '—' }}</a></td>
-          <td data-key="submitted"><a href="{{ href }}">{{ r.submitted_at or '' }}</a></td>
+          <td data-key="status">{{ r.status or "" }}</td><td data-key="submitted"><a href="{{ href }}">{{ r.submitted_at or '' }}</a></td>
         </tr>
       {% endfor %}
     </tbody>
@@ -116,6 +197,72 @@
   // Initial filter & default sort on Submitted (descending)
   applyFilters();
   sortBy('submitted', false);
+})();
+</script>
+
+
+<script>
+(function(){
+  var table = document.getElementById('histTable') || document.querySelector('table');
+  if (!table) return;
+  var thead = table.tHead && table.tHead.rows[0];
+  var tbody = table.tBodies && table.tBodies[0];
+  if (!thead || !tbody) return;
+
+  // locate status column index
+  var statusIdx = -1;
+  for (var i=0;i<thead.cells.length;i++){
+    var th = thead.cells[i];
+    var key = (th.getAttribute('data-key')||'').toLowerCase();
+    var txt = (th.textContent||'').trim().toLowerCase();
+    if (key==='status' || txt==='status'){ statusIdx=i; break; }
+  }
+  if (statusIdx<0) return;
+
+  // populate dropdown from table values (client-side backup)
+  var sel = document.getElementById('filterStatus');
+  if (sel){
+    var seen = new Set();
+    Array.prototype.slice.call(tbody.rows).forEach(function(r){
+      var c = r.cells[statusIdx];
+      if (!c) return;
+      var v = (c.textContent||'').trim();
+      if (v) seen.add(v);
+    });
+    var existing = new Set(Array.prototype.slice.call(sel.options).map(function(o){return o.value;}));
+    Array.prototype.slice.call(Array.from(seen).sort()).forEach(function(v){
+      if (!existing.has(v)){
+        var opt = document.createElement('option'); opt.value=v; opt.textContent=v; sel.appendChild(opt);
+      }
+    });
+    sel.addEventListener('change', function(){
+      var want = (sel.value||'').toLowerCase();
+      Array.prototype.slice.call(tbody.rows).forEach(function(r){
+        var cell = r.cells[statusIdx];
+        var have = (cell && cell.textContent || '').trim().toLowerCase();
+        r.style.display = (!want || have === want) ? '' : 'none';
+      });
+    });
+  }
+
+  // standalone sorter for Status header (without touching your existing code)
+  var thStatus = thead.cells[statusIdx];
+  if (thStatus){
+    thStatus.style.cursor='pointer';
+    var asc = true;
+    thStatus.addEventListener('click', function(){
+      var rows = Array.prototype.slice.call(tbody.rows);
+      rows.sort(function(a,b){
+        var A = (a.cells[statusIdx]?.textContent||'').trim().toLowerCase();
+        var B = (b.cells[statusIdx]?.textContent||'').trim().toLowerCase();
+        if (A<B) return asc ? -1 : 1;
+        if (A>B) return asc ? 1 : -1;
+        return 0;
+      });
+      asc = !asc;
+      rows.forEach(function(r){ tbody.appendChild(r); });
+    });
+  }
 })();
 </script>
 

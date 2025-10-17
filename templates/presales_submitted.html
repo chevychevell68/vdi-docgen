@@ -59,9 +59,10 @@
     <div class="text-muted small">
       <strong>Company:</strong> {{ (data.get('company_name') or '—')|upper }}
       {% if data.get('project_name') %} | <strong>Project:</strong> {{ data.get('project_name') }}{% endif %}
+      {% if data.get('__submitted_at__') %} | <strong>Submitted:</strong> {{ data.get('__submitted_at__') }} UTC{% endif %}
+      {% if data.get('_saved_at') %} | <strong>Last updated:</strong> {{ data.get('_saved_at') }} UTC{% endif %}
     </div>
   </div>
-  <span class="text-muted">Submitted {{ now.strftime('%Y-%m-%d %H:%M UTC') }}</span>
 </div>
 
 <div class="mb-4">
@@ -86,53 +87,79 @@
     <a class="btn btn-outline-success me-2 mb-2" href="{{ pdg_href }}">PDG Template</a>
   {% endif %}
   <a class="btn btn-outline-primary mb-2" href="{{ url_for('presales_upload_pdg', submit_id=submit_id) }}">Upload PDG</a>
-
-  {% if data.get('docs_requested_list') and docx_missing and docx_missing|length > 0 %}
-    <div class="small text-muted mt-2">
-      Requested but not found on server: {{ docx_missing|join(', ') }}
-    </div>
-  {% endif %}
+  <a class="btn btn-outline-dark mb-2" href="{{ url_for('presales_edit', submit_id=submit_id) }}">Edit</a>
 </div>
 
-{# ---------------------- RESTORED FULL SUBMITTED CONTENT ---------------------- #}
-
-<!-- Summary card -->
+{# ---------------------- Summary ---------------------- #}
 <div class="card mb-4 mt-3">
   <div class="card-body">
     <h2 class="h5 mb-3">Summary</h2>
     <div class="row g-3">
-      <div class="col-md-4"><div class="text-muted small">Company</div><div class="fw-medium">{{ data.get('company_name') or '—' }}</div></div>
-      <div class="col-md-4"><div class="text-muted small">Total Users</div><div class="fw-medium">{{ data.get('total_users') or '—' }}</div></div>
-      <div class="col-md-4"><div class="text-muted small">Concurrent Peak</div><div class="fw-medium">{{ data.get('concurrent_users') or '—' }}</div></div>
-    </div>
-    <div class="mt-3">
-      <div class="text-muted small mb-1">Users per region (from regional mix):</div>
-      <div class="table-responsive">
-        <table class="table table-sm table-bordered mb-0" style="max-width:620px">
-          <thead class="table-light"><tr><th>Region</th><th class="text-end">% Mix</th><th class="text-end">Users</th></tr></thead>
-          <tbody>
-            {% set _regions = ['US','US_HI','US_AK','CAN','LATAM','EMEA','APAC','INDIA','ANZ','OTHER'] %}
-            {% set _total = (data.get('total_users') or 0) | int %}
-            {% set ns = namespace(sum=0) %}
-            {% for rk in _regions %}
-              {% set pct = (data.get('region_pct_' ~ rk) or 0) | int %}
-              {% set ck = data.get('region_ck_' ~ rk) %}
-              {% if ck and pct > 0 %}
-                {% set n = (_total * pct // 100) %}
-                {% set ns.sum = ns.sum + n %}
-                <tr><td>{{ rk }}</td><td class="text-end">{{ pct }}%</td><td class="text-end">{{ "{:,}".format(n) }}</td></tr>
-              {% endif %}
-            {% endfor %}
-            <tr class="table-light"><th class="text-end" colspan="2">Total</th><th class="text-end">{{ "{:,}".format(ns.sum) }}</th></tr>
-          </tbody>
-        </table>
+      <div class="col-md-4">
+        <div class="text-muted small">Company</div>
+        <div class="fw-medium">{{ data.get('company_name') or '—' }}</div>
+      </div>
+      <div class="col-md-4">
+        <div class="text-muted small">Project</div>
+        <div class="fw-medium">{{ data.get('project_name') or (data.get('sf_opportunity_name') or '—') }}</div>
+      </div>
+      <div class="col-md-4">
+        <div class="text-muted small">Status</div>
+        <div class="fw-medium">{{ data.get('status') or 'New' }}</div>
       </div>
     </div>
   </div>
 </div>
 
+{# ---------------------- Change history ---------------------- #}
+{% if data.get('_revisions') %}
+<div class="card mb-4">
+  <div class="card-body">
+    <h2 class="h6 mb-3">Change history</h2>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead class="table-light">
+          <tr><th style="width: 200px;">When</th><th>Summary</th></tr>
+        </thead>
+        <tbody>
+          {% for rev in data.get('_revisions')|reverse %}
+          <tr>
+            <td class="text-nowrap">{{ rev.at }} UTC</td>
+            <td>
+              {{ rev.count }} field{{ 's' if rev.count != 1 else '' }} updated
+              <details class="mt-1">
+                <summary class="small text-muted">View details</summary>
+                <div class="table-responsive mt-2">
+                  <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                      <tr><th>Field</th><th>Before</th><th>After</th></tr>
+                    </thead>
+                    <tbody>
+                      {% for ch in rev.changes %}
+                      <tr>
+                        <td class="text-nowrap"><code>{{ ch.field }}</code></td>
+                        <td>{{ ch.before if ch.before is not none else '—' }}</td>
+                        <td>{{ ch.after if ch.after is not none else '—' }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <a class="btn btn-outline-secondary ms-2" href="{{ url_for('history') }}">History</a>
 <a class="btn btn-link ms-1" href="{{ url_for('presales') }}">Back to Presales form</a>
+
+{# --------- Existing sections below (unchanged content) --------- #}
 
 <!-- 0) Customer Info -->
 <fieldset class="border p-3 mb-4 rounded-2">

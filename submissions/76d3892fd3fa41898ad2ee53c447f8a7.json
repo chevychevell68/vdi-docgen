@@ -1,5 +1,5 @@
 {
-  "company_name": "HAWAII PACAF HICKAM",
+  "company_name": "HAWAII PACAF HICKAM 3",
   "customer_name": "Michelle Campbell",
   "sf_opportunity_name": "Hawaii PACAF HQ HPE Storage & Cisco UCS SIPR VDI 6 Sites 2025",
   "ir_number": "R-00948734",
@@ -39,7 +39,7 @@
   "vd_domain_name": "DoD",
   "core_domain_name": "",
   "platform": "vSphere (ESXi)",
-  "general_compute_cluster": "yes",
+  "general_compute_cluster": "on",
   "host_cpu_cores": "64",
   "host_ram_gb": "1024",
   "hosts_count": "5",
@@ -103,5 +103,35 @@
   "region_ck_OTHER": null,
   "region_pct_OTHER": null,
   "_id": "76d3892fd3fa41898ad2ee53c447f8a7",
-  "_saved_at": "2025-10-15 21:39"
+  "_saved_at": "2025-10-17 21:00",
+  "status": "New",
+  "project_name": "None",
+  "_revisions": [
+    {
+      "at": "2025-10-17 21:00",
+      "count": 4,
+      "changes": [
+        {
+          "field": "company_name",
+          "before": "HAWAII PACAF HICKAM",
+          "after": "HAWAII PACAF HICKAM 3"
+        },
+        {
+          "field": "general_compute_cluster",
+          "before": "yes",
+          "after": "on"
+        },
+        {
+          "field": "project_name",
+          "before": null,
+          "after": "None"
+        },
+        {
+          "field": "status",
+          "before": null,
+          "after": "New"
+        }
+      ]
+    }
+  ]
 }

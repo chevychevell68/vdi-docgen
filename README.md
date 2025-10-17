@@ -83,3 +83,38 @@ See `CHANGELOG.md` for a complete list.
 4. Keep `reference/wwt-reference.docx` as the visual source of truth for Word styles.
 
 See `docs/` for full details.
+
+## v1.2.1 — Project Name & Status (Additive Patch)
+
+**What changed (UI only):**
+- **Presales Form** now includes:
+  - `project_name` (string, required) — human-friendly title used throughout the UI and in doc titles.
+  - `status` (enum, default `New`) — one of:
+    `New`, `Active`, `Submitted`, `Pending Account Team`, `Pending Customer`,
+    `Pending SSA/SRC`, `Closed - Won`, `Closed - Lost`, `On Hold`.
+
+**Where values surface:**
+- **Submitted page** (`templates/presales_submitted.html`): Project Name + Status shown in the header/summary.
+- **History page** (`templates/history.html`): Company and Project (both clickable) + Status column.
+
+**Persistence & compatibility:**
+- `presales_submit` already persists arbitrary form fields; no migration needed.
+- New values are saved in `submissions/<sid>.json` and available as `data.get('project_name')` and `data.get('status')`.
+
+**Single code touchpoint (for History rows):**
+Update the `history()` route row construction to include the two new keys:
+```python
+rows.append({
+    "id": obj.get("_id"),
+    "company_name": (obj.get("company_name") or "—").strip(),
+    "project_name": (obj.get("project_name") or "—").strip(),
+    "status": (obj.get("status") or "New").strip(),
+    "sf_op_name": (obj.get("sf_opportunity_name") or "—").strip(),
+    "sf_url": (obj.get("sf_opportunity_url") or "").strip(),
+    "submitted_at": (obj.get("__submitted_at__") or obj.get("_saved_at") or ""),
+})
+```
+
+### Status values (Presales)
+New, Active, Submitted, Pending Account Team, Pending Customer, Pending SSA/SRC, Closed - Won, Closed - Lost, On Hold
+

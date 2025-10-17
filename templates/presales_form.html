@@ -18,10 +18,24 @@
 {%- endmacro %}
 
 <form method="post" action="{{ url_for('presales_submit') }}" id="presales-form">
+  {# --- ONLY ADDITION: ensure edits carry the record id so we UPDATE, not CREATE --- #}
+  <input type="hidden" name="_id" value="{{ submit_id or form._id }}">
+
   <!-- 0) Customer Info -->
   <fieldset class="border p-3 mb-4">
     <legend>Customer Info</legend>
     <div class="row g-3">
+      <!-- Status (NEW FIELD) -->
+      <div class="col-md-6">
+        <label class="form-label">Status</label>
+        {% set _status = (form.status if form and form.status else 'New') %}
+        <select class="form-select" name="status">
+          {% for s in ['New','Active','Submitted','Pending Account Team','Pending Customer','Pending SSA/SRC','Closed - Won','Closed - Lost','On Hold'] %}
+            <option value="{{s}}" {% if _status==s %}selected{% endif %}>{{s}}</option>
+          {% endfor %}
+        </select>
+      </div>
+
       <div class="col-md-6">
         <label class="form-label">{{ req('Company name') }}</label>
         <input class="form-control" name="company_name" value="{{ (form.company_name if form else '') }}" placeholder="Acme Corp" required aria-required="true">
@@ -40,10 +54,10 @@
         <input class="form-control" name="ir_number" value="{{ (form.ir_number if form else '') }}" placeholder="IR-123456">
       </div>
 
-      <!-- NEW: Manual Project Name used in docs & filenames -->
+      <!-- Existing Project name field (kept) -->
       <div class="col-md-12">
         <label class="form-label">Project name <small class="text-muted">(shown in docs; also used for filenames)</small></label>
-        <input class="form-control" name="project_name" value="{{ (form.project_name if form else '') }}" placeholder="Horizon 6-Site Deployment">
+        <input class="form-control" name="project_name" value="{{ (form.project_name if form else '') }}" placeholder="Horizon 6‑Site Deployment">
       </div>
 
       <div class="col-md-12">
@@ -345,7 +359,9 @@
       </div>
 
       <div class="col-md-4">
-        {{ yes_checkbox('general_compute_cluster', 'General compute cluster available for core components?', form.general_compute_cluster) }}
+        <label class="form-label">General compute cluster available for core components?</label>
+        <input type="checkbox" class="form-check-input" id="general_compute_cluster" name="general_compute_cluster"
+               {% if form and form.general_compute_cluster %}checked{% endif %}>
       </div>
 
       <div class="col-md-3">
@@ -597,7 +613,7 @@
 </form>
 
 <div style="position: fixed; right: 10px; bottom: 8px; font-size: 12px; color: #6c757d;">
-  Form v1.9.0 (adds Project Name)
+  Form v1.8.1b
 </div>
 
 <script>
@@ -642,19 +658,19 @@
   }
 
   function toggleRequiredApps(){
-    const appvol = document.getElementById("va_appvol");
-    const grp = document.getElementById("required_apps_group");
+    const appvol = el("va_appvol");
+    const grp = el("required_apps_group");
     if (grp) grp.style.display = appvol && appvol.checked ? "" : "none";
   }
 
   function toggleStorageGroups(){
-    const t = document.getElementById("storage_type")?.value || "";
+    const t = el("storage_type")?.value || "";
     document.querySelectorAll(".vsan-only").forEach(x => x.style.display = (t === "vSAN" ? "" : "none"));
     document.querySelectorAll(".non-vsan-only").forEach(x => x.style.display = (t && t !== "vSAN" ? "" : "none"));
   }
 
   function computeVSAN(){
-    if ((document.getElementById("storage_type")?.value || "") !== "vSAN"){ setText("vsan_total_gb", "—"); return; }
+    if ((el("storage_type")?.value || "") !== "vSAN"){ setText("vsan_total_gb", "—"); return; }
     const N          = num("concurrent_users");
     const images     = num("num_images", 1);
     const vmMem      = num("vm_ram_gb", 8);
@@ -689,7 +705,7 @@
 
   function regionToggleEnable(e) {
     const key = e.target.id.replace("reg_", "");
-    const pct = document.getElementById(`reg_${key}_pct`);
+    const pct = el(`reg_${key}_pct`);
     if (!pct) return;
     pct.disabled = !e.target.checked;
     if (!e.target.checked) pct.value = "";
@@ -700,8 +716,8 @@
     let total = 0;
     inputs.forEach(i => { const v = parseFloat(i.value); if (!isNaN(v)) total += v; });
     setText("region_total", String(Math.round(total)));
-    const err = document.getElementById("region_error");
-    if (err) err.style.display = (Math.round(total) === 100 ? "none" : "");
+    const err = el("region_error");
+    if (err) err.style.display = (Math.round(total) == 100 ? "none" : "");
     return Math.round(total);
   }
   function attachRegionHandlers() {
@@ -711,8 +727,8 @@
   }
 
   function renderUseCaseFields() {
-    const n = parseInt(document.getElementById("num_personas")?.value || "0", 10);
-    const container = document.getElementById("secondary_use_cases_container");
+    const n = parseInt(el("num_personas")?.value || "0", 10);
+    const container = el("secondary_use_cases_container");
     if (!container) return;
     container.innerHTML = "";
     if (n <= 1) return;
@@ -725,14 +741,14 @@
   }
 
   function guardSubmitForRegions() {
-    const form = document.getElementById("presales-form");
+    const form = el("presales-form");
     if (!form) return;
     form.addEventListener("submit", function (e) {
       const total = sumRegions();
       if (total !== 100) {
         e.preventDefault();
         e.stopPropagation();
-        document.getElementById("region_error")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        el("region_error")?.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     });
   }
@@ -755,19 +771,29 @@
   }
 
   function attach(){
-    watched.forEach(id => document.getElementById(id)?.addEventListener("input", recalc));
+    watched.forEach(id => el(id)?.addEventListener("input", recalc));
     document.querySelectorAll('input[name="existing_vdi"]').forEach(r => r.addEventListener("change", toggleExistingVDI));
     document.querySelectorAll('input[name="mfa_required"]').forEach(r => r.addEventListener("change", toggleMFA));
     document.querySelectorAll('input[name="gpu_required"]').forEach(r => r.addEventListener("change", toggleGPU));
-    document.getElementById('existing_vdi')?.addEventListener('change', toggleExistingVDI);
-    document.getElementById('mfa_required')?.addEventListener('change', toggleMFA);
-    document.getElementById('gpu_required')?.addEventListener('change', toggleGPU);
+    el('existing_vdi')?.addEventListener('change', toggleExistingVDI);
+    el('mfa_required')?.addEventListener('change', toggleMFA);
+    el('gpu_required')?.addEventListener('change', toggleGPU);
     document.querySelectorAll('.va-check').forEach(c => c.addEventListener("change", toggleRequiredApps));
-    document.getElementById("num_personas")?.addEventListener("input", renderUseCaseFields);
+    el("num_personas")?.addEventListener("input", renderUseCaseFields);
     attachRegionHandlers();
     guardSubmitForRegions();
     renderUseCaseFields();
     recalc();
+  }
+
+  if (!el("mem_headroom_pct")) {
+    const hidden = document.createElement("div");
+    hidden.innerHTML = [
+      '<input type="hidden" id="mem_headroom_pct" value="0.20">',
+      '<input type="hidden" id="esxi_overhead_gb" value="8">',
+      '<input type="hidden" id="gpu_sessions_cap" value="0">'
+    ].join("");
+    document.body.appendChild(hidden);
   }
 
   if (document.readyState === "loading") {
@@ -776,7 +802,7 @@
     attach();
   }
 
-  // --- Live summary table ---
+  // --- Users per region live summary (form) ---
   function computeUsersByRegion() {
     const total = parseInt((document.querySelector('input[name="total_users"]')?.value || "0"), 10) || 0;
     const keys = ["US","US_HI","US_AK","CAN","LATAM","EMEA","APAC","INDIA","ANZ","OTHER"];

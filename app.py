@@ -21,7 +21,7 @@ except Exception:
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 # Application version (bump as needed)
-APP_VERSION = "2025.10.15-v1.2"
+APP_VERSION = "v1.2.2"  # ↑ bumped for audit trail
 
 # ---------- Jinja helpers ----------
 def _fmt_bool(v):
@@ -144,6 +144,15 @@ def _now_str() -> str:
 def _uuid() -> str:
     return uuid.uuid4().hex
 
+def _load_submission(submit_id: str):
+    p = SUBMIT_DIR / f"{submit_id}.json"
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
 def _save_submission_local(payload: dict, submit_id: str) -> Path:
     payload["_id"] = submit_id
     payload["_saved_at"] = _now_str()
@@ -163,15 +172,6 @@ def _save_submission(payload: dict, submit_id: str | None = None) -> str:
         except Exception:
             pass
     return submit_id
-
-def _load_submission(submit_id: str):
-    p = SUBMIT_DIR / f"{submit_id}.json"
-    if not p.exists():
-        return None
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return None
 
 def _map_requested_docx(requested_labels, base_dir: Path):
     label_to_filename = {
@@ -205,6 +205,12 @@ def _build_submission_zip(submit_id: str, filenames: list[str]) -> Path:
     return zip_path
 
 # ---- ctx helpers for template buttons ----
+def _build_submission_title(obj: dict) -> str:
+    company = (obj.get("company_name") or obj.get("customer_name") or "").strip()
+    project = (obj.get("project_name") or obj.get("sf_opportunity_name") or "").strip()
+    parts = [p for p in [company, project] if p]
+    return " — ".join(parts) if parts else "Submission"
+
 def _build_ctx(submit_id: str, obj: dict | None) -> dict:
     requested = (obj or {}).get("docs_requested_list") or []
     label_to_filename = {
@@ -219,9 +225,43 @@ def _build_ctx(submit_id: str, obj: dict | None) -> dict:
         "sid": submit_id,
         "deliverables": deliverables,
         "docx_dir": str(DOCX_DIR),
+        "title": _build_submission_title(obj or {}),
     }
 
-# -------------------- Routes (unchanged from user's last file except history) --------------------
+# -------- Audit utilities --------
+_AUDIT_IGNORE = {"_id", "_saved_at", "__submitted_at__", "_revisions", "_pdg_uploads"}
+
+def _normalize_value(v):
+    # For lists that came from getlist but may be strings in older records
+    if isinstance(v, list):
+        return v
+    # Booleans often come in as "yes"/"on"/None; leave as-is for plain compare
+    return v
+
+def _diff_objects(old: dict, new: dict):
+    changes = []
+    keys = set(old.keys()) | set(new.keys())
+    for k in sorted(keys):
+        if k in _AUDIT_IGNORE:
+            continue
+        ov = _normalize_value(old.get(k))
+        nv = _normalize_value(new.get(k))
+        if ov != nv:
+            changes.append({"field": k, "before": ov, "after": nv})
+    return changes
+
+def _append_revision(obj: dict, changes: list[dict]):
+    if not changes:
+        return obj
+    obj.setdefault("_revisions", [])
+    obj["_revisions"].append({
+        "at": _now_str(),
+        "count": len(changes),
+        "changes": changes,
+    })
+    return obj
+
+# -------------------- Routes --------------------
 @app.get("/")
 def index():
     return render_template("index.html", storage_dir=str(SUBMIT_DIR), app_version=APP_VERSION)
@@ -238,6 +278,7 @@ def checklist():
 def questionnaire():
     return render_template("questionnaire.md")
 
+# ---- PDG (unchanged quick MD render form) ----
 @app.get("/pdg")
 def pdg_form():
     return render_template("pdg_form.html")
@@ -251,6 +292,7 @@ def pdg_submit():
     html = render_template("pdg_results.html", **data, rendered_md=md)
     return html
 
+# ---- Downloads (MD/DOCX) ----
 @app.get("/download/md/<name>")
 def download_md(name: str):
     path = (DELIV_DIR / name).resolve()
@@ -267,6 +309,7 @@ def download_docx(name: str):
         return redirect(url_for("history"))
     return send_file(path, as_attachment=True, download_name=name)
 
+# New: safe individual deliverable download used by the template helper
 @app.get("/download/<submit_id>/<path:filename>")
 def download_deliverable(submit_id: str, filename: str):
     if filename not in KNOWN_DOCS and not (DOCX_DIR / filename).exists():
@@ -278,11 +321,13 @@ def download_deliverable(submit_id: str, filename: str):
         return redirect(url_for("presales_view", submit_id=submit_id))
     return send_file(path, as_attachment=True, download_name=filename)
 
+# ---- Exports (general) ----
 @app.get("/exports")
 def exports():
     zips = sorted(EXPORTS_DIR.glob("*.zip"))
     return render_template("exports.html", zips=[f.name for f in zips])
 
+# ---- Presales (form / submit / view / zip / edit) ----
 @app.get("/presales")
 def presales():
     return render_template("presales_form.html", form=request.form)
@@ -290,23 +335,51 @@ def presales():
 @app.post("/presales/submit")
 def presales_submit():
     data = request.form.to_dict(flat=True)
-    data["__submitted_at__"] = _now_str()
 
+    # Preserve original submit time
+    sid_from_form = data.get("_id")
+    existing = _load_submission(sid_from_form) if sid_from_form else None
+    if existing and existing.get("__submitted_at__"):
+        data["__submitted_at__"] = existing["__submitted_at__"]
+    else:
+        data["__submitted_at__"] = _now_str()
+
+    # Normalize status
+    status = (data.get("status") or "New").strip()
+    allowed_status = {
+        "New","Active","Submitted","Pending Account Team","Pending Customer",
+        "Pending SSA/SRC","Closed - Won","Closed - Lost","On Hold"
+    }
+    if status not in allowed_status:
+        status = "New"
+    data["status"] = status
+
+    # Multi-selects
     data["docs_requested_list"] = request.form.getlist("docs_requested")
     data["profile_mgmt_list"] = request.form.getlist("profile_mgmt")
     data["virtual_apps_list"] = request.form.getlist("virtual_apps")
     data["training_required_list"] = request.form.getlist("training_required")
 
-    region_keys = [
-        "US","US_HI","US_AK","CAN","LATAM","EMEA","APAC","INDIA","ANZ","OTHER"
-    ]
+    # Regions
+    region_keys = ["US","US_HI","US_AK","CAN","LATAM","EMEA","APAC","INDIA","ANZ","OTHER"]
     for rk in region_keys:
         data[f"region_ck_{rk}"]  = request.form.get(f"region_ck_{rk}")
         data[f"region_pct_{rk}"] = request.form.get(f"region_pct_{rk}")
 
-    submit_id = _save_submission(data, data.get("_id"))
+    # Compute audit trail diff before saving
+    submit_id = sid_from_form or data.get("_id") or _uuid()
+    old = existing or _load_submission(submit_id) or {}
 
-    md = render_template("presales_export.md", data=data, **data, now=dt.datetime.utcnow())
+    changes = _diff_objects(old, data)
+    # Merge old object for special fields, then apply new fields
+    merged = old.copy()
+    merged.update(data)
+    merged = _append_revision(merged, changes)
+
+    submit_id = _save_submission(merged, submit_id)
+
+    # Export MD (unchanged)
+    md = render_template("presales_export.md", data=merged, **merged, now=dt.datetime.utcnow())
     (DELIV_DIR / f"intake-{submit_id}.md").write_text(md, encoding="utf-8")
 
     return redirect(url_for("presales_view", submit_id=submit_id))
@@ -360,6 +433,7 @@ def presales_edit(submit_id):
     f = _F(obj.copy())
     return render_template("presales_form.html", form=f, submit_id=submit_id)
 
+# ---- PDG Upload & Merge (.docx -> presales JSON) ----
 @app.route("/presales/upload-pdg/<submit_id>", methods=["GET", "POST"])
 def presales_upload_pdg(submit_id):
     obj = _load_submission(submit_id)
@@ -391,7 +465,13 @@ def presales_upload_pdg(submit_id):
         flash(f"Failed to parse PDG: {e}", "error")
         return redirect(url_for("presales_view", submit_id=submit_id))
 
+    before = obj.copy()
     obj, n = _merge_pdg_into_presales(parsed, obj)
+    # record revision entry for merged fields
+    if n > 0:
+        changes = _diff_objects(before, obj)
+        _append_revision(obj, changes)
+
     obj.setdefault("_pdg_uploads", [])
     obj["_pdg_uploads"].append({
         "path": str(saved),
@@ -437,6 +517,7 @@ def _parse_pdg_docx(path: Path) -> dict:
     return out
 
 _PDG_TO_PRESALES = {
+    # Customer info
     "company": "company_name",
     "company_name": "company_name",
     "customer_name": "customer_name",
@@ -444,22 +525,27 @@ _PDG_TO_PRESALES = {
     "sf_opportunity_name": "sf_opportunity_name",
     "salesforce_opportunity_url": "sf_opportunity_url",
     "salesforce_opportunity": "sf_opportunity_name",
+    # Users & scope
     "total_users": "total_users",
     "concurrent_users": "concurrent_users",
     "num_datacenters": "num_datacenters",
     "datacenters_regions_where": "datacenters_detail",
     "deployment_type": "deployment_type",
     "main_use_case": "main_use_cases",
+    # Identity / access
     "mfa_required": "mfa_required",
     "remote_access_required": "remote_access",
     "idp": "idp_provider",
+    # GPUs
     "gpu_required": "gpu_required",
     "gpu_users": "gpu_users",
     "gpu_vram_per_user_gb": "gpu_vram_per_user",
     "gpu_use_case": "gpu_use_case",
+    # Platform
     "platform": "platform",
     "storage_type": "storage_type",
     "load_balancer": "load_balancer",
+    # Logistics
     "delivery_model": "delivery_model",
     "start_date": "start_date",
     "timeline_deadlines": "timeline",
@@ -477,7 +563,7 @@ def _merge_pdg_into_presales(pdg_fields: dict, obj: dict) -> tuple[dict, int]:
             updated += 1
     return obj, updated
 
-# ---- History (rows now include project_name and company/project are clickable in template) ----
+# ---- History (reads repo-local submissions/) ----
 @app.get("/history")
 def history():
     rows = []
@@ -491,11 +577,34 @@ def history():
             "id": obj.get("_id"),
             "company_name": (obj.get("company_name") or "—").strip(),
             "project_name": (obj.get("project_name") or obj.get("sf_opportunity_name") or "—").strip(),
+            "status": (obj.get("status") or "New").strip(),
             "submitted_at": (obj.get("__submitted_at__") or obj.get("_saved_at") or ""),
         })
-    # Default sort by submitted_at desc (string compare is fine for the stored format)
     rows.sort(key=lambda r: r.get("submitted_at",""), reverse=True)
     return render_template("history.html", rows=rows)
+
+# ---- Simple 404/500 ----
+@app.errorhandler(404)
+def not_found(_e):
+    return (
+        '<!doctype html><html><head><meta charset="utf-8"><title>Not Found</title>'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"></head>'
+        '<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:2rem">'
+        "<h1>404 — Not Found</h1>"
+        f'<p><a href="{url_for("index")}">Go to Home</a></p>'
+        "</body></html>"
+    ), 404
+
+@app.errorhandler(500)
+def internal_error(_e):
+    return (
+        '<!doctype html><html><head><meta charset="utf-8"><title>Server Error</title>'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"></head>'
+        '<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:2rem">'
+        "<h1>500 — Internal Server Error</h1>"
+        f'<p><a href="{url_for("index")}">Go to Home</a></p>'
+        "</body></html>"
+    ), 500
 
 # ---- Optional blueprint support (safe no-op if not present) ----
 try:
