@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Horizon Presales Discovery{% endblock %}
+{% block head %}
+<style>
+.longtext{min-height:160px}
+</style>
+{% endblock %}
 {% block content %}
 
 <h1 class="mb-3">Horizon Presales Discovery</h1>
@@ -24,6 +29,25 @@
   <!-- 0) Customer Info -->
   <fieldset class="border p-3 mb-4">
     <legend>Customer Info</legend>
+    <div class="row g-3">
+      <!-- Sales P&L Code -->
+      <div class="col-md-6">
+        <label class="form-label">Sales P&amp;L Code</label>
+        <input type="text" class="form-control" name="sales_pnl" inputmode="numeric" pattern="\d{6,10}" placeholder="e.g., 10000191 or 113382">
+        <div class="form-text">Digits only (6–10). Example: 10000191 or 113382.</div>
+      </div>
+      <!-- DA Probability (%) -->
+      <div class="col-md-3">
+        <label class="form-label">DA Probability (%)</label>
+        <input type="number" class="form-control" name="da_probability" min="0" max="100" step="1" placeholder="0–100">
+      </div>
+      <!-- Estimated Close Date -->
+      <div class="col-md-3">
+        <label class="form-label">Estimated Close Date</label>
+        <input type="date" class="form-control" name="estimated_close_date">
+      </div>
+    </div>
+
     <div class="row g-3">
       <!-- Status (NEW FIELD) -->
       <div class="col-md-6">
@@ -57,7 +81,7 @@
       <!-- Existing Project name field (kept) -->
       <div class="col-md-12">
         <label class="form-label">Project name <small class="text-muted">(shown in docs; also used for filenames)</small></label>
-        <input class="form-control" name="project_name" value="{{ (form.project_name if form else '') }}" placeholder="Horizon 6‑Site Deployment">
+        <input class="form-control" name="project_name" value="{{ (form.project_name if form else '') }}" placeholder="Horizon 6-Site Deployment">
       </div>
 
       <div class="col-md-12">
@@ -73,12 +97,12 @@
       <div class="col-12" id="existing_vdi_pain_group"
            style="display:{% if form and (form.existing_vdi in ['Yes','yes', True, 'true', '1', 'on', 'checked']) %}block{% else %}none{% endif %};">
         <label class="form-label">If yes, top pain points</label>
-        <textarea class="form-control" name="existing_vdi_pain" rows="2" placeholder="Performance, login time, app layering, image sprawl…">{{ (form.existing_vdi_pain if form else '') }}</textarea>
+        <textarea class="form-control longtext" name="existing_vdi_pain" rows="6" placeholder="Performance, login time, app layering, image sprawl…">{{ (form.existing_vdi_pain if form else '') }}</textarea>
       </div>
 
       <div class="col-12">
         <label class="form-label">Voice of the Customer (VoC)</label>
-        <textarea class="form-control" name="voc" rows="4" placeholder="Business drivers, pain points, success criteria, deadlines, risk tolerance…">{{ (form.voc if form else '') }}</textarea>
+        <textarea class="form-control longtext" name="voc" rows="6" placeholder="Business drivers, pain points, success criteria, deadlines, risk tolerance…">{{ (form.voc if form else '') }}</textarea>
       </div>
     </div>
   </fieldset>
@@ -101,7 +125,7 @@
       </div>
       <div class="col-12">
         <label class="form-label">Datacenters/regions (where)</label>
-        <input class="form-control" name="datacenters_detail" value="{{ (form.datacenters_detail if form else '') }}" placeholder="Phoenix, Dallas">
+        <textarea class="form-control longtext" name="datacenters_detail" rows="5" placeholder="Phoenix, Dallas">{{ (form.datacenters_detail if form else '') }}</textarea>
       </div>
 
       <div class="col-md-4">
@@ -168,7 +192,7 @@
       <div class="col-12" id="use_case_fields">
         <label class="form-label">Use case details</label>
         <div class="mb-2">
-          <input class="form-control" name="main_use_cases" id="main_use_cases" placeholder="Main use case" value="{{ (form.main_use_cases if form else '') }}">
+          <textarea class="form-control longtext longtext longtext" name="main_use_cases" rows="6" placeholder="Main use case" rows="6">{{ (form.main_use_cases if form else '') }}</textarea>
         </div>
         <div id="secondary_use_cases_container"></div>
       </div>
@@ -197,9 +221,7 @@
         </div>
         <div class="col-12">
           <label class="form-label">GPU use case</label>
-          <input class="form-control" name="gpu_use_case"
-                 placeholder="3D/CAD, imaging, video editing, ML inferencing…"
-                 value="{{ (form.gpu_use_case if form else '') }}">
+          <textarea class="form-control longtext" name="gpu_use_case" rows="5" placeholder="3D/CAD, imaging, video editing, ML inferencing…">{{ (form.gpu_use_case if form else '') }}</textarea>
         </div>
       </div>
     </div>
@@ -255,7 +277,7 @@
 
       <div class="col-12" id="required_apps_group" style="display:{% if form and 'App Volumes' in form.get('virtual_apps', []) %}block{% else %}none{% endif %};">
         <label class="form-label">Required applications</label>
-        <textarea class="form-control" name="required_apps" rows="3" placeholder="List app names/versions/licensing nuances…">{{ (form.required_apps if form else '') }}</textarea>
+        <textarea class="form-control longtext" name="required_apps" rows="4" placeholder="List app names/versions/licensing nuances…">{{ (form.required_apps if form else '') }}</textarea>
       </div>
 
       <div class="col-md-4">
@@ -267,6 +289,29 @@
   <!-- 4) Access & Identity -->
   <fieldset class="border p-3 mb-4">
     <legend>Access & Identity</legend>
+
+    <div class="row g-3 mt-2">
+      <div class="col-md-6">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox"
+                 id="external_access" name="external_access"
+                 {% if form and form.external_access %}checked{% endif %}>
+          <label class="form-check-label" for="external_access">
+            External Access required?
+          </label>
+        </div>
+        <div id="ext_contractors_group" class="form-check ms-3 mt-2"
+             style="display: {% if form and form.external_access %}block{% else %}none{% endif %};">
+          <input class="form-check-input" type="checkbox"
+                 id="external_contractors" name="external_contractors"
+                 {% if form and form.external_contractors %}checked{% endif %}>
+          <label class="form-check-label" for="external_contractors">
+            External contractor laptops?
+          </label>
+        </div>
+      </div>
+    </div>
+
     <div class="row g-3">
       <div class="col-md-4">
         {{ yes_checkbox('remote_access', 'Remote access required?', form.remote_access) }}
@@ -359,7 +404,7 @@
       </div>
 
       <div class="col-md-4">
-        <label class="form-label">General compute cluster available for core components?</label>
+        <label class="form-label">General Compute Cluster?</label>
         <input type="checkbox" class="form-check-input" id="general_compute_cluster" name="general_compute_cluster"
                {% if form and form.general_compute_cluster %}checked{% endif %}>
       </div>
@@ -525,7 +570,7 @@
 
       <div class="col-md-12">
         <label class="form-label">Knowledge Transfer (KT) expectations</label>
-        <textarea class="form-control" name="kt_expectations" rows="2" placeholder="Shadowing + 2 KT workshops + runbook">{{ (form.kt_expectations if form else '') }}</textarea>
+        <textarea class="form-control longtext" name="kt_expectations" rows="4" placeholder="Shadowing + 2 KT workshops + runbook">{{ (form.kt_expectations if form else '') }}</textarea>
       </div>
 
       <div class="col-md-4">
@@ -545,7 +590,17 @@
   <!-- 9) Logistics & Delivery Model -->
   <fieldset class="border p-3 mb-4">
     <legend>Logistics & Delivery Model</legend>
+
     <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Typical onboarding time (per user)</label>
+        <input class="form-control" name="onboarding_time_per_user"
+               placeholder="e.g., 30 minutes"
+               value="{{ (form.onboarding_time_per_user if form else '') }}">
+      </div>
+    </div>
+
+    <div class="row g-3 mt-1">
       <div class="col-md-8">
         <label class="form-label">Delivery model</label>
         <select class="form-select" name="delivery_model">
@@ -604,7 +659,7 @@
 
       <div class="col-12">
         <label class="form-label">Stakeholders / 3rd parties</label>
-        <textarea class="form-control" name="stakeholders" rows="2" placeholder="Networking, Security, Storage, Apps, IdP vendor…">{{ (form.stakeholders if form else '') }}</textarea>
+        <textarea class="form-control longtext" name="stakeholders" rows="4" placeholder="Networking, Security, Storage, Apps, IdP vendor…">{{ (form.stakeholders if form else '') }}</textarea>
       </div>
     </div>
   </fieldset>
@@ -735,7 +790,7 @@
     for (let i = 2; i <= n; i++) {
       const div = document.createElement("div");
       div.className = "mb-2";
-      div.innerHTML = `<input class="form-control" name="secondary_use_case_${i}" placeholder="Secondary use case ${i}">`;
+      div.innerHTML = `<textarea class="form-control longtext" name="secondary_use_case_${i}" rows="4" placeholder="Secondary use case ${i}"></textarea>`;
       container.appendChild(div);
     }
   }
@@ -835,3 +890,4 @@
 </script>
 
 {% endblock %}
+
