@@ -15,5 +15,5 @@
 - UAG posture: internet-facing × 2
 - vCenter: vcsa02.newco.com
 
-## Change Log (v1.0.0)
+## Change Log (v1.2.3)
 - Initial version.

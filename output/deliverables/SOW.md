@@ -13,5 +13,5 @@ CPA: Enabled.
 - DNS/NTP/routing provided by customer
 ## Out of Scope
 
-## Change Log (v1.0.0)
+## Change Log (v1.2.3)
 - Initial version.

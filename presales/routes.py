@@ -9,5 +9,11 @@ def presales_new():
         flash("Presales discovery saved (in-memory placeholder). Wire to your storage next.", "success")
         return redirect(url_for("presales.presales_new"))
 
-    # GET render: pass an empty dict so Jinja checks don't error on None
-    return render_template("presales_form.html", form={})
+    # GET: show the project selector (dummy workflows for now)
+    return render_template("presales_select.html")
+
+
+@presales_bp.route("/vdi-impl", methods=["GET"], strict_slashes=False)
+def vdi_impl_form():
+    # Render the existing Presales discovery form
+    return render_template("presales_form.html", form={}, submit_id=None)

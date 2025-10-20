@@ -1,6 +1,14 @@
+## v1.2.3 - 2025-10-20
+### Updates
+- Presales Form (Directory & Core Services) layout separated and cleaned
+- Added conditional "Storage → Other" input with dynamic toggle
+- Improved numeric field formatting
+- Updated all UI pages and docs to reflect version v1.2.3
+- Synced documentation and templates for consistency
+
 # Changelog
 
-## v1.2.2 – 2025-10-17
+## v1.2.3 – 2025-10-17
 
 ### Added
 - **Audit trail** for Presales submissions: each edit captures timestamp and per-field changes in `"_revisions"`.
@@ -17,7 +25,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## v1.2.1 — 2025-10-15
+## v1.2.3 — 2025-10-15
 
 ### Added
 - History table: sortable columns, global search, and per-column filters.

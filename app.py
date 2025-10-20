@@ -21,7 +21,7 @@ except Exception:
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 # Application version (bump as needed)
-APP_VERSION = "v1.2.2"  # ↑ bumped for audit trail
+APP_VERSION = "1.2.2"  # ↑ bumped for audit trail
 
 # ---------- Jinja helpers ----------
 def _fmt_bool(v):
@@ -330,6 +330,12 @@ def exports():
 # ---- Presales (form / submit / view / zip / edit) ----
 @app.get("/presales")
 def presales():
+    # Selection hub for presales flows
+    return render_template("presales_select.html")
+
+@app.get("/presales/implementation")
+@app.get("/presales/form")
+def presales_impl():
     return render_template("presales_form.html", form=request.form)
 
 @app.post("/presales/submit")
@@ -566,6 +572,7 @@ def _merge_pdg_into_presales(pdg_fields: dict, obj: dict) -> tuple[dict, int]:
 # ---- History (reads repo-local submissions/) ----
 @app.get("/history")
 def history():
+
     rows = []
     SUBMIT_DIR.mkdir(parents=True, exist_ok=True)
     for p in sorted(SUBMIT_DIR.glob("*.json")):
@@ -573,12 +580,18 @@ def history():
             obj = json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             continue
+        def _get(name, default=""):
+            v = obj.get(name)
+            return v if v is not None else default
         rows.append({
             "id": obj.get("_id"),
-            "company_name": (obj.get("company_name") or "—").strip(),
-            "project_name": (obj.get("project_name") or obj.get("sf_opportunity_name") or "—").strip(),
-            "status": (obj.get("status") or "New").strip(),
-            "submitted_at": (obj.get("__submitted_at__") or obj.get("_saved_at") or ""),
+            "company_name": (_get("company_name","—") or "—").strip(),
+            "project_name": (_get("project_name") or _get("sf_opportunity_name") or "—").strip(),
+            "sales_pnl": str(_get("sales_pnl","")).strip(),
+            "da_probability": str(_get("da_probability","")).strip(),
+            "estimated_close_date": str(_get("estimated_close_date","")).strip(),
+            "status": (_get("status","New") or "New").strip(),
+            "submitted_at": _get("__submitted_at__") or _get("_saved_at",""),
         })
     rows.sort(key=lambda r: r.get("submitted_at",""), reverse=True)
     return render_template("history.html", rows=rows)

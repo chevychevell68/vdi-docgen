@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Coming Soon{% endblock %}
+{% block content %}
+<div class="container py-5 text-center">
+  <h1 class="h3 mb-3">{{ title or "Coming Soon" }}</h1>
+  <p class="lead mb-4">{{ message or "This workflow is not implemented yet. Check back soon." }}</p>
+  <a class="btn btn-secondary" href="/presales/select">Back to Project Types</a>
+</div>
+{% endblock %}

@@ -1,6 +1,6 @@
 {
   "_id": "604608ebae2e4237ae3d2e668414da5e",
-  "status": "Submitted",
+  "status": "Pending Account Team",
   "company_name": "HAWAII PACAF HICKAM 2",
   "customer_name": "Michelle Campbell",
   "sf_opportunity_name": "Hawaii PACAF HQ HPE Storage & Cisco UCS SIPR VDI 6 Sites 2025",
@@ -105,5 +105,36 @@
   "region_pct_ANZ": null,
   "region_ck_OTHER": null,
   "region_pct_OTHER": null,
-  "_saved_at": "2025-10-17 20:43"
+  "_saved_at": "2025-10-17 22:09",
+  "sales_pnl": "10000013",
+  "da_probability": "75",
+  "estimated_close_date": "2025-11-14",
+  "_revisions": [
+    {
+      "at": "2025-10-17 22:09",
+      "count": 4,
+      "changes": [
+        {
+          "field": "da_probability",
+          "before": null,
+          "after": "75"
+        },
+        {
+          "field": "estimated_close_date",
+          "before": null,
+          "after": "2025-11-14"
+        },
+        {
+          "field": "sales_pnl",
+          "before": null,
+          "after": "10000013"
+        },
+        {
+          "field": "status",
+          "before": "Submitted",
+          "after": "Pending Account Team"
+        }
+      ]
+    }
+  ]
 }

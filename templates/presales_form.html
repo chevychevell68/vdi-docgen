@@ -3,10 +3,14 @@
 {% block head %}
 <style>
 .longtext{min-height:160px}
+/* 6-character numeric width */
+.short-num-6{width:6.5ch;max-width:6.5ch;display:inline-block}
+@media(max-width:576px){.short-num-6{width:100%;max-width:100%}}
 </style>
 {% endblock %}
 {% block content %}
 
+<style>/* 6-character numeric width */ .short-num-6{width:6.5ch;max-width:6.5ch;display:inline-block}@media(max-width:576px){.short-num-6{width:100%;max-width:100%}}</style>
 <h1 class="mb-3">Horizon Presales Discovery</h1>
 <p class="text-muted">Architect-led conversation. Do not send to customers.</p>
 
@@ -33,7 +37,7 @@
       <!-- Sales P&L Code -->
       <div class="col-md-6">
         <label class="form-label">Sales P&amp;L Code</label>
-        <input type="text" class="form-control" name="sales_pnl" inputmode="numeric" pattern="\d{6,10}" placeholder="e.g., 10000191 or 113382">
+        <input type="text" class="form-control" name="sales_pnl" inputmode="numeric" pattern="\d{6,10}" placeholder="10000191 or 113382">
         <div class="form-text">Digits only (6–10). Example: 10000191 or 113382.</div>
       </div>
       <!-- DA Probability (%) -->
@@ -113,15 +117,15 @@
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">Total users</label>
-        <input type="number" class="form-control" name="total_users" min="0" value="{{ (form.total_users if form else '') }}" placeholder="e.g., 1500">
+        <input type="number" class="form-control" name="total_users" min="0" value="{{ (form.total_users if form else '') }}" placeholder="1500">
       </div>
       <div class="col-md-4">
         <label class="form-label">{{ req('Concurrent users (peak)') }}</label>
-        <input type="number" class="form-control" id="concurrent_users" name="concurrent_users" min="0" required aria-required="true" value="{{ (form.concurrent_users if form else '') }}" placeholder="e.g., 600">
+        <input type="number" class="form-control" id="concurrent_users" name="concurrent_users" min="0" required aria-required="true" value="{{ (form.concurrent_users if form else '') }}" placeholder="600">
       </div>
       <div class="col-md-4">
         <label class="form-label"># of datacenters/regions</label>
-        <input type="number" class="form-control" name="num_datacenters" min="1" value="{{ (form.num_datacenters if form else '') }}" placeholder="e.g., 2">
+        <input type="number" class="form-control" name="num_datacenters" min="1" value="{{ (form.num_datacenters if form else '') }}" placeholder="2">
       </div>
       <div class="col-12">
         <label class="form-label">Datacenters/regions (where)</label>
@@ -186,7 +190,7 @@
 
       <div class="col-md-4">
         <label class="form-label"># of distinct personas/use cases</label>
-        <input type="number" class="form-control" id="num_personas" name="num_personas" min="1" value="{{ (form.num_personas if form else '') }}" placeholder="e.g., 3">
+        <input type="number" class="form-control" id="num_personas" name="num_personas" min="1" value="{{ (form.num_personas if form else '') }}" placeholder="3">
       </div>
 
       <div class="col-12" id="use_case_fields">
@@ -210,13 +214,13 @@
         <div class="col-md-4">
           <label class="form-label">GPU users (estimate)</label>
           <input type="number" class="form-control" name="gpu_users" min="0"
-                 placeholder="e.g., 50"
+                 placeholder="50"
                  value="{{ (form.gpu_users if form else '') }}">
         </div>
         <div class="col-md-4">
           <label class="form-label">Target GPU profile / VRAM per user (GB)</label>
           <input type="number" class="form-control" name="gpu_vram_per_user" min="0" step="0.5"
-                 placeholder="e.g., 8"
+                 placeholder="8"
                  value="{{ (form.gpu_vram_per_user if form else '') }}">
         </div>
         <div class="col-12">
@@ -234,7 +238,7 @@
       <div class="col-md-4">
         <label class="form-label"># of base images</label>
         <input type="number" class="form-control" id="num_images" name="num_images" min="1"
-               placeholder="e.g., 1"
+               placeholder="1"
                value="{{ (form.num_images if form else '1') }}">
       </div>
       <div class="col-md-4">
@@ -357,41 +361,63 @@
   </fieldset>
 
   <!-- 6) Directory & Core Services -->
-  <fieldset class="border p-3 mb-4">
-    <legend>Directory & Core Services</legend>
-    <div class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label d-block">Existing AD forest/domains?</label>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="ad_exists" id="ad_no" value="No" {% if form and form.ad_exists=='No' %}checked{% endif %}>
-          <label class="form-check-label" for="ad_no">No</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="ad_exists" id="ad_yes" value="Yes" {% if form and form.ad_exists=='Yes' %}checked{% endif %}>
-          <label class="form-check-label" for="ad_yes">Yes</label>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label"># of domains / trusts</label>
-        <input type="number" class="form-control" name="num_domains" min="1" value="{{ (form.num_domains if form else '') }}" placeholder="e.g., 2">
-      </div>
+<fieldset class="border p-3 mb-4">
+  <legend>Directory &amp; Core Services</legend>
 
-      <div class="col-md-6">
-        <label class="form-label">Domain name for virtual desktops</label>
-        <input class="form-control" name="vd_domain_name" value="{{ (form.vd_domain_name if form else '') }}" placeholder="corp.example.com">
+  <div class="row g-3">
+    <!-- Separate row: AD exists -->
+    <div class="col-md-6">
+      <label class="form-label d-block">Existing AD forest/domains?</label>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="ad_exists" id="ad_no" value="No" {% if form and form.ad_exists=='No' %}checked{% endif %}>
+        <label class="form-check-label" for="ad_no">No</label>
       </div>
-      <div class="col-md-6">
-        <label class="form-label">Separate domain for core servers?</label>
-        <input class="form-control" name="core_domain_name" value="{{ (form.core_domain_name if form else '') }}" placeholder="If separate, specify domain/FQDN">
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="ad_exists" id="ad_yes" value="Yes" {% if form and form.ad_exists=='Yes' %}checked{% endif %}>
+        <label class="form-check-label" for="ad_yes">Yes</label>
       </div>
     </div>
-  </fieldset>
+
+    <!-- Separate row/col: number of domains/trusts -->
+    <div class="col-md-6">
+      <label class="form-label" for="num_domains"># of domains / trusts</label>
+      <input id="num_domains" name="num_domains" type="number" min="1" step="1"
+             class="form-control short-num-6"
+             value="{{ (form.num_domains if form else '') }}" placeholder="2">
+    </div>
+  </div>
+
+  <!-- Row: domain names -->
+  <div class="row g-3 mt-1">
+    <div class="col-md-6">
+      <label class="form-label" for="vd_domain_name">Domain name for virtual desktops</label>
+      <input class="form-control" id="vd_domain_name" name="vd_domain_name"
+             value="{{ (form.vd_domain_name if form else '') }}" placeholder="corp.example.com">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="core_domain_name">Separate domain for core servers?</label>
+      <input class="form-control" id="core_domain_name" name="core_domain_name"
+             value="{{ (form.core_domain_name if form else '') }}" placeholder="If separate, specify domain/FQDN">
+    </div>
+  </div>
+</fieldset>
 
   <!-- 7) Platform & Infra -->
   <fieldset class="border p-3 mb-4">
     <legend>Platform & Infra</legend>
+    <!-- REBUILT ORDER -->
     <div class="row g-3">
-      <div class="col-md-4">
+      <div class="col-12">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="general_compute_cluster" name="general_compute_cluster"
+                 {% if form and form.general_compute_cluster %}checked{% endif %}>
+          <label class="form-check-label" for="general_compute_cluster">General Compute Cluster?</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-6">
         <label class="form-label">Hypervisor/platform</label>
         <select class="form-select" name="platform" id="platform">
           <option value="" {{ 'selected' if (form and form.platform=='') else '' }}>Select…</option>
@@ -402,36 +428,36 @@
           <option {{ 'selected' if (form and form.platform=='Other') else '' }}>Other</option>
         </select>
       </div>
+    </div>
 
+    <div class="row g-3">
       <div class="col-md-4">
-        <label class="form-label">General Compute Cluster?</label>
-        <input type="checkbox" class="form-check-input" id="general_compute_cluster" name="general_compute_cluster"
-               {% if form and form.general_compute_cluster %}checked{% endif %}>
-      </div>
-
-      <div class="col-md-3">
         <label class="form-label">{{ req('Host CPU cores') }}</label>
-        <input type="number" class="form-control" id="host_cpu_cores" name="host_cpu_cores" min="1" required aria-required="true" value="{{ (form.host_cpu_cores if form else '') }}" placeholder="e.g., 64">
+        <input type="number" class="form-control" id="host_cpu_cores" name="host_cpu_cores" min="1" required aria-required="true" value="{{ (form.host_cpu_cores if form else '') }}">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-4">
         <label class="form-label">{{ req('Host RAM (GB)') }}</label>
-        <input type="number" class="form-control" id="host_ram_gb" name="host_ram_gb" min="1" required aria-required="true" value="{{ (form.host_ram_gb if form else '') }}" placeholder="e.g., 512">
+        <input type="number" class="form-control" id="host_ram_gb" name="host_ram_gb" min="1" required aria-required="true" value="{{ (form.host_ram_gb if form else '') }}">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-4">
         <label class="form-label"># of hosts (cluster)</label>
-        <input type="number" class="form-control" name="hosts_count" min="1" value="{{ (form.hosts_count if form else '') }}" placeholder="e.g., 6">
+        <input type="number" class="form-control" name="hosts_count" min="1" value="{{ (form.hosts_count if form else '') }}">
       </div>
+    </div>
 
-      <div class="col-md-3">
+    <div class="row g-3">
+      <div class="col-md-6">
         <label class="form-label">{{ req('VM vCPU') }}</label>
-        <input type="number" class="form-control" id="vm_vcpu" name="vm_vcpu" min="1" value="{{ (form.vm_vcpu if form else '2') }}" required aria-required="true" placeholder="e.g., 2">
+        <input type="number" class="form-control" id="vm_vcpu" name="vm_vcpu" min="1" value="{{ (form.vm_vcpu if form else '4') }}" required aria-required="true" placeholder="4">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-6">
         <label class="form-label">{{ req('VM RAM (GB)') }}</label>
-        <input type="number" class="form-control" id="vm_ram_gb" name="vm_ram_gb" min="1" value="{{ (form.vm_ram_gb if form else '8') }}" required aria-required="true" placeholder="e.g., 8">
+        <input type="number" class="form-control" id="vm_ram_gb" name="vm_ram_gb" min="1" value="{{ (form.vm_ram_gb if form else '16') }}" required aria-required="true" placeholder="16">
       </div>
+    </div>
 
-      <div class="col-md-3">
+    <div class="row g-3">
+      <div class="col-md-6">
         <label class="form-label">vCPU : pCPU ratio</label>
         <select class="form-select" id="vcpu_to_pcpu" name="vcpu_to_pcpu" aria-label="vCPU to pCPU ratio">
           <option value="4" {{ 'selected' if (not form or form.vcpu_to_pcpu=='4') else '' }}>1:4</option>
@@ -439,8 +465,14 @@
           <option value="6" {{ 'selected' if (form and form.vcpu_to_pcpu=='6') else '' }}>1:6</option>
         </select>
       </div>
+      <div class="col-md-6">
+        <label class="form-label">Users per host (est.)</label>
+        <div class="form-control-plaintext fw-bold" id="per_host_density">—</div>
+      </div>
+    </div>
 
-      <div class="col-md-3">
+    <div class="row g-3">
+      <div class="col-12">
         <label class="form-label">Storage type</label>
         <select class="form-select" name="storage_type" id="storage_type" aria-label="Storage type">
           <option value="" {{ 'selected' if (form and form.storage_type=='') else '' }}>Select…</option>
@@ -449,80 +481,24 @@
           <option {{ 'selected' if (form and form.storage_type=='Other') else '' }}>Other</option>
         </select>
       </div>
+    </div>
 
-      <div class="col-md-3 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
-        <label class="form-label">Base image size (GB)</label>
-        <input type="number" class="form-control" id="base_image_gb" name="base_image_gb" value="{{ (form.base_image_gb if form else '40') }}" min="1" placeholder="e.g., 40">
+    <!-- New: Only show when "Other" is selected -->
+    <div class="row g-3" id="storage_type_other_wrap" style="display:{% if form and form.storage_type=='Other' %}block{% else %}none{% endif %};">
+      <div class="col-md-6">
+        <label class="form-label" for="storage_type_other">If Other, specify</label>
+        <input class="form-control" id="storage_type_other" name="storage_type_other"
+               value="{{ (form.storage_type_other if form else '') }}" placeholder="Storage platform / protocol">
       </div>
-      <div class="col-md-3 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
-        <label class="form-label">vSAN policy factor</label>
-        <select class="form-select" id="vsan_policy_factor" name="vsan_policy_factor">
-          <option value="2.0"  {{ 'selected' if (not form or form.vsan_policy_factor=='2.0') else '' }}>FTT1 RAID1 (≈2.0x)</option>
-          <option value="1.33" {{ 'selected' if (form and form.vsan_policy_factor=='1.33') else '' }}>FTT1 RAID5 (≈1.33x)</option>
-          <option value="3.0"  {{ 'selected' if (form and form.vsan_policy_factor=='3.0') else '' }}>FTT2 RAID1 (≈3.0x)</option>
-        </select>
-      </div>
+    </div>
 
-      <div class="col-12 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
-        <details>
-          <summary>Advanced vSAN & density tunables</summary>
-          <div class="row g-3 mt-2">
-            <div class="col-md-3">
-              <label class="form-label">IC delta per user (GB)</label>
-              <input type="number" class="form-control" id="delta_gb" name="delta_gb" value="{{ (form.delta_gb if form else '6') }}" placeholder="e.g., 6">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Per-VM overhead (GB)</label>
-              <input type="number" class="form-control" id="per_vm_overhead_gb" name="per_vm_overhead_gb" value="{{ (form.per_vm_overhead_gb if form else '1') }}" placeholder="e.g., 1">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Growth/cushion factor</label>
-              <input type="number" step="0.01" class="form-control" id="growth_factor" name="growth_factor" value="{{ (form.growth_factor if form else '1.10') }}" placeholder="e.g., 1.10">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Mem headroom (%)</label>
-              <input type="number" class="form-control" id="mem_headroom_pct" name="mem_headroom_pct" value="{{ (form.mem_headroom_pct if form else '0.20') }}" step="0.01" placeholder="e.g., 0.20">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">ESXi overhead (GB)</label>
-              <input type="number" class="form-control" id="esxi_overhead_gb" name="esxi_overhead_gb" value="{{ (form.esxi_overhead_gb if form else '8') }}" placeholder="e.g., 8">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">GPU sessions cap (per host)</label>
-              <input type="number" class="form-control" id="gpu_sessions_cap" name="gpu_sessions_cap" value="{{ (form.gpu_sessions_cap if form else '0') }}" min="0" placeholder="e.g., 0">
-            </div>
-          </div>
-        </details>
-      </div>
-
-      <div class="col-md-4 vsan-only" style="display:{% if form and form.storage_type=='vSAN' %}block{% else %}none{% endif %};">
-        <label class="form-label">vSAN capacity for Instant Clones (GB)</label>
-        <div class="form-control-plaintext fw-bold" id="vsan_total_gb">—</div>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Users per host (est.)</label>
-        <div class="form-control-plaintext fw-bold" id="per_host_density">—</div>
-      </div>
-
-      <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
-        <label class="form-label">Storage vendor/model</label>
-        <input class="form-control" name="storage_vendor_model" value="{{ (form.storage_vendor_model if form else '') }}" placeholder="e.g., Pure X50R3">
-      </div>
-      <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
-        <label class="form-label">Protocol</label>
-        <input class="form-control" name="storage_protocol" value="{{ (form.storage_protocol if form else '') }}" placeholder="NFS / iSCSI / FC">
-      </div>
-      <div class="col-md-4 non-vsan-only" style="display:{% if form and form.storage_type and form.storage_type!='vSAN' %}block{% else %}none{% endif %};">
-        <label class="form-label">Usable capacity (GB)</label>
-        <input type="number" class="form-control" name="storage_usable_gb" min="1" value="{{ (form.storage_usable_gb if form else '') }}" placeholder="e.g., 100000">
-      </div>
-
-      <div class="col-md-4">
+    <div class="row g-3">
+      <div class="col-12">
         <label class="form-label">Load balancer</label>
         <select class="form-select" name="load_balancer" id="load_balancer">
           <option value="">Select…</option>
           <option {% if form and form.load_balancer=='F5 BIG-IP' %}selected{% endif %}>F5 BIG-IP</option>
-          <option {% if form and form.load_balancer=='NSX Advanced Load Balancer (Avi)' %}selected{% endif %}>NSX Advanced Load Balancer (Avi)</option>
+          <option {% if form and form.load_balancer=='VMware Avi Load Balancer (Avi)' %}selected{% endif %}>VMware Avi Load Balancer (Avi)</option>
           <option {% if form and form.load_balancer=='Citrix ADC (NetScaler)' %}selected{% endif %}>Citrix ADC (NetScaler)</option>
           <option {% if form and form.load_balancer=='NGINX' %}selected{% endif %}>NGINX</option>
           <option {% if form and form.load_balancer=='HAProxy' %}selected{% endif %}>HAProxy</option>
@@ -595,7 +571,7 @@
       <div class="col-md-4">
         <label class="form-label">Typical onboarding time (per user)</label>
         <input class="form-control" name="onboarding_time_per_user"
-               placeholder="e.g., 30 minutes"
+               placeholder="30 minutes"
                value="{{ (form.onboarding_time_per_user if form else '') }}">
       </div>
     </div>
@@ -668,7 +644,7 @@
 </form>
 
 <div style="position: fixed; right: 10px; bottom: 8px; font-size: 12px; color: #6c757d;">
-  Form v1.8.1b
+  Form v1.2.3
 </div>
 
 <script>
@@ -722,6 +698,13 @@
     const t = el("storage_type")?.value || "";
     document.querySelectorAll(".vsan-only").forEach(x => x.style.display = (t === "vSAN" ? "" : "none"));
     document.querySelectorAll(".non-vsan-only").forEach(x => x.style.display = (t && t !== "vSAN" ? "" : "none"));
+  }
+
+  // Show "Other" storage text field only when selected
+  function toggleStorageOther(){
+    const t = el("storage_type")?.value || "";
+    const wrap = el("storage_type_other_wrap");
+    if (wrap) wrap.style.display = (t === "Other") ? "" : "none";
   }
 
   function computeVSAN(){
@@ -819,6 +802,7 @@
     toggleExistingVDI();
     toggleRequiredApps();
     toggleStorageGroups();
+    toggleStorageOther(); // ensure "Other" field hides/shows
     toggleMFA();
     toggleGPU();
     computeVSAN();
@@ -827,6 +811,7 @@
 
   function attach(){
     watched.forEach(id => el(id)?.addEventListener("input", recalc));
+    document.getElementById("storage_type")?.addEventListener("change", recalc);
     document.querySelectorAll('input[name="existing_vdi"]').forEach(r => r.addEventListener("change", toggleExistingVDI));
     document.querySelectorAll('input[name="mfa_required"]').forEach(r => r.addEventListener("change", toggleMFA));
     document.querySelectorAll('input[name="gpu_required"]').forEach(r => r.addEventListener("change", toggleGPU));
@@ -890,4 +875,3 @@
 </script>
 
 {% endblock %}
-

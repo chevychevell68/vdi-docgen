@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}History
+{% block title %}History{% endblock %}
+{% block head %}
 <script>
 (function(){
   var table = document.getElementById('histTable') || document.querySelector('table');
@@ -64,8 +65,8 @@
   }
 })();
 </script>
-
 {% endblock %}
+
 {% block content %}
 
 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -103,26 +104,64 @@
 </div>
 
 <div class="table-responsive">
-  <table id="histTable" class="table table-striped table-hover align-middle">
-    <thead class="table-light">
-      <tr>
-        <th role="button" data-col="company" aria-sort="none">Company</th>
-        <th role="button" data-col="project" aria-sort="none">Project</th>
-        <th data-key="status" role="button" aria-sort="none">Status</th>
-<th role="button" data-col="submitted" aria-sort="descending">Submitted</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in rows %}
-        {% set href = url_for('presales_view', submit_id=r.id) %}
-        <tr>
-          <td data-key="company"><a href="{{ href }}">{{ r.company_name or '—' }}</a></td>
-          <td data-key="project"><a href="{{ href }}">{{ r.project_name or '—' }}</a></td>
-          <td data-key="status">{{ r.status or "" }}</td><td data-key="submitted"><a href="{{ href }}">{{ r.submitted_at or '' }}</a></td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <table id="histTable" class="table table-sm table-hover align-middle" style="font-size: 0.9rem;">
+  <thead class="table-light">
+    <tr>
+      <th role="button" data-key="company">Company</th>
+      <th role="button" data-key="project">Project</th>
+      <th role="button" data-key="sales_pnl">P&amp;L</th>
+      <th role="button" data-key="da_probability">DA Probability (%)</th>
+      <th role="button" data-key="estimated_close_date">Close date</th>
+      <th data-key="status" role="button">Status</th>
+      <th role="button" data-key="submitted">Submitted</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    {% set href = url_for('presales_view', submit_id=r.id) %}
+    <tr>
+      <td data-key="company"><a class="text-truncate d-inline-block" style="max-width: 220px;" title="{{ r.company_name }}" href="{{ href }}">{{ r.company_name or '—' }}</a></td>
+      <td data-key="project"><a class="text-truncate d-inline-block" style="max-width: 220px;" title="{{ r.project_name }}" href="{{ href }}">{{ r.project_name or '—' }}</a></td>
+      <td data-key="sales_pnl"><span class="text-truncate d-inline-block" style="max-width: 120px;" title="{{ r.sales_pnl }}">{{ r.sales_pnl or '' }}</span></td>
+      <td data-key="da_probability">{{ r.da_probability or '' }}</td>
+      <td data-key="estimated_close_date">{{ r.estimated_close_date or '' }}</td>
+      <td data-key="status">{{ r.status or '' }}</td>
+      <td data-key="submitted"><a href="{{ href }}">{{ (r.submitted_at or '')[:10] }}</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<script>
+(function(){
+  var table = document.getElementById('histTable');
+  if (!table) return;
+  var tbody = table.tBodies[0];
+  function keyText(row, key){
+    var cell = row.querySelector('[data-key="'+key+'"]');
+    return (cell && cell.textContent || '').trim();
+  }
+  var state = {key:null, asc:true};
+  table.querySelectorAll('thead th[data-key]').forEach(function(th){
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', function(){
+      var key = th.getAttribute('data-key');
+      var asc = (state.key===key) ? !state.asc : true;
+      var rows = Array.prototype.slice.call(tbody.rows);
+      rows.sort(function(a,b){
+        var A = keyText(a,key), B = keyText(b,key);
+        var nA = parseFloat(A), nB = parseFloat(B);
+        if (!isNaN(nA) && !isNaN(nB)) return asc ? (nA-nB) : (nB-nA);
+        var dateRe = /^\d{4}-\d{2}-\d{2}$/;
+        if (dateRe.test(A) && dateRe.test(B)) return asc ? A.localeCompare(B) : B.localeCompare(A);
+        return asc ? A.localeCompare(B) : B.localeCompare(A);
+      });
+      rows.forEach(function(r){ tbody.appendChild(r); });
+      state = {key:key, asc:asc};
+    });
+  });
+})();
+</script>
+
 </div>
 
 <script>
@@ -186,7 +225,7 @@
       }
       th.setAttribute('aria-sort', nextAsc ? 'ascending' : 'descending');
       clearAriaSortExcept(th);
-      sortBy(th.dataset.col, nextAsc);
+      sortBy(th.dataset.col || th.dataset.key, nextAsc); // prefer data-key
     });
   });
 

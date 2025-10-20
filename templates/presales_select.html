@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Presales — Choose Flow{% endblock %}
+{% block content %}
+  <div class="mb-4">
+    <h1 class="mb-3">Presales</h1>
+    <p class="text-muted">Pick a flow to begin.</p>
+  </div>
+  <div class="list-group" style="max-width: 640px;">
+    <a class="list-group-item list-group-item-action py-3" href="{{ url_for('presales_impl') }}">VDI Implementation</a>
+    <a class="list-group-item list-group-item-action py-3 disabled" href="#" aria-disabled="true">VDI Assessment (coming soon)</a>
+    <a class="list-group-item list-group-item-action py-3 disabled" href="#" aria-disabled="true">MDM Implementation (coming soon)</a>
+    <a class="list-group-item list-group-item-action py-3 disabled" href="#" aria-disabled="true">MDM Assessment (coming soon)</a>
+  </div>
+{% endblock %}
